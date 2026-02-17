@@ -6,7 +6,7 @@ import { generations, mediaItems } from '../../database/schema'
 
 const generateSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required').max(2000),
-  count: z.number().int().min(1).max(16).default(4),
+  count: z.number().int().min(1).max(16).default(1),
 })
 
 export default defineEventHandler(async (event) => {
@@ -51,10 +51,12 @@ export default defineEventHandler(async (event) => {
   try {
     const result = await generateImages(prompt, count)
 
-    // Update media items with URLs
-    for (let i = 0; i < result.urls.length && i < itemIds.length; i++) {
+    // Update media items with image data
+    for (let i = 0; i < result.images.length && i < itemIds.length; i++) {
+      const img = result.images[i]!
+      const url = `data:image/png;base64,${img.data}`
       await db.update(mediaItems)
-        .set({ url: result.urls[i], status: 'complete' })
+        .set({ url, status: 'complete' })
         .where(eq(mediaItems.id, itemIds[i]!))
     }
 

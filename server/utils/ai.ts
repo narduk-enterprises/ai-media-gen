@@ -1,160 +1,205 @@
 /**
- * AI Provider abstraction layer.
+ * AI Provider — RunPod Serverless Integration.
  *
- * Currently uses placeholder/mock responses.
- * Swap to RunPod, Replicate, Fal.ai, etc. by replacing the implementations.
+ * Calls the gpu-by-the-hour RunPod serverless endpoint which runs ComfyUI
+ * with FLUX.1 Dev (text2image) and Wan 2.2 (text2video / image2video).
+ *
+ * Required env vars:
+ *   NUXT_AI_API_KEY  — RunPod API key
+ *   NUXT_AI_API_URL  — RunPod endpoint URL (https://api.runpod.ai/v2/<endpoint_id>)
  */
 
+interface RunPodResponse {
+  id: string
+  status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'TIMED_OUT'
+  output?: Record<string, any>
+  error?: string
+}
+
 interface GenerateImagesResult {
-  urls: string[]
-  jobId?: string
+  images: { data: string; filename: string }[]  // base64 encoded
 }
 
 interface GenerateVideoResult {
-  url?: string
-  jobId?: string
+  data?: string       // base64 encoded video
+  filename?: string
   status: 'processing' | 'complete' | 'failed'
-}
-
-interface GenerateAudioResult {
-  url?: string
-  jobId?: string
-  status: 'processing' | 'complete' | 'failed'
+  error?: string
 }
 
 /**
- * Generate images from a text prompt.
- * Returns placeholder URLs — replace with real API calls.
+ * Call RunPod serverless endpoint (synchronous).
+ * Uses /runsync for immediate results (up to 120s timeout).
+ */
+async function callRunPod(input: Record<string, any>): Promise<RunPodResponse> {
+  const config = useRuntimeConfig()
+  const apiKey = config.aiApiKey
+  const apiUrl = config.aiApiUrl
+
+  if (!apiKey || !apiUrl) {
+    throw createError({
+      statusCode: 503,
+      message: 'AI service not configured. Set AI_API_KEY and AI_API_URL.',
+    })
+  }
+
+  const response = await $fetch<RunPodResponse>(`${apiUrl}/runsync`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: { input },
+    timeout: 180_000, // 3 min — generation can be slow on cold starts
+  })
+
+  if (response.status === 'FAILED' || response.error) {
+    throw createError({
+      statusCode: 502,
+      message: `AI generation failed: ${response.error || 'Unknown error'}`,
+    })
+  }
+
+  return response
+}
+
+/**
+ * Call RunPod serverless endpoint (async — for long jobs like video).
+ * Returns job ID for polling.
+ */
+async function callRunPodAsync(input: Record<string, any>): Promise<{ jobId: string }> {
+  const config = useRuntimeConfig()
+  const apiKey = config.aiApiKey
+  const apiUrl = config.aiApiUrl
+
+  if (!apiKey || !apiUrl) {
+    throw createError({
+      statusCode: 503,
+      message: 'AI service not configured. Set AI_API_KEY and AI_API_URL.',
+    })
+  }
+
+  const response = await $fetch<{ id: string; status: string }>(`${apiUrl}/run`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: { input },
+  })
+
+  return { jobId: response.id }
+}
+
+/**
+ * Poll RunPod job status until complete.
+ */
+async function pollRunPodJob(jobId: string, maxWaitMs = 300_000): Promise<RunPodResponse> {
+  const config = useRuntimeConfig()
+  const apiKey = config.aiApiKey
+  const apiUrl = config.aiApiUrl
+
+  const start = Date.now()
+  while (Date.now() - start < maxWaitMs) {
+    const response = await $fetch<RunPodResponse>(`${apiUrl}/status/${jobId}`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+    })
+
+    if (response.status === 'COMPLETED') return response
+    if (response.status === 'FAILED' || response.status === 'CANCELLED' || response.status === 'TIMED_OUT') {
+      throw createError({
+        statusCode: 502,
+        message: `AI generation ${response.status.toLowerCase()}: ${response.error || 'Unknown error'}`,
+      })
+    }
+
+    // Still processing — wait before polling again
+    await new Promise(resolve => setTimeout(resolve, 3000))
+  }
+
+  throw createError({ statusCode: 504, message: 'AI generation timed out' })
+}
+
+/**
+ * Generate images from a text prompt via FLUX.1 Dev on RunPod.
  */
 export async function generateImages(prompt: string, count: number): Promise<GenerateImagesResult> {
-  const config = useRuntimeConfig()
-  const apiKey = config.aiApiKey
-  const apiUrl = config.aiApiUrl
+  // RunPod handler generates one image per call, so loop for multiple
+  const images: { data: string; filename: string }[] = []
 
-  // ── Real API integration point ──
-  // If you have a RunPod/Replicate/Fal endpoint configured, use it:
-  if (apiKey && apiUrl) {
-    try {
-      const response = await $fetch<{ output: { images: string[] } }>(apiUrl + '/txt2img', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: {
-          input: {
-            prompt,
-            num_images: count,
-            width: 1024,
-            height: 1024,
-          },
-        },
-      })
-      return { urls: response.output.images }
-    } catch (error: any) {
-      console.error('[AI] Image generation failed:', error.message)
-      throw createError({ statusCode: 502, message: 'AI image generation failed' })
-    }
-  }
-
-  // ── Mock mode: return placeholder images ──
-  const urls: string[] = []
-  const seed = hashCode(prompt)
   for (let i = 0; i < count; i++) {
-    // High-quality placeholder images from picsum
-    urls.push(`https://picsum.photos/seed/${seed + i}/1024/1024`)
-  }
-  return { urls }
-}
-
-/**
- * Generate video from an image URL.
- */
-export async function generateVideo(imageUrl: string): Promise<GenerateVideoResult> {
-  const config = useRuntimeConfig()
-  const apiKey = config.aiApiKey
-  const apiUrl = config.aiApiUrl
-
-  if (apiKey && apiUrl) {
     try {
-      const response = await $fetch<{ output: { video: string }; status: string }>(apiUrl + '/img2vid', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: {
-          input: {
-            image_url: imageUrl,
-            duration: 4,
-          },
-        },
+      const response = await callRunPod({
+        action: 'text2image',
+        prompt,
+        width: 1024,
+        height: 1024,
+        steps: 20,
       })
-      return {
-        url: response.output?.video,
-        status: response.status === 'COMPLETED' ? 'complete' : 'processing',
+
+      if (response.output?.output) {
+        images.push({
+          data: response.output.output.data,
+          filename: response.output.output.filename || `image_${i}.png`,
+        })
       }
     } catch (error: any) {
-      console.error('[AI] Video generation failed:', error.message)
-      return { status: 'failed' }
+      console.error(`[AI] Image ${i + 1}/${count} failed:`, error.message)
+      // Continue generating remaining images if one fails
     }
   }
 
-  // Mock mode: return a sample video
-  return {
-    url: 'https://www.w3schools.com/html/mov_bbb.mp4',
-    status: 'complete',
+  if (images.length === 0) {
+    throw createError({ statusCode: 502, message: 'All image generations failed' })
   }
+
+  return { images }
 }
 
 /**
- * Generate audio (music/sound) for a video or image.
+ * Generate video from text or image via Wan 2.2 on RunPod.
  */
-export async function generateAudio(prompt?: string, sourceUrl?: string): Promise<GenerateAudioResult> {
-  const config = useRuntimeConfig()
-  const apiKey = config.aiApiKey
-  const apiUrl = config.aiApiUrl
+export async function generateVideo(
+  prompt: string,
+  options?: { imageBase64?: string; width?: number; height?: number }
+): Promise<GenerateVideoResult> {
+  const action = options?.imageBase64 ? 'image2video' : 'text2video'
 
-  if (apiKey && apiUrl) {
-    try {
-      const response = await $fetch<{ output: { audio: string }; status: string }>(apiUrl + '/audio', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: {
-          input: {
-            prompt: prompt || 'cinematic background music',
-            source_url: sourceUrl,
-            duration: 10,
-          },
-        },
-      })
-      return {
-        url: response.output?.audio,
-        status: response.status === 'COMPLETED' ? 'complete' : 'processing',
-      }
-    } catch (error: any) {
-      console.error('[AI] Audio generation failed:', error.message)
-      return { status: 'failed' }
+  const input: Record<string, any> = {
+    action,
+    prompt,
+    width: options?.width || (action === 'text2video' ? 640 : 720),
+    height: options?.height || (action === 'text2video' ? 640 : 480),
+    num_frames: 81,
+    steps: action === 'text2video' ? 4 : 20,
+  }
+
+  if (options?.imageBase64) {
+    input.image = options.imageBase64
+  }
+
+  // Use async + polling for video (can take >120s)
+  const { jobId } = await callRunPodAsync(input)
+  const response = await pollRunPodJob(jobId)
+
+  if (response.output?.output) {
+    return {
+      data: response.output.output.data,
+      filename: response.output.output.filename || 'video.mp4',
+      status: 'complete',
     }
   }
 
-  // Mock mode
-  return {
-    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-    status: 'complete',
-  }
+  return { status: 'failed', error: 'No output returned' }
 }
 
-// Simple hash for deterministic placeholder seeds
-function hashCode(str: string): number {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash
-  }
-  return Math.abs(hash)
+/**
+ * Generate audio is not yet supported by the RunPod handler.
+ * Placeholder for future implementation.
+ */
+export async function generateAudio(_prompt?: string, _sourceUrl?: string): Promise<GenerateVideoResult> {
+  throw createError({
+    statusCode: 501,
+    message: 'Audio generation is not yet available',
+  })
 }
