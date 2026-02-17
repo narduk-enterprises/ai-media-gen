@@ -3,6 +3,7 @@ definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Create' })
 
 const prompt = ref('')
+const negativePrompt = ref('ugly, deformed, noisy, blurry, distorted, grainy, low quality, low resolution, watermark, text, signature, out of frame, poorly drawn, bad anatomy, extra limbs, mutation, disfigured, duplicate, cropped, username, error, jpeg artifacts')
 const imageCount = ref(1)
 const steps = ref(20)
 const imageWidth = ref(1024)
@@ -10,6 +11,7 @@ const imageHeight = ref(1024)
 const generating = ref(false)
 const error = ref('')
 const selectedImage = ref<MediaItemResult | null>(null)
+const showAdvanced = ref(false)
 
 interface MediaItemResult {
   id: string
@@ -66,7 +68,7 @@ async function generate() {
   try {
     const result = await $fetch<GenerationResult>('/api/generate/image', {
       method: 'POST',
-      body: { prompt: prompt.value, count: imageCount.value, steps: steps.value, width: imageWidth.value, height: imageHeight.value },
+      body: { prompt: prompt.value, negativePrompt: negativePrompt.value, count: imageCount.value, steps: steps.value, width: imageWidth.value, height: imageHeight.value },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
     currentGeneration.value = result
@@ -152,6 +154,28 @@ const gridClass = computed(() => {
           :disabled="generating"
           @keydown="handleKeydown"
         />
+
+        <!-- Negative prompt (collapsible) -->
+        <div class="mt-3">
+          <button
+            class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+            @click="showAdvanced = !showAdvanced"
+          >
+            <UIcon
+              :name="showAdvanced ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'"
+              class="w-3 h-3"
+            />
+            Negative prompt
+          </button>
+          <div v-if="showAdvanced" class="mt-2">
+            <textarea
+              v-model="negativePrompt"
+              placeholder="Things to avoid in the generation..."
+              class="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder-zinc-600 resize-none focus:outline-none focus:ring-1 focus:ring-violet-500/30 min-h-[60px]"
+              :disabled="generating"
+            />
+          </div>
+        </div>
 
         <div class="flex items-center justify-between mt-4 pt-4 border-t border-zinc-800/50">
           <!-- Image count selector -->

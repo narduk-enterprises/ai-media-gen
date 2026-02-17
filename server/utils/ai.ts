@@ -126,13 +126,14 @@ async function pollRunPodJob(jobId: string, maxWaitMs = 300_000): Promise<RunPod
 export async function generateImages(
   prompt: string,
   count: number,
-  options?: { steps?: number; width?: number; height?: number },
+  options?: { negativePrompt?: string; steps?: number; width?: number; height?: number },
 ): Promise<GenerateImagesResult> {
   // Fire all requests in parallel — each hits a separate serverless worker
   const promises = Array.from({ length: count }, (_, i) =>
     callRunPod({
       action: 'text2image',
       prompt,
+      negative_prompt: options?.negativePrompt || '',
       width: options?.width || 1024,
       height: options?.height || 1024,
       steps: options?.steps || 20,
