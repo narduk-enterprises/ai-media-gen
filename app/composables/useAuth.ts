@@ -40,6 +40,7 @@ export function useAuth() {
   async function login(email: string, password: string) {
     const res = await $fetch<{ user: AuthUser }>('/api/auth/login', {
       method: 'POST',
+      headers: { 'X-Requested-With': 'fetch' },
       body: { email, password },
     })
     user.value = res.user
@@ -49,6 +50,7 @@ export function useAuth() {
   async function signup(email: string, password: string, name?: string) {
     const res = await $fetch<{ user: AuthUser }>('/api/auth/signup', {
       method: 'POST',
+      headers: { 'X-Requested-With': 'fetch' },
       body: { email, password, name },
     })
     user.value = res.user
@@ -56,7 +58,7 @@ export function useAuth() {
   }
 
   async function logout() {
-    await $fetch('/api/auth/logout', { method: 'POST' })
+    await $fetch('/api/auth/logout', { method: 'POST', headers: { 'X-Requested-With': 'fetch' } })
     user.value = null
   }
 
