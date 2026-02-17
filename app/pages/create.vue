@@ -13,6 +13,16 @@ const error = ref('')
 const selectedImage = ref<MediaItemResult | null>(null)
 const showAdvanced = ref(false)
 const enhancing = ref(false)
+const genMode = ref<'image' | 'video'>('image')
+const videoDuration = ref(81) // frames: 81≈3s, 121≈5s, 161≈7s
+const videoItem = ref<MediaItemResult | null>(null)
+const videoPolling = ref(false)
+
+const durationOptions = [
+  { label: '3s', value: 81 },
+  { label: '5s', value: 121 },
+  { label: '7s', value: 161 },
+]
 
 interface MediaItemResult {
   id: string
@@ -62,6 +72,7 @@ const childMedia = computed(() => {
 
 async function generate() {
   if (!prompt.value.trim()) return
+  if (genMode.value === 'video') return generateT2V()
   generating.value = true
   error.value = ''
   currentGeneration.value = null
@@ -78,6 +89,51 @@ async function generate() {
   } finally {
     generating.value = false
   }
+}
+
+async function generateT2V() {
+  generating.value = true
+  error.value = ''
+  currentGeneration.value = null
+  videoItem.value = null
+
+  try {
+    const result = await $fetch<{ generation: any; item: MediaItemResult }>('/api/generate/text2video', {
+      method: 'POST',
+      body: { prompt: prompt.value, width: 640, height: 640, numFrames: videoDuration.value, steps: 4 },
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    videoItem.value = result.item
+    // Poll for completion
+    videoPolling.value = true
+    pollVideoStatus(result.item.id)
+  } catch (e: any) {
+    error.value = e.data?.message || e.message || 'Video generation failed'
+    generating.value = false
+  }
+}
+
+async function pollVideoStatus(itemId: string) {
+  const maxAttempts = 120 // 10 min
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 5000))
+    try {
+      const result = await $fetch<{ item: MediaItemResult }>(`/api/generate/status/${itemId}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+      videoItem.value = result.item
+      if (result.item.status === 'complete' || result.item.status === 'failed') {
+        generating.value = false
+        videoPolling.value = false
+        return
+      }
+    } catch {
+      // continue polling
+    }
+  }
+  generating.value = false
+  videoPolling.value = false
+  error.value = 'Video generation timed out'
 }
 
 async function enhancePrompt() {
@@ -195,9 +251,32 @@ const gridClass = computed(() => {
           </div>
         </div>
 
-        <div class="flex items-center justify-between mt-4 pt-4 border-t border-zinc-800/50">
-          <!-- Image count selector -->
-          <div class="flex items-center gap-2">
+        <!-- Mode toggle -->
+        <div class="flex items-center gap-2 mt-4 pt-4 border-t border-zinc-800/50">
+          <span class="text-xs text-zinc-500 mr-1">Mode:</span>
+          <button
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+            :class="genMode === 'image'
+              ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30 shadow-sm shadow-violet-500/10'
+              : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'"
+            @click="genMode = 'image'"
+          >
+            🖼️ Image
+          </button>
+          <button
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+            :class="genMode === 'video'
+              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
+              : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'"
+            @click="genMode = 'video'"
+          >
+            🎬 Video
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between mt-3">
+          <!-- Image count selector (image mode) -->
+          <div v-if="genMode === 'image'" class="flex items-center gap-2">
             <span class="text-xs text-zinc-500 mr-1">Images:</span>
             <button
               v-for="count in countOptions"
@@ -212,6 +291,22 @@ const gridClass = computed(() => {
             </button>
           </div>
 
+          <!-- Duration selector (video mode) -->
+          <div v-else class="flex items-center gap-2">
+            <span class="text-xs text-zinc-500 mr-1">Duration:</span>
+            <button
+              v-for="dur in durationOptions"
+              :key="dur.value"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+              :class="videoDuration === dur.value
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
+                : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'"
+              @click="videoDuration = dur.value"
+            >
+              {{ dur.label }}
+            </button>
+          </div>
+
           <!-- Generate button -->
           <UButton
             :loading="generating"
@@ -220,9 +315,9 @@ const gridClass = computed(() => {
             size="lg"
           >
             <template #leading>
-              <UIcon name="i-heroicons-sparkles" />
+              <UIcon :name="genMode === 'image' ? 'i-heroicons-sparkles' : 'i-heroicons-play'" />
             </template>
-            Generate
+            {{ genMode === 'image' ? 'Generate' : 'Generate Video' }}
           </UButton>
         </div>
 
@@ -302,12 +397,51 @@ const gridClass = computed(() => {
 
     <!-- Loading state -->
     <div v-if="generating" class="mb-10">
-      <div :class="['grid gap-4', gridClass]">
+      <!-- Image loading -->
+      <div v-if="genMode === 'image'" :class="['grid gap-4', gridClass]">
         <div v-for="i in imageCount" :key="i" class="aspect-square rounded-xl shimmer" />
       </div>
+      <!-- Video loading -->
+      <div v-else class="max-w-lg mx-auto">
+        <div class="aspect-video rounded-xl shimmer" />
+      </div>
       <p class="text-center text-sm text-zinc-500 mt-4 animate-pulse">
-        Generating {{ imageCount }} image{{ imageCount > 1 ? 's' : '' }}...
+        {{ genMode === 'image'
+          ? `Generating ${imageCount} image${imageCount > 1 ? 's' : ''}...`
+          : `Generating video (${durationOptions.find(d => d.value === videoDuration)?.label || '3s'})... This may take a few minutes`
+        }}
       </p>
+    </div>
+
+    <!-- Video result -->
+    <div v-else-if="videoItem && videoItem.status === 'complete' && videoItem.url" class="max-w-lg mx-auto mb-10">
+      <div class="glass-card p-4 rounded-xl">
+        <video
+          :src="videoItem.url"
+          controls
+          autoplay
+          loop
+          class="w-full rounded-lg"
+        />
+        <div class="flex items-center justify-between mt-3">
+          <span class="text-xs text-zinc-500">🎬 Text-to-Video</span>
+          <a
+            :href="videoItem.url"
+            download="generated_video.mp4"
+            class="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+          >
+            Download ↓
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Video failed -->
+    <div v-else-if="videoItem && videoItem.status === 'failed'" class="max-w-lg mx-auto mb-10">
+      <div class="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-start gap-3">
+        <UIcon name="i-heroicons-exclamation-triangle" class="w-5 h-5 mt-0.5 shrink-0" />
+        Video generation failed
+      </div>
     </div>
 
     <!-- Results -->

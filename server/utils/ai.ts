@@ -203,6 +203,40 @@ export async function generateVideo(
 }
 
 /**
+ * Generate video directly from text prompt via Wan 2.2 text-to-video on RunPod.
+ * numFrames controls duration: 81 frames ≈ 3s, 121 ≈ 5s, 161 ≈ 7s at ~24fps
+ */
+export async function generateText2Video(
+  prompt: string,
+  options?: { width?: number; height?: number; numFrames?: number; steps?: number }
+): Promise<GenerateVideoResult> {
+  const input: Record<string, any> = {
+    action: 'text2video',
+    prompt,
+    width: options?.width || 640,
+    height: options?.height || 640,
+    num_frames: options?.numFrames || 81,
+    steps: options?.steps || 4,
+  }
+
+  console.log(`[AI] text2video — ${input.num_frames} frames, ${input.width}x${input.height}, ${input.steps} steps`)
+
+  const { jobId } = await callRunPodAsync(input)
+  const response = await pollRunPodJob(jobId)
+
+  if (response.output?.output) {
+    console.log(`[AI] text2video complete — filename: ${response.output.output.filename}`)
+    return {
+      data: response.output.output.data,
+      filename: response.output.output.filename || 'text2video.mp4',
+      status: 'complete',
+    }
+  }
+
+  return { status: 'failed', error: 'No output returned' }
+}
+
+/**
  * Generate video with audio from an image via Wan 2.2 + MMAudio on RunPod.
  */
 export async function generateVideoWithAudio(
