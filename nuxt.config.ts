@@ -34,25 +34,28 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    // Server-only Polymarket secrets
-    polymarketPrivateKey: process.env.POLYMARKET_PRIVATE_KEY || '',
-    polymarketApiKey: process.env.POLYMARKET_API_KEY || '',
-    polymarketSecret: process.env.POLYMARKET_SECRET || '',
-    polymarketPassphrase: process.env.POLYMARKET_PASSPHRASE || '',
-    polymarketProxyAddress: process.env.POLYMARKET_PROXY_ADDRESS || '',
+    // AI generation API (RunPod / Replicate / Fal.ai)
+    aiApiKey: process.env.AI_API_KEY || '',
+    aiApiUrl: process.env.AI_API_URL || '',
+
+    // Apple Sign-In
+    appleTeamId: process.env.APPLE_TEAM_ID || '',
+    appleClientId: process.env.APPLE_CLIENT_ID || '',
+    appleKeyId: process.env.APPLE_KEY_ID || '',
+    appleSecretKey: process.env.APPLE_SECRET_KEY || '',
 
     public: {
-      appUrl: process.env.SITE_URL || 'https://polymarket-arb.pages.dev',
+      appUrl: process.env.SITE_URL || 'http://localhost:3000',
       posthogPublicKey: process.env.POSTHOG_PUBLIC_KEY || '',
       posthogHost: process.env.POSTHOG_HOST || 'https://us.i.posthog.com',
       gaMeasurementId: process.env.GA_MEASUREMENT_ID || '',
-      appName: process.env.APP_NAME || pkg.name || ''
+      appName: process.env.APP_NAME || pkg.name || 'AI Media Gen'
     }
   },
 
   site: {
-    url: 'https://polymarket-arb.pages.dev',
-    name: 'Polymarket Arb'
+    url: process.env.SITE_URL || 'http://localhost:3000',
+    name: 'AI Media Gen'
   },
 
   sitemap: {
@@ -64,13 +67,26 @@ export default defineNuxtConfig({
   },
 
   nitro: {
-    preset: 'cloudflare-pages',
+    preset: 'cloudflare_module',
+    cloudflare: {
+      deployConfig: true,
+      nodeCompat: true,
+      wrangler: {
+        name: 'ai-media-gen',
+        d1_databases: [
+          {
+            binding: 'DB',
+            database_name: 'ai-media-gen-db',
+            database_id: '9a1de542-1861-4a4c-a456-7367915c2dee'
+          }
+        ]
+      }
+    },
     esbuild: {
       options: {
         target: 'esnext'
       }
     },
-    // Inline drizzle-orm so it's bundled into the worker (not treated as external)
     externals: {
       inline: ['drizzle-orm']
     }
@@ -78,25 +94,20 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: 'Polymarket Arb — Prediction Market Arbitrage Tracker',
+      title: 'AI Media Gen — Create Images, Videos & Audio with AI',
       htmlAttrs: { lang: 'en' },
       meta: [
-        { name: 'description', content: 'Automated prediction market arbitrage scanner for Polymarket. Detects pricing inefficiencies, tracks opportunities, and monitors trades in real time.' },
-        { name: 'keywords', content: 'polymarket, arbitrage, prediction markets, trading bot, arb scanner' },
-        { property: 'og:title', content: 'Polymarket Arb — Prediction Market Arbitrage Tracker' },
-        { property: 'og:description', content: 'Automated prediction market arbitrage scanner. Detects pricing inefficiencies in real time.' },
+        { name: 'description', content: 'Generate stunning AI images, videos, and audio. Type a prompt, get results instantly. Powered by cutting-edge generative AI.' },
+        { name: 'keywords', content: 'ai image generator, text to image, image to video, ai art, generative ai' },
+        { property: 'og:title', content: 'AI Media Gen — Create Images, Videos & Audio with AI' },
+        { property: 'og:description', content: 'Generate stunning AI images, videos, and audio. Type a prompt, get results instantly.' },
         { property: 'og:type', content: 'website' },
-        { property: 'og:url', content: 'https://polymarket-arb.pages.dev' },
-        { property: 'og:site_name', content: 'Polymarket Arb' },
+        { property: 'og:site_name', content: 'AI Media Gen' },
         { name: 'twitter:card', content: 'summary_large_image' },
-        { name: 'twitter:title', content: 'Polymarket Arb — Prediction Market Arbitrage Tracker' },
-        { name: 'twitter:description', content: 'Automated prediction market arbitrage scanner. Detects pricing inefficiencies in real time.' },
-        { name: 'theme-color', content: '#0a0f1a' },
-        { name: 'google-site-verification', content: '' }
+        { name: 'twitter:title', content: 'AI Media Gen — Create Images, Videos & Audio with AI' },
+        { name: 'twitter:description', content: 'Generate stunning AI images, videos, and audio. Type a prompt, get results instantly.' },
+        { name: 'theme-color', content: '#0c0a1a' },
       ],
-      link: [
-        { rel: 'canonical', href: 'https://polymarket-arb.pages.dev' }
-      ]
     },
     pageTransition: { name: 'page', mode: 'out-in' }
   }

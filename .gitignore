@@ -34,3 +34,4 @@ typecheck_errors.txt
 
 .vercel
 .wrangler/
+wrangler.json

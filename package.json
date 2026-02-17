@@ -1,5 +1,5 @@
 {
-  "name": "polymarket-arb",
+  "name": "ai-media-gen",
   "type": "module",
   "private": true,
   "version": "1.0.0",
@@ -10,20 +10,17 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "typecheck": "npx nuxt typecheck",
-    "deploy": "nuxt build && node scripts/patch-cf-process-proxy.mjs && wrangler pages deploy dist"
+    "deploy": "nuxt build && wrangler deploy"
   },
   "dependencies": {
     "@nuxt/ui": "^4.3.0",
-    "@polymarket/clob-client": "^5.2.1",
-    "chart.js": "^4.5.1",
     "drizzle-orm": "^0.45.1",
-    "ethers": "^6.16.0",
     "nuxt": "^4.3.0",
     "posthog-js": "^1.342.1",
     "tailwindcss": "^4.1.18",
     "vue": "^3.5.27",
-    "vue-chartjs": "^5.3.3",
-    "vue-router": "^4.6.4"
+    "vue-router": "^4.6.4",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250620.0",

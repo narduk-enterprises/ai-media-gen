@@ -1,10 +1,10 @@
 /**
- * Dynamic sitemap URLs for cedar pollen tracker
+ * Dynamic sitemap URLs for AI Media Gen
  */
 export default defineEventHandler(() => {
   return [
     { loc: '/', changefreq: 'daily', priority: 1.0 },
-    { loc: '/about', changefreq: 'monthly', priority: 0.8 },
-    { loc: '/tips', changefreq: 'monthly', priority: 0.8 },
+    { loc: '/login', changefreq: 'monthly', priority: 0.6 },
+    { loc: '/signup', changefreq: 'monthly', priority: 0.6 },
   ]
 })
