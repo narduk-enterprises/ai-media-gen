@@ -18,7 +18,8 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   const apiKey = config.aiApiKey
 
-  if (!apiKey) {
+  const llmUrl = config.llmApiUrl
+  if (!apiKey || !llmUrl) {
     throw createError({ statusCode: 503, message: 'AI service not configured' })
   }
 
@@ -29,7 +30,7 @@ export default defineEventHandler(async (event) => {
       id: string
       status: string
       output?: any
-    }>('https://api.runpod.ai/v2/02qfq8g0vfvy6h/runsync', {
+    }>(`${llmUrl}/runsync`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
