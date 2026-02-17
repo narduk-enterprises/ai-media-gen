@@ -140,11 +140,15 @@ export async function generateImages(
     })
       .then((response): { data: string; filename: string } | null => {
         if (response.output?.output) {
+          const filename = response.output.output.filename || `image_${i}.png`
+          const dataLen = response.output.output.data?.length || 0
+          console.log(`[AI] Image ${i + 1}/${count} complete — filename: ${filename}, status: ${response.status}, data: ${dataLen} chars`)
           return {
             data: response.output.output.data,
-            filename: response.output.output.filename || `image_${i}.png`,
+            filename,
           }
         }
+        console.warn(`[AI] Image ${i + 1}/${count} — no output in response:`, JSON.stringify(response).slice(0, 200))
         return null
       })
       .catch((error: any) => {
