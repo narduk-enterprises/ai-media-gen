@@ -7,8 +7,8 @@
 export default defineNuxtRouteMiddleware(async () => {
   const { loggedIn, refresh, loading } = useAuth()
 
-  // Ensure auth state is loaded if it hasn't been fetched yet
-  if (!loggedIn.value && loading.value) {
+  // Wait for auth state to fully resolve before deciding
+  if (loading.value) {
     await refresh()
   }
 
