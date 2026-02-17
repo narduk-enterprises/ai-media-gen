@@ -164,21 +164,19 @@ export async function generateImages(
 }
 
 /**
- * Generate video from text or image via Wan 2.2 on RunPod.
+ * Generate video from an image via Wan 2.2 image-to-video on RunPod.
  */
 export async function generateVideo(
   prompt: string,
   options?: { imageBase64?: string; width?: number; height?: number }
 ): Promise<GenerateVideoResult> {
-  const action = options?.imageBase64 ? 'image2video' : 'text2video'
-
   const input: Record<string, any> = {
-    action,
+    action: 'image2video',
     prompt,
-    width: options?.width || (action === 'text2video' ? 640 : 720),
-    height: options?.height || (action === 'text2video' ? 640 : 480),
+    width: options?.width || 720,
+    height: options?.height || 480,
     num_frames: 81,
-    steps: action === 'text2video' ? 4 : 20,
+    steps: 20,
   }
 
   if (options?.imageBase64) {
@@ -201,12 +199,37 @@ export async function generateVideo(
 }
 
 /**
- * Generate audio is not yet supported by the RunPod handler.
- * Placeholder for future implementation.
+ * Generate video with audio from an image via Wan 2.2 + MMAudio on RunPod.
  */
-export async function generateAudio(_prompt?: string, _sourceUrl?: string): Promise<GenerateVideoResult> {
-  throw createError({
-    statusCode: 501,
-    message: 'Audio generation is not yet available',
-  })
+export async function generateVideoWithAudio(
+  prompt: string,
+  options?: { imageBase64?: string; width?: number; height?: number }
+): Promise<GenerateVideoResult> {
+  const input: Record<string, any> = {
+    action: 'image2video_audio',
+    prompt,
+    width: options?.width || 720,
+    height: options?.height || 480,
+    num_frames: 81,
+    steps: 20,
+  }
+
+  if (options?.imageBase64) {
+    input.image = options.imageBase64
+  }
+
+  // Use async + polling (video+audio can take >120s)
+  const { jobId } = await callRunPodAsync(input)
+  const response = await pollRunPodJob(jobId)
+
+  if (response.output?.output) {
+    return {
+      data: response.output.output.data,
+      filename: response.output.output.filename || 'video_audio.mp4',
+      status: 'complete',
+    }
+  }
+
+  return { status: 'failed', error: 'No output returned' }
 }
+

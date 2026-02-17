@@ -37,6 +37,17 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Source must be a completed image' })
   }
 
+  // Extract base64 data from data URI
+  const base64Match = sourceItem.url.match(/^data:image\/\w+;base64,(.+)$/)
+  if (!base64Match) {
+    throw createError({ statusCode: 400, message: 'Image data is not in expected base64 format' })
+  }
+  const imageBase64 = base64Match[1]
+
+  // Get the prompt from the parent generation
+  const gen = source[0].generations
+  const prompt = gen.prompt || ''
+
   // Create video media item
   const videoId = crypto.randomUUID()
   await db.insert(mediaItems).values({
@@ -48,12 +59,20 @@ export default defineEventHandler(async (event) => {
     createdAt: new Date().toISOString(),
   })
 
-  // Generate video
+  // Generate video (async — can take minutes)
   try {
-    const result = await generateVideo(sourceItem.url)
-    await db.update(mediaItems)
-      .set({ url: result.url, status: result.status })
-      .where(eq(mediaItems.id, videoId))
+    const result = await generateVideo(prompt, { imageBase64 })
+
+    if (result.status === 'complete' && result.data) {
+      const videoUrl = `data:video/mp4;base64,${result.data}`
+      await db.update(mediaItems)
+        .set({ url: videoUrl, status: 'complete' })
+        .where(eq(mediaItems.id, videoId))
+    } else {
+      await db.update(mediaItems)
+        .set({ status: 'failed', error: result.error || 'Generation failed' })
+        .where(eq(mediaItems.id, videoId))
+    }
   } catch (error: any) {
     await db.update(mediaItems)
       .set({ status: 'failed', error: error.message })

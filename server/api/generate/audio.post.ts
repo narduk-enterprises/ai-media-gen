@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { generateAudio } from '../../utils/ai'
+import { generateVideoWithAudio } from '../../utils/ai'
 import { mediaItems, generations } from '../../database/schema'
 
 const audioSchema = z.object({
@@ -34,33 +34,52 @@ export default defineEventHandler(async (event) => {
   }
 
   const sourceItem = source[0].media_items
-  if (!sourceItem.url) {
-    throw createError({ statusCode: 400, message: 'Source must be a completed media item' })
+  if (sourceItem.type !== 'image' || !sourceItem.url) {
+    throw createError({ statusCode: 400, message: 'Source must be a completed image' })
   }
 
-  // Create audio media item
-  const audioId = crypto.randomUUID()
+  // Extract base64 data from data URI
+  const base64Match = sourceItem.url.match(/^data:image\/\w+;base64,(.+)$/)
+  if (!base64Match) {
+    throw createError({ statusCode: 400, message: 'Image data is not in expected base64 format' })
+  }
+  const imageBase64 = base64Match[1]
+
+  // Get the prompt from the parent generation (or use provided prompt)
+  const gen = source[0].generations
+  const videoPrompt = prompt || gen.prompt || ''
+
+  // Create video+audio media item
+  const itemId = crypto.randomUUID()
   await db.insert(mediaItems).values({
-    id: audioId,
+    id: itemId,
     generationId: sourceItem.generationId,
-    type: 'audio',
+    type: 'video',
     parentId: mediaItemId,
     status: 'processing',
     createdAt: new Date().toISOString(),
   })
 
-  // Generate audio
+  // Generate video with audio
   try {
-    const result = await generateAudio(prompt, sourceItem.url)
-    await db.update(mediaItems)
-      .set({ url: result.url, status: result.status })
-      .where(eq(mediaItems.id, audioId))
+    const result = await generateVideoWithAudio(videoPrompt, { imageBase64 })
+
+    if (result.status === 'complete' && result.data) {
+      const videoUrl = `data:video/mp4;base64,${result.data}`
+      await db.update(mediaItems)
+        .set({ url: videoUrl, status: 'complete' })
+        .where(eq(mediaItems.id, itemId))
+    } else {
+      await db.update(mediaItems)
+        .set({ status: 'failed', error: result.error || 'Generation failed' })
+        .where(eq(mediaItems.id, itemId))
+    }
   } catch (error: any) {
     await db.update(mediaItems)
       .set({ status: 'failed', error: error.message })
-      .where(eq(mediaItems.id, audioId))
+      .where(eq(mediaItems.id, itemId))
   }
 
-  const item = await db.select().from(mediaItems).where(eq(mediaItems.id, audioId)).limit(1)
+  const item = await db.select().from(mediaItems).where(eq(mediaItems.id, itemId)).limit(1)
   return { item: item[0] }
 })

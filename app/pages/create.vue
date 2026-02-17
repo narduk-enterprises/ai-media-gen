@@ -326,7 +326,7 @@ const gridClass = computed(() => {
                   @click="addAudio(item.id)"
                   class="flex-1"
                 >
-                  🔊 Audio
+                  🔊 Video + Audio
                 </UButton>
               </div>
             </div>
