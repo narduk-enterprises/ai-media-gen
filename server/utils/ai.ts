@@ -128,30 +128,32 @@ export async function generateImages(
   count: number,
   options?: { steps?: number; width?: number; height?: number },
 ): Promise<GenerateImagesResult> {
-  // RunPod handler generates one image per call, so loop for multiple
-  const images: { data: string; filename: string }[] = []
-
-  for (let i = 0; i < count; i++) {
-    try {
-      const response = await callRunPod({
-        action: 'text2image',
-        prompt,
-        width: options?.width || 1024,
-        height: options?.height || 1024,
-        steps: options?.steps || 20,
+  // Fire all requests in parallel — each hits a separate serverless worker
+  const promises = Array.from({ length: count }, (_, i) =>
+    callRunPod({
+      action: 'text2image',
+      prompt,
+      width: options?.width || 1024,
+      height: options?.height || 1024,
+      steps: options?.steps || 20,
+    })
+      .then((response): { data: string; filename: string } | null => {
+        if (response.output?.output) {
+          return {
+            data: response.output.output.data,
+            filename: response.output.output.filename || `image_${i}.png`,
+          }
+        }
+        return null
       })
+      .catch((error: any) => {
+        console.error(`[AI] Image ${i + 1}/${count} failed:`, error.message)
+        return null
+      })
+  )
 
-      if (response.output?.output) {
-        images.push({
-          data: response.output.output.data,
-          filename: response.output.output.filename || `image_${i}.png`,
-        })
-      }
-    } catch (error: any) {
-      console.error(`[AI] Image ${i + 1}/${count} failed:`, error.message)
-      // Continue generating remaining images if one fails
-    }
-  }
+  const results = await Promise.all(promises)
+  const images = results.filter((img): img is { data: string; filename: string } => img !== null)
 
   if (images.length === 0) {
     throw createError({ statusCode: 502, message: 'All image generations failed' })

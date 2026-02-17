@@ -5,7 +5,8 @@ useSeoMeta({ title: 'Create' })
 const prompt = ref('')
 const imageCount = ref(1)
 const steps = ref(20)
-const imageSize = ref(1024)
+const imageWidth = ref(1024)
+const imageHeight = ref(1024)
 const generating = ref(false)
 const error = ref('')
 
@@ -64,7 +65,7 @@ async function generate() {
   try {
     const result = await $fetch<GenerationResult>('/api/generate/image', {
       method: 'POST',
-      body: { prompt: prompt.value, count: imageCount.value, steps: steps.value, width: imageSize.value, height: imageSize.value },
+      body: { prompt: prompt.value, count: imageCount.value, steps: steps.value, width: imageWidth.value, height: imageHeight.value },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
     currentGeneration.value = result
@@ -195,17 +196,33 @@ const gridClass = computed(() => {
             <span class="text-xs text-zinc-400 font-mono w-6 text-right">{{ steps }}</span>
           </div>
 
-          <!-- Size selector -->
+          <!-- Width selector -->
           <div class="flex items-center gap-2 mt-3">
-            <span class="text-xs text-zinc-500 mr-1">Size:</span>
+            <span class="text-xs text-zinc-500 mr-1 w-10">Width:</span>
             <button
               v-for="size in sizeOptions"
               :key="size.value"
               class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-              :class="imageSize === size.value
+              :class="imageWidth === size.value
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
                 : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'"
-              @click="imageSize = size.value"
+              @click="imageWidth = size.value"
+            >
+              {{ size.label }}
+            </button>
+          </div>
+
+          <!-- Height selector -->
+          <div class="flex items-center gap-2 mt-3">
+            <span class="text-xs text-zinc-500 mr-1 w-10">Height:</span>
+            <button
+              v-for="size in sizeOptions"
+              :key="size.value"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+              :class="imageHeight === size.value
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
+                : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'"
+              @click="imageHeight = size.value"
             >
               {{ size.label }}
             </button>
