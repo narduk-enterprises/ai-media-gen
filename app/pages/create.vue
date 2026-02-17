@@ -9,6 +9,7 @@ const imageWidth = ref(1024)
 const imageHeight = ref(1024)
 const generating = ref(false)
 const error = ref('')
+const selectedImage = ref<MediaItemResult | null>(null)
 
 interface MediaItemResult {
   id: string
@@ -262,7 +263,10 @@ const gridClass = computed(() => {
           :style="{ animationDelay: `${index * 100}ms` }"
         >
           <!-- Image -->
-          <div class="relative aspect-square rounded-xl overflow-hidden border border-zinc-800 hover:border-violet-500/30 transition-all">
+          <div
+            class="relative aspect-square rounded-xl overflow-hidden border border-zinc-800 hover:border-violet-500/30 transition-all cursor-pointer"
+            @click="item.url && item.status === 'complete' ? selectedImage = item : null"
+          >
             <img
               v-if="item.url && item.status === 'complete'"
               :src="item.url"
@@ -348,5 +352,30 @@ const gridClass = computed(() => {
       </div>
       <p class="text-zinc-600 text-sm">Your creations will appear here</p>
     </div>
+
+    <!-- Lightbox modal -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div
+          v-if="selectedImage"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 sm:p-8"
+          @click.self="selectedImage = null"
+          @keydown.escape="selectedImage = null"
+          tabindex="0"
+        >
+          <button
+            class="absolute top-4 right-4 text-white/60 hover:text-white transition-colors z-10"
+            @click="selectedImage = null"
+          >
+            <UIcon name="i-heroicons-x-mark" class="w-8 h-8" />
+          </button>
+          <img
+            :src="selectedImage.url!"
+            :alt="currentGeneration?.generation.prompt"
+            class="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+          />
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
