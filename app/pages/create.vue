@@ -3,7 +3,9 @@ definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Create' })
 
 const prompt = ref('')
-const imageCount = ref(4)
+const imageCount = ref(1)
+const steps = ref(20)
+const imageSize = ref(1024)
 const generating = ref(false)
 const error = ref('')
 
@@ -30,6 +32,13 @@ const currentGeneration = ref<GenerationResult | null>(null)
 const actionLoading = ref<Record<string, boolean>>({})
 
 const countOptions = [1, 2, 4, 8, 16]
+const sizeOptions = [
+  { label: '512', value: 512 },
+  { label: '768', value: 768 },
+  { label: '1024', value: 1024 },
+  { label: '1536', value: 1536 },
+  { label: '2048', value: 2048 },
+]
 
 const images = computed(() =>
   currentGeneration.value?.items.filter(i => i.type === 'image') ?? []
@@ -55,7 +64,7 @@ async function generate() {
   try {
     const result = await $fetch<GenerationResult>('/api/generate/image', {
       method: 'POST',
-      body: { prompt: prompt.value, count: imageCount.value },
+      body: { prompt: prompt.value, count: imageCount.value, steps: steps.value, width: imageSize.value, height: imageSize.value },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
     currentGeneration.value = result
@@ -173,10 +182,39 @@ const gridClass = computed(() => {
           </UButton>
         </div>
 
-        <p class="text-[11px] text-zinc-600 mt-3">
-          {{ prompt.length }}/2000 &middot; Press ⌘+Enter to generate
-        </p>
-      </div>
+          <!-- Steps slider -->
+          <div class="flex items-center gap-3 mt-4">
+            <span class="text-xs text-zinc-500 shrink-0">Steps:</span>
+            <input
+              v-model.number="steps"
+              type="range"
+              min="1"
+              max="50"
+              class="flex-1 accent-violet-500 h-1.5"
+            />
+            <span class="text-xs text-zinc-400 font-mono w-6 text-right">{{ steps }}</span>
+          </div>
+
+          <!-- Size selector -->
+          <div class="flex items-center gap-2 mt-3">
+            <span class="text-xs text-zinc-500 mr-1">Size:</span>
+            <button
+              v-for="size in sizeOptions"
+              :key="size.value"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+              :class="imageSize === size.value
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
+                : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'"
+              @click="imageSize = size.value"
+            >
+              {{ size.label }}
+            </button>
+          </div>
+
+          <p class="text-[11px] text-zinc-600 mt-3">
+            Press ⌘+Enter to generate
+          </p>
+        </div>
     </div>
 
     <!-- Error -->

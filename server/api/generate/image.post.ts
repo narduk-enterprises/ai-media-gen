@@ -5,8 +5,11 @@ import { generateImages } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
 
 const generateSchema = z.object({
-  prompt: z.string().min(1, 'Prompt is required').max(2000),
+  prompt: z.string().min(1, 'Prompt is required'),
   count: z.number().int().min(1).max(16).default(1),
+  steps: z.number().int().min(1).max(50).default(20),
+  width: z.number().int().min(512).max(2048).default(1024),
+  height: z.number().int().min(512).max(2048).default(1024),
 })
 
 export default defineEventHandler(async (event) => {
@@ -18,7 +21,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, count } = parsed.data
+  const { prompt, count, steps, width, height } = parsed.data
   const db = useDatabase()
   const generationId = crypto.randomUUID()
   const now = new Date().toISOString()
@@ -49,7 +52,7 @@ export default defineEventHandler(async (event) => {
 
   // Generate images (mock or real API)
   try {
-    const result = await generateImages(prompt, count)
+    const result = await generateImages(prompt, count, { steps, width, height })
 
     // Update media items with image data
     for (let i = 0; i < result.images.length && i < itemIds.length; i++) {

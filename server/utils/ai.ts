@@ -123,7 +123,11 @@ async function pollRunPodJob(jobId: string, maxWaitMs = 300_000): Promise<RunPod
 /**
  * Generate images from a text prompt via FLUX.1 Dev on RunPod.
  */
-export async function generateImages(prompt: string, count: number): Promise<GenerateImagesResult> {
+export async function generateImages(
+  prompt: string,
+  count: number,
+  options?: { steps?: number; width?: number; height?: number },
+): Promise<GenerateImagesResult> {
   // RunPod handler generates one image per call, so loop for multiple
   const images: { data: string; filename: string }[] = []
 
@@ -132,9 +136,9 @@ export async function generateImages(prompt: string, count: number): Promise<Gen
       const response = await callRunPod({
         action: 'text2image',
         prompt,
-        width: 1024,
-        height: 1024,
-        steps: 20,
+        width: options?.width || 1024,
+        height: options?.height || 1024,
+        steps: options?.steps || 20,
       })
 
       if (response.output?.output) {
