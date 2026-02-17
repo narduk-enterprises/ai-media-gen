@@ -12,6 +12,7 @@ const generating = ref(false)
 const error = ref('')
 const selectedImage = ref<MediaItemResult | null>(null)
 const showAdvanced = ref(false)
+const enhancing = ref(false)
 
 interface MediaItemResult {
   id: string
@@ -76,6 +77,23 @@ async function generate() {
     error.value = e.data?.message || e.message || 'Generation failed'
   } finally {
     generating.value = false
+  }
+}
+
+async function enhancePrompt() {
+  if (!prompt.value.trim()) return
+  enhancing.value = true
+  try {
+    const result = await $fetch<{ prompt: string }>('/api/generate/enhance-prompt', {
+      method: 'POST',
+      body: { prompt: prompt.value },
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    prompt.value = result.prompt
+  } catch (e: any) {
+    error.value = e.data?.message || 'Prompt enhancement failed'
+  } finally {
+    enhancing.value = false
   }
 }
 
@@ -253,9 +271,24 @@ const gridClass = computed(() => {
             </button>
           </div>
 
-          <p class="text-[11px] text-zinc-600 mt-3">
-            Press ⌘+Enter to generate
-          </p>
+          <div class="flex items-center justify-between mt-3">
+            <UButton
+              size="xs"
+              variant="ghost"
+              color="neutral"
+              :loading="enhancing"
+              :disabled="!prompt.trim() || generating"
+              @click="enhancePrompt"
+            >
+              <template #leading>
+                <span>✨</span>
+              </template>
+              Remix Prompt
+            </UButton>
+            <p class="text-[11px] text-zinc-600">
+              Press ⌘+Enter to generate
+            </p>
+          </div>
         </div>
     </div>
 
