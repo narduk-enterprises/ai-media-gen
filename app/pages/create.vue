@@ -107,6 +107,8 @@ interface PersistedFormState {
   videoCfg: number
   varyPerImage: boolean
   attributes: Record<string, string>
+  activePersonId?: string | null
+  personDescription?: string
 }
 
 function persistForm() {
@@ -124,6 +126,8 @@ function persistForm() {
       videoCfg: videoCfg.value,
       varyPerImage: varyPerImage.value,
       attributes: { ...attributes },
+      activePersonId: activePersonId.value,
+      personDescription: personDescription.value,
     }
     localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(state))
   } catch { /* ignore */ }
@@ -150,6 +154,13 @@ function restoreForm() {
         if (key in attributes) (attributes as Record<string, string>)[key] = val
       }
     }
+    if (state.activePersonId) {
+      const person = persons.value.find((p: any) => p.id === state.activePersonId)
+      if (person) {
+        activePersonId.value = person.id
+        personDescription.value = state.personDescription || (person as any).description || ''
+      }
+    }
   } catch { /* ignore */ }
 }
 
@@ -170,7 +181,7 @@ watch(() => activeProject.value?.id, () => {
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null
 watch(
-  [prompt, negativePrompt, genMode, imageCount, steps, imageWidth, imageHeight, videoDuration, videoCfg, varyPerImage, () => ({ ...attributes })],
+  [prompt, negativePrompt, genMode, imageCount, steps, imageWidth, imageHeight, videoDuration, videoCfg, varyPerImage, activePersonId, personDescription, () => ({ ...attributes })],
   () => {
     if (_saveTimer) clearTimeout(_saveTimer)
     _saveTimer = setTimeout(persistForm, 400)
@@ -236,13 +247,21 @@ function pickRandomBasePrompt() {
   prompt.value = pickRandom(presetConfig.value.basePrompts)
 }
 
-const composedPrompt = computed(() => _buildPrompt(prompt.value, attributes))
+const composedPrompt = computed(() => {
+  const base = personDescription.value
+    ? [prompt.value, personDescription.value].filter(s => s.trim()).join(', ')
+    : prompt.value
+  return _buildPrompt(base, attributes)
+})
 const activeAttributeCount = computed(() => countActiveAttributes(attributes))
 
 // Sample varied prompts for preview (regenerates when attributes change)
 const sampleVariedPrompts = computed(() => {
   if (!varyPerImage.value || imageCount.value <= 1) return []
-  return buildVariedPrompts(prompt.value, attributes, Math.min(3, imageCount.value), presetConfig.value.basePrompts)
+  const base = personDescription.value
+    ? [prompt.value, personDescription.value].filter(s => s.trim()).join(', ')
+    : prompt.value
+  return buildVariedPrompts(base, attributes, Math.min(3, imageCount.value), presetConfig.value.basePrompts)
 })
 
 // ─── Options ───────────────────────────────────────────────────────────
@@ -296,7 +315,10 @@ async function generate(append = false) {
   const finalPrompt = composedPrompt.value || prompt.value
   let perImagePrompts: string[] | undefined
   if (varyPerImage.value && imageCount.value > 1) {
-    perImagePrompts = buildVariedPrompts(prompt.value, attributes, imageCount.value, presetConfig.value.basePrompts)
+    const baseWithDesc = personDescription.value
+      ? [prompt.value, personDescription.value].filter(s => s.trim()).join(', ')
+      : prompt.value
+    perImagePrompts = buildVariedPrompts(baseWithDesc, attributes, imageCount.value, presetConfig.value.basePrompts)
   }
 
   try {
@@ -612,6 +634,42 @@ const gridClass = computed(() => {
           </button>
         </div>
 
+        <!-- ═══ Persona Selector ═══ -->
+        <div class="flex items-start gap-1.5">
+          <span class="text-[10px] text-slate-400 shrink-0 mt-1">👤</span>
+          <div class="flex-1">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <button
+                v-if="activePersonId"
+                class="px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-400 border border-slate-200 hover:border-slate-300 transition-all"
+                @click="clearPerson"
+              >
+                None
+              </button>
+              <button
+                v-for="person in persons"
+                :key="person.id"
+                class="px-2 py-0.5 rounded-full text-[10px] font-medium transition-all border"
+                :class="activePersonId === person.id
+                  ? 'bg-amber-50 border-amber-300 text-amber-700'
+                  : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300'"
+                @click="activePersonId === person.id ? clearPerson() : loadPerson(person)"
+              >
+                {{ person.name }}
+              </button>
+              <NuxtLink
+                to="/personas"
+                class="px-1.5 py-0.5 rounded-full text-[10px] text-slate-300 border border-dashed border-slate-200 hover:border-violet-300 hover:text-violet-500 transition-colors"
+              >
+                {{ persons.length > 0 ? 'Manage →' : '+ Create personas →' }}
+              </NuxtLink>
+            </div>
+            <p v-if="activePersonId && personDescription" class="text-[9px] text-amber-500/70 mt-0.5 leading-relaxed line-clamp-1">
+              {{ personDescription }}
+            </p>
+          </div>
+        </div>
+
         <!-- Saved prompts -->
         <div v-if="presetConfig.basePrompts.length > 0" class="flex items-center gap-1.5">
           <select
@@ -704,34 +762,25 @@ const gridClass = computed(() => {
               <button v-if="activeAttributeCount > 0" class="px-2 py-1 rounded text-[10px] font-medium text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors" @click="clearAttributes">✕ Clear</button>
             </div>
 
-            <!-- ═══ Persons ═══ -->
+            <!-- ═══ Save as Person ═══ -->
             <div class="py-1.5 border-b border-slate-100">
               <div class="flex items-center gap-1.5 flex-wrap">
                 <span class="text-[10px] text-slate-400 shrink-0">👤</span>
-                <button
-                  v-for="person in persons"
-                  :key="person.id"
-                  class="px-2 py-0.5 rounded-full text-[10px] font-medium transition-all border"
-                  :class="activePersonId === person.id
-                    ? 'bg-amber-50 border-amber-300 text-amber-700'
-                    : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300'"
-                  @click="activePersonId === person.id ? clearPerson() : loadPerson(person)"
-                >
-                  {{ person.name }}
-                </button>
+                <span v-if="activePerson" class="text-[10px] text-amber-600 font-medium">{{ activePerson.name }}</span>
+                <span v-else class="text-[10px] text-slate-400">No persona</span>
+                <div class="flex-1" />
                 <button
                   v-if="!savingPerson"
                   class="px-1.5 py-0.5 rounded-full text-[10px] text-slate-400 border border-dashed border-slate-200 hover:border-violet-300 hover:text-violet-600 transition-colors"
                   @click="savingPerson = true"
                 >
-                  + Save Person
+                  + Save as Persona
                 </button>
               </div>
-              <!-- Save person inline form -->
               <div v-if="savingPerson" class="flex items-center gap-1.5 mt-1.5">
                 <input
                   v-model="personName"
-                  placeholder="Person name…"
+                  placeholder="Persona name…"
                   class="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-violet-500/20"
                   @keydown.enter="saveAsPerson"
                   @keydown.escape="savingPerson = false"
@@ -739,9 +788,6 @@ const gridClass = computed(() => {
                 <button class="px-2 py-1 rounded text-[10px] font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors" @click="saveAsPerson">Save</button>
                 <button class="text-[10px] text-slate-400" @click="savingPerson = false">✕</button>
               </div>
-              <p v-if="persons.length === 0 && !savingPerson" class="text-[9px] text-slate-400 mt-1">
-                Save character appearances to reuse across different scenes
-              </p>
             </div>
 
             <!-- Attribute rows -->
