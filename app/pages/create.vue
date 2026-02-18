@@ -14,10 +14,123 @@ const selectedImage = ref<MediaItemResult | null>(null)
 const showAdvanced = ref(false)
 const enhancing = ref(false)
 const genMode = ref<'image' | 'video'>('image')
-const videoDuration = ref(81) // frames: 81≈3s, 121≈5s, 161≈7s
+const videoDuration = ref(81)
 const videoItem = ref<MediaItemResult | null>(null)
 const videoPolling = ref(false)
 const pollingTimer = ref<ReturnType<typeof setInterval> | null>(null)
+const showPromptBuilder = ref(false)
+const varyPerImage = ref(false)
+
+// ─── Prompt Builder Attributes ────────────────────────────────────────
+const attributePresets = {
+  scene: [
+    'futuristic city skyline', 'enchanted forest glade', 'underwater ancient ruins',
+    'neon-lit rainy alleyway', 'mountain temple at dawn', 'space station interior',
+    'desert oasis at sunset', 'cyberpunk marketplace', 'frozen tundra landscape',
+    'rooftop garden above the clouds', 'abandoned cathedral', 'bioluminescent cave',
+    'tropical beach at golden hour', 'steampunk workshop', 'floating island archipelago',
+  ],
+  pose: [
+    'standing confidently', 'sitting cross-legged', 'mid-action dynamic leap',
+    'reclining elegantly', 'walking toward camera', 'dramatic side profile',
+    'kneeling with hands extended', 'arms crossed looking away',
+    'dancing gracefully', 'meditating peacefully', 'running in motion blur',
+    'leaning against a wall', 'reaching upward',
+  ],
+  style: [
+    'photorealistic', 'anime', 'oil painting', 'watercolor', 'cyberpunk',
+    'art nouveau', 'comic book', 'cinematic', 'digital illustration',
+    'studio ghibli', 'baroque', 'vaporwave', 'film noir', 'pop art',
+    'hyperrealism', 'impressionist', 'minimalist',
+  ],
+  lighting: [
+    'golden hour warmth', 'dramatic chiaroscuro', 'neon glow', 'soft diffused ambient',
+    'harsh single spotlight', 'moonlit silver', 'backlit silhouette',
+    'volumetric fog rays', 'candlelit warm', 'studio rim lighting',
+    'bioluminescent glow', 'overcast moody', 'sunrise gradient',
+  ],
+  mood: [
+    'serene', 'intense', 'mysterious', 'joyful', 'melancholic',
+    'epic', 'whimsical', 'ethereal', 'dark and brooding', 'dreamlike',
+    'nostalgic', 'triumphant', 'ominous', 'romantic', 'psychedelic',
+  ],
+  camera: [
+    'wide angle establishing shot', 'close-up portrait', 'bird\'s eye view',
+    'low angle heroic', 'dutch angle dramatic', 'macro detail', 'panoramic vista',
+    'medium shot', 'over the shoulder', 'fisheye lens',
+    'telephoto bokeh', 'symmetrical composition', 'rule of thirds',
+  ],
+}
+
+type AttributeKey = keyof typeof attributePresets
+
+const attributeLabels: Record<AttributeKey, { emoji: string; label: string; suffix: string }> = {
+  scene: { emoji: '🏔️', label: 'Scene', suffix: '' },
+  pose: { emoji: '🧍', label: 'Pose', suffix: '' },
+  style: { emoji: '🎨', label: 'Style', suffix: 'style' },
+  lighting: { emoji: '💡', label: 'Lighting', suffix: 'lighting' },
+  mood: { emoji: '🎭', label: 'Mood', suffix: 'mood' },
+  camera: { emoji: '📷', label: 'Camera', suffix: '' },
+}
+
+const attributes = reactive<Record<AttributeKey, string>>({
+  scene: '',
+  pose: '',
+  style: '',
+  lighting: '',
+  mood: '',
+  camera: '',
+})
+
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]!
+}
+
+function randomizeAttribute(key: AttributeKey) {
+  attributes[key] = pickRandom(attributePresets[key])
+}
+
+function randomizeAll() {
+  for (const key of Object.keys(attributePresets) as AttributeKey[]) {
+    randomizeAttribute(key)
+  }
+}
+
+function clearAllAttributes() {
+  for (const key of Object.keys(attributes) as AttributeKey[]) {
+    attributes[key] = ''
+  }
+}
+
+function buildPrompt(): string {
+  const parts: string[] = []
+  if (prompt.value.trim()) parts.push(prompt.value.trim())
+  for (const [key, value] of Object.entries(attributes) as [AttributeKey, string][]) {
+    if (!value.trim()) continue
+    const info = attributeLabels[key]
+    parts.push(info.suffix ? `${value.trim()} ${info.suffix}` : value.trim())
+  }
+  return parts.join(', ')
+}
+
+function buildRandomVariantPrompt(): string {
+  const parts: string[] = []
+  if (prompt.value.trim()) parts.push(prompt.value.trim())
+  for (const [key, _value] of Object.entries(attributes) as [AttributeKey, string][]) {
+    const info = attributeLabels[key]
+    const val = pickRandom(attributePresets[key])
+    parts.push(info.suffix ? `${val} ${info.suffix}` : val)
+  }
+  return parts.join(', ')
+}
+
+const composedPrompt = computed(() => buildPrompt())
+
+const activeAttributeCount = computed(() =>
+  Object.values(attributes).filter(v => v.trim()).length
+)
+
+// ─── Rest of state ─────────────────────────────────────────────────────
 
 const durationOptions = [
   { label: '3s', value: 81 },
@@ -80,22 +193,37 @@ const childMedia = computed(() => {
 })
 
 async function generate() {
-  if (!prompt.value.trim()) return
+  if (!prompt.value.trim() && activeAttributeCount.value === 0) return
   if (genMode.value === 'video') return generateT2V()
   generating.value = true
   error.value = ''
   currentGeneration.value = null
   stopPolling()
 
+  // Build prompts
+  const finalPrompt = composedPrompt.value || prompt.value
+  let perImagePrompts: string[] | undefined
+
+  if (varyPerImage.value && imageCount.value > 1) {
+    // Generate a unique random variant for each image
+    perImagePrompts = Array.from({ length: imageCount.value }, () => buildRandomVariantPrompt())
+  }
+
   try {
-    // Fire-and-forget: returns immediately with placeholder items
     const result = await $fetch<GenerationResult>('/api/generate/image', {
       method: 'POST',
-      body: { prompt: prompt.value, negativePrompt: negativePrompt.value, count: imageCount.value, steps: steps.value, width: imageWidth.value, height: imageHeight.value },
+      body: {
+        prompt: finalPrompt,
+        prompts: perImagePrompts,
+        negativePrompt: negativePrompt.value,
+        count: imageCount.value,
+        steps: steps.value,
+        width: imageWidth.value,
+        height: imageHeight.value,
+      },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
     currentGeneration.value = result
-    // Start polling for progressive updates
     startPolling(result.generation.id)
   } catch (e: any) {
     error.value = e.data?.message || e.message || 'Generation failed'
@@ -112,13 +240,11 @@ function startPolling(generationId: string) {
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
 
-      // Merge: update items in place so the grid reactively updates
       if (currentGeneration.value) {
         currentGeneration.value.generation = result.generation
         currentGeneration.value.items = result.items
       }
 
-      // Stop polling when all items are done
       const items = result.items.filter(i => i.type === 'image')
       const done = items.every(i => i.status === 'complete' || i.status === 'failed')
       if (done) {
@@ -126,7 +252,7 @@ function startPolling(generationId: string) {
         generating.value = false
       }
     } catch {
-      // Swallow poll errors — will retry next tick
+      // Swallow poll errors
     }
   }, 3000)
 }
@@ -153,7 +279,6 @@ async function generateT2V() {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
     videoItem.value = result.item
-    // Poll for completion
     videoPolling.value = true
     pollVideoStatus(result.item.id)
   } catch (e: any) {
@@ -163,7 +288,7 @@ async function generateT2V() {
 }
 
 async function pollVideoStatus(itemId: string) {
-  const maxAttempts = 120 // 10 min
+  const maxAttempts = 120
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise(r => setTimeout(r, 5000))
     try {
@@ -176,9 +301,7 @@ async function pollVideoStatus(itemId: string) {
         videoPolling.value = false
         return
       }
-    } catch {
-      // continue polling
-    }
+    } catch { /* continue */ }
   }
   generating.value = false
   videoPolling.value = false
@@ -210,7 +333,6 @@ async function makeVideo(mediaItemId: string) {
       body: { mediaItemId },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
-    // Add video to items list
     if (currentGeneration.value && result.item) {
       currentGeneration.value.items.push(result.item)
     }
@@ -245,7 +367,6 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
-// Grid columns based on image count
 const gridClass = computed(() => {
   const count = images.value.length
   if (count <= 1) return 'grid-cols-1 max-w-lg mx-auto'
@@ -278,6 +399,12 @@ const gridClass = computed(() => {
           @keydown="handleKeydown"
         />
 
+        <!-- Composed prompt preview (when builder is active) -->
+        <div v-if="showPromptBuilder && activeAttributeCount > 0" class="mt-2 mb-3 p-3 rounded-lg bg-violet-500/5 border border-violet-500/10">
+          <p class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1 font-medium">Final Prompt Preview</p>
+          <p class="text-xs text-zinc-300 leading-relaxed">{{ composedPrompt }}</p>
+        </div>
+
         <!-- Negative prompt (collapsible) -->
         <div class="mt-3">
           <button
@@ -297,6 +424,110 @@ const gridClass = computed(() => {
               class="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder-zinc-600 resize-none focus:outline-none focus:ring-1 focus:ring-violet-500/30 min-h-[60px]"
               :disabled="generating"
             />
+          </div>
+        </div>
+
+        <!-- ═══ Prompt Builder Panel ═══ -->
+        <div class="mt-3">
+          <button
+            class="text-xs transition-colors flex items-center gap-1.5"
+            :class="showPromptBuilder ? 'text-violet-400' : 'text-zinc-500 hover:text-zinc-300'"
+            @click="showPromptBuilder = !showPromptBuilder"
+          >
+            <UIcon
+              :name="showPromptBuilder ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'"
+              class="w-3 h-3"
+            />
+            🧩 Prompt Builder
+            <span v-if="activeAttributeCount > 0" class="ml-1 px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 text-[10px] font-medium">
+              {{ activeAttributeCount }}
+            </span>
+          </button>
+
+          <div v-if="showPromptBuilder" class="mt-3 space-y-2">
+            <!-- Toolbar -->
+            <div class="flex items-center gap-2 mb-3">
+              <button
+                class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-violet-500/15 text-violet-300 hover:bg-violet-500/25 transition-colors flex items-center gap-1"
+                @click="randomizeAll"
+              >
+                🎲 Randomize All
+              </button>
+              <button
+                v-if="activeAttributeCount > 0"
+                class="px-2.5 py-1 rounded-lg text-[11px] font-medium text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors flex items-center gap-1"
+                @click="clearAllAttributes"
+              >
+                ✕ Clear
+              </button>
+              <div class="flex-1" />
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <span class="text-[11px] text-zinc-500 group-hover:text-zinc-300 transition-colors">Vary per Image</span>
+                <div
+                  class="relative w-8 h-[18px] rounded-full transition-colors cursor-pointer"
+                  :class="varyPerImage ? 'bg-violet-500' : 'bg-zinc-700'"
+                  @click="varyPerImage = !varyPerImage"
+                >
+                  <div
+                    class="absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white transition-transform"
+                    :class="varyPerImage ? 'translate-x-[16px]' : 'translate-x-[2px]'"
+                  />
+                </div>
+              </label>
+            </div>
+
+            <!-- Vary per Image info -->
+            <div v-if="varyPerImage" class="px-3 py-2 rounded-lg bg-cyan-500/5 border border-cyan-500/10 mb-2">
+              <p class="text-[11px] text-cyan-400/80">
+                🎲 Each image will get random attributes from the pool below, combined with your base prompt.
+              </p>
+            </div>
+
+            <!-- Attribute rows -->
+            <div
+              v-for="(info, key) in attributeLabels"
+              :key="key"
+              class="flex items-center gap-2"
+            >
+              <!-- Label -->
+              <span class="text-[11px] text-zinc-500 w-16 shrink-0 flex items-center gap-1">
+                <span>{{ info.emoji }}</span>
+                <span>{{ info.label }}</span>
+              </span>
+
+              <!-- Input + Preset combo -->
+              <div class="flex-1 relative">
+                <input
+                  v-model="attributes[key]"
+                  :placeholder="`e.g. ${attributePresets[key][0]}`"
+                  class="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/30 pr-8"
+                  :disabled="generating"
+                />
+              </div>
+
+              <!-- Preset dropdown -->
+              <div class="relative">
+                <select
+                  class="appearance-none bg-zinc-800/80 border border-zinc-700 rounded-lg px-2 py-1.5 text-[11px] text-zinc-400 focus:outline-none focus:ring-1 focus:ring-violet-500/30 cursor-pointer pr-6 max-w-[140px]"
+                  :value="''"
+                  @change="(e: Event) => { attributes[key] = (e.target as HTMLSelectElement).value; (e.target as HTMLSelectElement).value = '' }"
+                >
+                  <option value="" disabled selected>Presets</option>
+                  <option v-for="preset in attributePresets[key]" :key="preset" :value="preset">
+                    {{ preset }}
+                  </option>
+                </select>
+              </div>
+
+              <!-- Random button -->
+              <button
+                class="p-1.5 rounded-lg text-zinc-600 hover:text-violet-400 hover:bg-violet-500/10 transition-colors"
+                title="Randomize"
+                @click="randomizeAttribute(key)"
+              >
+                <span class="text-sm">🎲</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -359,7 +590,7 @@ const gridClass = computed(() => {
           <!-- Generate button -->
           <UButton
             :loading="generating"
-            :disabled="!prompt.trim()"
+            :disabled="!prompt.trim() && activeAttributeCount === 0"
             @click="generate"
             size="lg"
           >
@@ -370,70 +601,70 @@ const gridClass = computed(() => {
           </UButton>
         </div>
 
-          <!-- Steps slider -->
-          <div class="flex items-center gap-3 mt-4">
-            <span class="text-xs text-zinc-500 shrink-0">Steps:</span>
-            <input
-              v-model.number="steps"
-              type="range"
-              min="1"
-              max="50"
-              class="flex-1 accent-violet-500 h-1.5"
-            />
-            <span class="text-xs text-zinc-400 font-mono w-6 text-right">{{ steps }}</span>
-          </div>
-
-          <!-- Width selector -->
-          <div class="flex items-center gap-2 mt-3">
-            <span class="text-xs text-zinc-500 mr-1 w-10">Width:</span>
-            <button
-              v-for="size in sizeOptions"
-              :key="size.value"
-              class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-              :class="imageWidth === size.value
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
-                : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'"
-              @click="imageWidth = size.value"
-            >
-              {{ size.label }}
-            </button>
-          </div>
-
-          <!-- Height selector -->
-          <div class="flex items-center gap-2 mt-3">
-            <span class="text-xs text-zinc-500 mr-1 w-10">Height:</span>
-            <button
-              v-for="size in sizeOptions"
-              :key="size.value"
-              class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-              :class="imageHeight === size.value
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
-                : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'"
-              @click="imageHeight = size.value"
-            >
-              {{ size.label }}
-            </button>
-          </div>
-
-          <div class="flex items-center justify-between mt-3">
-            <UButton
-              size="xs"
-              variant="ghost"
-              color="neutral"
-              :loading="enhancing"
-              :disabled="!prompt.trim() || generating"
-              @click="enhancePrompt"
-            >
-              <template #leading>
-                <span>✨</span>
-              </template>
-              Remix Prompt
-            </UButton>
-            <p class="text-[11px] text-zinc-600">
-              Press ⌘+Enter to generate
-            </p>
-          </div>
+        <!-- Steps slider -->
+        <div class="flex items-center gap-3 mt-4">
+          <span class="text-xs text-zinc-500 shrink-0">Steps:</span>
+          <input
+            v-model.number="steps"
+            type="range"
+            min="1"
+            max="50"
+            class="flex-1 accent-violet-500 h-1.5"
+          />
+          <span class="text-xs text-zinc-400 font-mono w-6 text-right">{{ steps }}</span>
         </div>
+
+        <!-- Width selector -->
+        <div class="flex items-center gap-2 mt-3">
+          <span class="text-xs text-zinc-500 mr-1 w-10">Width:</span>
+          <button
+            v-for="size in sizeOptions"
+            :key="size.value"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+            :class="imageWidth === size.value
+              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
+              : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'"
+            @click="imageWidth = size.value"
+          >
+            {{ size.label }}
+          </button>
+        </div>
+
+        <!-- Height selector -->
+        <div class="flex items-center gap-2 mt-3">
+          <span class="text-xs text-zinc-500 mr-1 w-10">Height:</span>
+          <button
+            v-for="size in sizeOptions"
+            :key="size.value"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+            :class="imageHeight === size.value
+              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
+              : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'"
+            @click="imageHeight = size.value"
+          >
+            {{ size.label }}
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between mt-3">
+          <UButton
+            size="xs"
+            variant="ghost"
+            color="neutral"
+            :loading="enhancing"
+            :disabled="!prompt.trim() || generating"
+            @click="enhancePrompt"
+          >
+            <template #leading>
+              <span>✨</span>
+            </template>
+            Remix Prompt
+          </UButton>
+          <p class="text-[11px] text-zinc-600">
+            Press ⌘+Enter to generate
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- Error -->
@@ -485,7 +716,7 @@ const gridClass = computed(() => {
       </div>
     </div>
 
-    <!-- Progressive Image Grid (shows during generation AND after completion) -->
+    <!-- Progressive Image Grid -->
     <div v-else-if="currentGeneration && images.length > 0">
       <!-- Progress indicator -->
       <div v-if="generating" class="text-center mb-6">

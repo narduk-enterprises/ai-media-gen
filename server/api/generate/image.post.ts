@@ -6,6 +6,7 @@ import { generations, mediaItems } from '../../database/schema'
 
 const generateSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
+  prompts: z.array(z.string()).optional(), // per-image prompts for "Vary per Image" mode
   negativePrompt: z.string().default(''),
   count: z.number().int().min(1).max(16).default(1),
   steps: z.number().int().min(1).max(50).default(20),
@@ -22,7 +23,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, negativePrompt, count, steps, width, height } = parsed.data
+  const { prompt, prompts, negativePrompt, count, steps, width, height } = parsed.data
   const db = useDatabase()
   const generationId = crypto.randomUUID()
   const now = new Date().toISOString()
@@ -55,9 +56,10 @@ export default defineEventHandler(async (event) => {
   for (let i = 0; i < count; i++) {
     const itemId = itemIds[i]!
     // Each request runs independently and updates its own DB row when done
+    const imagePrompt = prompts?.[i] || prompt
     callRunPod({
       action: 'text2image',
-      prompt,
+      prompt: imagePrompt,
       negative_prompt: negativePrompt,
       width,
       height,
