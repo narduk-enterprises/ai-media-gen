@@ -42,6 +42,8 @@ export const mediaItems = sqliteTable('media_items', {
   status: text('status').notNull().default('pending'), // pending | processing | complete | failed
   error: text('error'),
   metadata: text('metadata'), // JSON blob: { width, height, duration, etc. }
+  runpodJobId: text('runpod_job_id'), // RunPod job ID for recovery of timed-out generations
+  prompt: text('prompt'), // per-item prompt (may differ from generation prompt in "vary per image" mode)
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 })
 

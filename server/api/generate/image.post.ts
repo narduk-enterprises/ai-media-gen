@@ -1,19 +1,19 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { callRunPod } from '../../utils/ai'
+import { callRunPodAsync, pollRunPodJob } from '../../utils/ai'
 import { useMediaBucket, uploadImageToR2 } from '../../utils/r2'
 import { generations, mediaItems } from '../../database/schema'
 
 const generateSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
-  prompts: z.array(z.string()).optional(), // per-image prompts for "Vary per Image" mode
+  prompts: z.array(z.string()).optional(),
   negativePrompt: z.string().default(''),
   count: z.number().int().min(1).max(16).default(1),
   steps: z.number().int().min(1).max(50).default(20),
   width: z.number().int().min(512).max(2048).default(1024),
   height: z.number().int().min(512).max(2048).default(1024),
-  attributes: z.record(z.string()).optional(), // prompt builder attributes used
+  attributes: z.record(z.string()).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -27,7 +27,6 @@ export default defineEventHandler(async (event) => {
 
   const { prompt, prompts, negativePrompt, count, steps, width, height, attributes } = parsed.data
 
-  // Build settings JSON to persist with the generation
   const settings = JSON.stringify({
     negativePrompt,
     steps,
@@ -39,7 +38,6 @@ export default defineEventHandler(async (event) => {
   const generationId = crypto.randomUUID()
   const now = new Date().toISOString()
 
-  // Create generation record with full settings
   await db.insert(generations).values({
     id: generationId,
     userId: user.id,
@@ -50,70 +48,77 @@ export default defineEventHandler(async (event) => {
     createdAt: now,
   })
 
-  // Create placeholder media items
   const itemIds: string[] = []
   for (let i = 0; i < count; i++) {
     const itemId = crypto.randomUUID()
     itemIds.push(itemId)
+    const imagePrompt = prompts?.[i] || prompt
     await db.insert(mediaItems).values({
       id: itemId,
       generationId,
       type: 'image',
+      prompt: imagePrompt,
       status: 'processing',
       createdAt: now,
     })
   }
 
-  // Get R2 bucket for media storage (may be null in local dev)
   const mediaBucket = useMediaBucket(event)
 
   // Fire off each image generation in the background.
-  // CRITICAL: Use waitUntil() so Cloudflare keeps the worker alive after response is sent.
+  // Uses async /run endpoint so we get the RunPod job ID immediately and persist
+  // it before waiting — stale items can be recovered via the job ID later.
   const backgroundWork = Promise.all(
-    Array.from({ length: count }, (_, i) => {
+    Array.from({ length: count }, async (_, i) => {
       const itemId = itemIds[i]!
       const imagePrompt = prompts?.[i] || prompt
-      return callRunPod({
-        action: 'text2image',
-        prompt: imagePrompt,
-        negative_prompt: negativePrompt,
-        width,
-        height,
-        steps,
-      })
-        .then(async (response) => {
-          if (response.output?.output?.data) {
-            const base64Data = response.output.output.data
-            let url: string
 
-            // Upload to R2 if available, otherwise fall back to base64 in D1
-            if (mediaBucket) {
-              url = await uploadImageToR2(mediaBucket, itemId, base64Data)
-              console.log(`[Image] ✅ Item ${i + 1}/${count} uploaded to R2 (${itemId.slice(0, 8)})`)
-            } else {
-              url = `data:image/png;base64,${base64Data}`
-              console.log(`[Image] ✅ Item ${i + 1}/${count} stored as base64 (${itemId.slice(0, 8)})`)
-            }
+      try {
+        const { jobId } = await callRunPodAsync({
+          action: 'text2image',
+          prompt: imagePrompt,
+          negative_prompt: negativePrompt,
+          width,
+          height,
+          steps,
+        })
 
-            await db.update(mediaItems)
-              .set({ url, status: 'complete' })
-              .where(eq(mediaItems.id, itemId))
+        await db.update(mediaItems)
+          .set({ runpodJobId: jobId })
+          .where(eq(mediaItems.id, itemId))
+        console.log(`[Image] Item ${i + 1}/${count} submitted — job ${jobId} (${itemId.slice(0, 8)})`)
+
+        const response = await pollRunPodJob(jobId)
+
+        if (response.output?.output?.data) {
+          const base64Data = response.output.output.data
+          let url: string
+
+          if (mediaBucket) {
+            url = await uploadImageToR2(mediaBucket, itemId, base64Data)
+            console.log(`[Image] ✅ Item ${i + 1}/${count} uploaded to R2 (${itemId.slice(0, 8)})`)
           } else {
-            await db.update(mediaItems)
-              .set({ status: 'failed', error: 'No output data returned' })
-              .where(eq(mediaItems.id, itemId))
-            console.warn(`[Image] ⚠️ Item ${i + 1}/${count} — no output`)
+            url = `data:image/png;base64,${base64Data}`
+            console.log(`[Image] ✅ Item ${i + 1}/${count} stored as base64 (${itemId.slice(0, 8)})`)
           }
-        })
-        .catch(async (error: any) => {
-          console.error(`[Image] ❌ Item ${i + 1}/${count} failed:`, error.message)
+
           await db.update(mediaItems)
-            .set({ status: 'failed', error: error.message })
+            .set({ url, status: 'complete' })
             .where(eq(mediaItems.id, itemId))
-        })
+        } else {
+          await db.update(mediaItems)
+            .set({ status: 'failed', error: 'No output data returned' })
+            .where(eq(mediaItems.id, itemId))
+          console.warn(`[Image] ⚠️ Item ${i + 1}/${count} — no output`)
+        }
+      } catch (error: any) {
+        console.error(`[Image] ❌ Item ${i + 1}/${count} failed:`, error.message)
+        await db.update(mediaItems)
+          .set({ status: 'failed', error: error.message })
+          .where(eq(mediaItems.id, itemId))
+      }
     })
   ).then(async () => {
-    // All items done — update generation status
     const allItems = await db.select().from(mediaItems)
       .where(eq(mediaItems.generationId, generationId))
     const anyFailed = allItems.some(item => item.status === 'failed')
@@ -130,7 +135,6 @@ export default defineEventHandler(async (event) => {
     cfCtx.waitUntil(backgroundWork)
   }
 
-  // Return immediately with placeholder items (all status: 'processing')
   const items = await db.select().from(mediaItems).where(eq(mediaItems.generationId, generationId))
 
   return {

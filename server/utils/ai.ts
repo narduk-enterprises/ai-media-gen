@@ -86,7 +86,7 @@ export async function callRunPod(input: Record<string, any>): Promise<RunPodResp
  * Call RunPod serverless endpoint (async — for long jobs like video).
  * Returns job ID for polling.
  */
-async function callRunPodAsync(input: Record<string, any>): Promise<{ jobId: string }> {
+export async function callRunPodAsync(input: Record<string, any>): Promise<{ jobId: string }> {
   const config = useRuntimeConfig()
   const apiKey = config.aiApiKey
   const apiUrl = config.aiApiUrl
@@ -113,7 +113,7 @@ async function callRunPodAsync(input: Record<string, any>): Promise<{ jobId: str
 /**
  * Poll RunPod job status until complete.
  */
-async function pollRunPodJob(jobId: string, maxWaitMs = 300_000): Promise<RunPodResponse> {
+export async function pollRunPodJob(jobId: string, maxWaitMs = 300_000): Promise<RunPodResponse> {
   const config = useRuntimeConfig()
   const apiKey = config.aiApiKey
   const apiUrl = config.aiApiUrl
@@ -137,6 +137,32 @@ async function pollRunPodJob(jobId: string, maxWaitMs = 300_000): Promise<RunPod
   }
 
   throw createError({ statusCode: 504, message: 'AI generation timed out' })
+}
+
+/**
+ * One-shot status check for a RunPod job. Returns null if the job
+ * isn't finished yet — callers decide whether to wait or give up.
+ */
+export async function checkRunPodJob(jobId: string): Promise<RunPodResponse | null> {
+  const config = useRuntimeConfig()
+  const apiKey = config.aiApiKey
+  const apiUrl = config.aiApiUrl
+
+  if (!apiKey || !apiUrl) return null
+
+  try {
+    const response = await $fetch<RunPodResponse>(`${apiUrl}/status/${jobId}`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      timeout: 10_000,
+    })
+    if (response.status === 'COMPLETED' || response.status === 'FAILED' ||
+        response.status === 'CANCELLED' || response.status === 'TIMED_OUT') {
+      return response
+    }
+    return null // still running
+  } catch {
+    return null
+  }
 }
 
 /**
