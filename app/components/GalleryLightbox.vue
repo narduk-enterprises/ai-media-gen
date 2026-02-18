@@ -57,10 +57,11 @@ const nonImageItems = computed(() =>
           >
             <template #default="{ item }">
               <div class="flex items-center justify-center w-full">
-                <img
+                <NuxtImg
                   :src="item.url!"
                   :alt="generation.prompt"
                   class="max-h-[70vh] w-auto rounded-lg object-contain"
+                  format="webp"
                 />
               </div>
             </template>
@@ -68,10 +69,11 @@ const nonImageItems = computed(() =>
 
           <!-- Single image (no carousel needed) -->
           <div v-else class="flex items-center justify-center">
-            <img
+            <NuxtImg
               :src="images[0].url!"
               :alt="generation.prompt"
               class="max-h-[70vh] w-auto rounded-lg object-contain"
+              format="webp"
             />
           </div>
         </div>

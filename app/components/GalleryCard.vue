@@ -35,11 +35,13 @@ const emptySlots = computed(() =>
               'col-span-2 row-span-2': thumbs.length === 1,
             }"
           >
-            <img
+            <NuxtImg
               :src="thumb.url!"
               :alt="generation.prompt"
+              width="400"
               class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
+              format="webp"
             />
           </div>
           <!-- Fill empty slots -->

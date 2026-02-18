@@ -4,6 +4,7 @@ import pkg from './package.json'
 export default defineNuxtConfig({
   modules: [
     '@nuxt/ui',
+    '@nuxt/image',
     '@nuxt/fonts',
     '@nuxtjs/sitemap',
     '@nuxtjs/robots'
@@ -20,6 +21,11 @@ export default defineNuxtConfig({
 
   ui: {
     colorMode: true
+  },
+
+  image: {
+    // No external provider needed — images served from our own /api/media/ endpoint
+    quality: 80,
   },
 
   colorMode: {
@@ -82,6 +88,12 @@ export default defineNuxtConfig({
             binding: 'DB',
             database_name: 'ai-media-gen-db',
             database_id: '9a1de542-1861-4a4c-a456-7367915c2dee'
+          }
+        ],
+        r2_buckets: [
+          {
+            binding: 'MEDIA',
+            bucket_name: 'ai-media-gen-media'
           }
         ]
       }

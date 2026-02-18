@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
 import { callRunPod } from '../../utils/ai'
+import { useMediaBucket, uploadImageToR2 } from '../../utils/r2'
 import { generations, mediaItems } from '../../database/schema'
 
 const generateSchema = z.object({
@@ -52,6 +53,9 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  // Get R2 bucket for media storage (may be null in local dev)
+  const mediaBucket = useMediaBucket(event)
+
   // Fire off each image generation in the background.
   // CRITICAL: Use waitUntil() so Cloudflare keeps the worker alive after response is sent.
   const backgroundWork = Promise.all(
@@ -68,11 +72,21 @@ export default defineEventHandler(async (event) => {
       })
         .then(async (response) => {
           if (response.output?.output?.data) {
-            const url = `data:image/png;base64,${response.output.output.data}`
+            const base64Data = response.output.output.data
+            let url: string
+
+            // Upload to R2 if available, otherwise fall back to base64 in D1
+            if (mediaBucket) {
+              url = await uploadImageToR2(mediaBucket, itemId, base64Data)
+              console.log(`[Image] ✅ Item ${i + 1}/${count} uploaded to R2 (${itemId.slice(0, 8)})`)
+            } else {
+              url = `data:image/png;base64,${base64Data}`
+              console.log(`[Image] ✅ Item ${i + 1}/${count} stored as base64 (${itemId.slice(0, 8)})`)
+            }
+
             await db.update(mediaItems)
               .set({ url, status: 'complete' })
               .where(eq(mediaItems.id, itemId))
-            console.log(`[Image] ✅ Item ${i + 1}/${count} complete (${itemId.slice(0, 8)})`)
           } else {
             await db.update(mediaItems)
               .set({ status: 'failed', error: 'No output data returned' })

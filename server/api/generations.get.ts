@@ -24,7 +24,16 @@ export default defineEventHandler(async (event) => {
         .select()
         .from(mediaItems)
         .where(eq(mediaItems.generationId, gen.id))
-      return { ...gen, items }
+
+      // Transform base64 data URIs to serving paths to reduce payload
+      const transformedItems = items.map((item) => ({
+        ...item,
+        url: item.url?.startsWith('data:')
+          ? `/api/media/${item.id}`
+          : item.url,
+      }))
+
+      return { ...gen, items: transformedItems }
     }),
   )
 

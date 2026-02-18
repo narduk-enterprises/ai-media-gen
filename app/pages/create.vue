@@ -34,10 +34,48 @@ const videoPolling = ref(false)
 const pollingTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const showPromptBuilder = ref(false)
 const varyPerImage = ref(false)
+const showSavedSetups = ref(false)
+const savingSetup = ref(false)
+const setupName = ref('')
 
 // ─── Prompt Builder (uses extracted composable + user presets) ─────────
 const { getPresets, config: presetConfig } = usePromptPresets()
 const attributes = reactive(createEmptyAttributes())
+
+// ─── Saved Setups ──────────────────────────────────────────────────────
+const { setups, saveSetup: _saveSetup, deleteSetup: _deleteSetup } = useSavedSetups()
+
+function saveCurrentSetup() {
+  _saveSetup(setupName.value, {
+    prompt: prompt.value,
+    negativePrompt: negativePrompt.value,
+    genMode: genMode.value,
+    imageCount: imageCount.value,
+    steps: steps.value,
+    imageWidth: imageWidth.value,
+    imageHeight: imageHeight.value,
+    videoDuration: videoDuration.value,
+    varyPerImage: varyPerImage.value,
+    attributes: { ...attributes } as Record<import('~/utils/promptBuilder').AttributeKey, string>,
+  })
+  setupName.value = ''
+  savingSetup.value = false
+}
+
+function loadSetup(setup: import('~/composables/useSavedSetups').SavedSetup) {
+  prompt.value = setup.prompt
+  negativePrompt.value = setup.negativePrompt
+  genMode.value = setup.genMode
+  imageCount.value = setup.imageCount
+  steps.value = setup.steps
+  imageWidth.value = setup.imageWidth
+  imageHeight.value = setup.imageHeight
+  videoDuration.value = setup.videoDuration
+  varyPerImage.value = setup.varyPerImage
+  for (const key of Object.keys(setup.attributes) as (keyof typeof setup.attributes)[]) {
+    attributes[key] = setup.attributes[key]
+  }
+}
 
 // ─── In-browser LLM for prompt remix ───────────────────────────────────
 const { isSupported: webGpuSupported, loadProgress, loadingModel, remixPrompt } = useWebLLM()
@@ -472,6 +510,80 @@ const gridClass = computed(() => {
           </div>
         </div>
 
+        <!-- ═══ Saved Setups Panel ═══ -->
+        <div class="mt-3">
+          <button
+            class="text-xs transition-colors flex items-center gap-1.5"
+            :class="showSavedSetups ? 'text-violet-400' : 'text-zinc-500 hover:text-zinc-300'"
+            @click="showSavedSetups = !showSavedSetups"
+          >
+            <UIcon
+              :name="showSavedSetups ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'"
+              class="w-3 h-3"
+            />
+            💾 Saved Setups
+            <span v-if="setups.length > 0" class="ml-1 px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 text-[10px] font-medium">
+              {{ setups.length }}
+            </span>
+          </button>
+
+          <div v-if="showSavedSetups" class="mt-3 space-y-3">
+            <!-- Save current setup -->
+            <div v-if="!savingSetup" class="flex items-center gap-2">
+              <button
+                class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-violet-500/15 text-violet-300 hover:bg-violet-500/25 transition-colors flex items-center gap-1"
+                @click="savingSetup = true"
+              >
+                💾 Save Current Setup
+              </button>
+            </div>
+            <div v-else class="flex items-center gap-2">
+              <input
+                v-model="setupName"
+                placeholder="Setup name…"
+                class="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/30"
+                @keydown.enter="saveCurrentSetup"
+                @keydown.escape="savingSetup = false"
+              />
+              <button
+                class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 transition-colors"
+                @click="saveCurrentSetup"
+              >
+                Save
+              </button>
+              <button
+                class="px-2.5 py-1 rounded-lg text-[11px] font-medium text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+                @click="savingSetup = false"
+              >
+                ✕
+              </button>
+            </div>
+
+            <!-- Saved items -->
+            <div v-if="setups.length === 0" class="text-center py-4">
+              <p class="text-[11px] text-zinc-600">No saved setups yet</p>
+            </div>
+            <div v-else class="flex flex-wrap gap-2">
+              <div
+                v-for="setup in setups"
+                :key="setup.id"
+                class="group flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800/60 border border-zinc-700/50 hover:border-violet-500/30 hover:bg-zinc-800 transition-all cursor-pointer"
+                @click="loadSetup(setup)"
+              >
+                <span class="text-xs text-zinc-300">{{ setup.name }}</span>
+                <span class="text-[10px] text-zinc-600 font-mono">{{ setup.imageWidth }}×{{ setup.imageHeight }}</span>
+                <button
+                  class="ml-1 p-0.5 rounded text-zinc-600 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                  title="Delete setup"
+                  @click.stop="_deleteSetup(setup.id)"
+                >
+                  <UIcon name="i-heroicons-x-mark" class="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Mode toggle -->
         <div class="flex items-center gap-2 mt-4 pt-4 border-t border-zinc-800/50">
           <span class="text-xs text-zinc-500 mr-1">Mode:</span>
@@ -692,11 +804,13 @@ const gridClass = computed(() => {
             class="relative aspect-square rounded-xl overflow-hidden border border-zinc-800 hover:border-violet-500/30 transition-all cursor-pointer animate-reveal"
             @click="selectedImage = item"
           >
-            <img
+            <NuxtImg
               :src="item.url"
               :alt="currentGeneration.generation.prompt"
+              width="512"
               class="w-full h-full object-cover"
               loading="lazy"
+              format="webp"
             />
 
             <!-- Hover overlay -->
@@ -808,7 +922,7 @@ const gridClass = computed(() => {
           >
             <UIcon name="i-heroicons-x-mark" class="w-8 h-8" />
           </button>
-          <img
+          <NuxtImg
             :src="selectedImage.url!"
             :alt="currentGeneration?.generation.prompt"
             class="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
