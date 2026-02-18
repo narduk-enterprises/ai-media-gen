@@ -1,9 +1,9 @@
 <script setup lang="ts">
 const { login, loggedIn } = useAuth()
 
-// Redirect if already logged in
+// Already logged in? Go to /create
 if (loggedIn.value) {
-  navigateTo('/create')
+  await navigateTo('/create', { replace: true })
 }
 
 useSeoMeta({ title: 'Log In' })

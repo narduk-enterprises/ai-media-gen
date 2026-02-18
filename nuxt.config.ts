@@ -36,8 +36,8 @@ export default defineNuxtConfig({
   runtimeConfig: {
     // AI generation API (RunPod / Replicate / Fal.ai)
     aiApiKey: process.env.AI_API_KEY || '',
-    aiApiUrl: process.env.AI_API_URL || '',
-    llmApiUrl: process.env.LLM_API_URL || 'https://api.runpod.ai/v2/02qfq8g0vfvy6h',
+    aiApiUrl: process.env.AI_API_URL || 'https://api.runpod.ai/v2/6f2qydxrgdmrym',
+    llmApiUrl: process.env.LLM_API_URL || 'https://api.runpod.ai/v2/t5q7bdhetbwi41',
 
     // Apple Sign-In
     appleTeamId: process.env.APPLE_TEAM_ID || '',

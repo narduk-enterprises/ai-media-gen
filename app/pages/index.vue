@@ -1,10 +1,7 @@
 <script setup lang="ts">
-const { loggedIn, loading, refresh } = useAuth()
+const { loggedIn } = useAuth()
 
-// Wait for auth state, then redirect logged-in users
-if (loading.value) {
-  await refresh()
-}
+// If logged in, go straight to /create
 if (loggedIn.value) {
   await navigateTo('/create', { replace: true })
 }
