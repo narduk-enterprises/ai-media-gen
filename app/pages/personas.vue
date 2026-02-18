@@ -535,6 +535,15 @@ function handleExportScene() {
               <button class="w-7 h-7 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center text-sm" title="Delete" @click="deletePersonAction">🗑️</button>
             </div>
           </div>
+          <div v-if="isCreating" class="mb-4 p-3 rounded-lg bg-violet-50/60 border border-violet-100 text-xs text-slate-600 space-y-1.5">
+            <p class="font-medium text-violet-700">Writing a good persona</p>
+            <ul class="space-y-1 text-[11px] text-slate-500 list-disc pl-4">
+              <li><strong>Description</strong> is the most important field. Write it as a short phrase the AI model will see directly: <em>"25 year old woman, athletic, confident expression"</em></li>
+              <li><strong>Appearance fields</strong> are concatenated into the prompt. Be specific and visual: <em>"long flowing black hair"</em> beats <em>"black hair"</em></li>
+              <li>Leave fields blank to skip them. Only fill what matters for consistency across scenes.</li>
+              <li>Think of it as an actor's casting sheet: what must stay the same every time this character appears?</li>
+            </ul>
+          </div>
           <div class="space-y-3">
             <div>
               <label class="text-[11px] text-slate-500 font-medium mb-1 block">Name</label>
@@ -549,7 +558,7 @@ function handleExportScene() {
               <label class="text-[11px] text-slate-500 font-medium mb-1 block">Description</label>
               <textarea
                 v-model="personForm.description"
-                placeholder="Age, gender, distinguishing features..."
+                placeholder="e.g. 25 year old woman, athletic build, confident expression, slight smile"
                 rows="2"
                 class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none"
               />
@@ -710,6 +719,18 @@ function handleExportScene() {
                 <button class="w-7 h-7 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center text-sm" title="Delete" @click="deleteSceneAction">🗑️</button>
               </template>
             </div>
+          </div>
+          <div v-if="isCreatingScene" class="mb-3 p-3 rounded-lg bg-cyan-50/60 border border-cyan-100 text-xs text-slate-600 space-y-1.5">
+            <p class="font-medium text-cyan-700">Writing a good scene</p>
+            <ul class="space-y-1 text-[11px] text-slate-500 list-disc pl-4">
+              <li><strong>Scene</strong> is the location/setting. Be vivid: <em>"neon-lit rainy alleyway at midnight"</em> not just <em>"alleyway"</em></li>
+              <li><strong>Pose</strong> describes what the subject is doing: <em>"leaning against a wall, arms crossed"</em></li>
+              <li><strong>Style</strong> controls the artistic look: <em>"cinematic"</em>, <em>"anime"</em>, <em>"oil painting"</em>, <em>"photorealistic"</em></li>
+              <li><strong>Lighting</strong> sets the atmosphere: <em>"golden hour warmth"</em>, <em>"dramatic chiaroscuro"</em>, <em>"neon glow"</em></li>
+              <li><strong>Mood</strong> is the emotional tone: <em>"mysterious"</em>, <em>"serene"</em>, <em>"epic"</em></li>
+              <li><strong>Camera</strong> is the shot composition: <em>"close-up portrait"</em>, <em>"wide angle establishing shot"</em>, <em>"low angle heroic"</em></li>
+              <li>Leave any field blank and it will be filled randomly at generation time for variety.</li>
+            </ul>
           </div>
           <div class="space-y-2.5">
             <div>

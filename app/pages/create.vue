@@ -311,11 +311,22 @@ const gridClass = computed(() => {
 <template>
   <div class="max-w-4xl mx-auto px-4 sm:px-6 py-8 pb-32">
     <!-- Header -->
-    <div class="mb-6">
-      <h1 class="font-display text-3xl font-bold text-slate-800 mb-1">
-        <span class="text-transparent bg-clip-text bg-linear-to-r from-violet-600 to-cyan-600">Create</span>
-      </h1>
-      <p class="text-sm text-slate-500">Build prompts and generate images in batches.</p>
+    <div class="flex items-start justify-between mb-6">
+      <div>
+        <h1 class="font-display text-3xl font-bold text-slate-800 mb-1">
+          <span class="text-transparent bg-clip-text bg-linear-to-r from-violet-600 to-cyan-600">Create</span>
+        </h1>
+        <p class="text-sm text-slate-500">Build prompts and generate images in batches.</p>
+      </div>
+      <UButton
+        variant="outline"
+        color="neutral"
+        size="xs"
+        icon="i-lucide-rotate-ccw"
+        @click="resetForm"
+      >
+        Start Over
+      </UButton>
     </div>
 
     <!-- Project selector -->
@@ -400,9 +411,21 @@ const gridClass = computed(() => {
           <!-- Scene picker -->
           <section>
             <div class="flex items-center justify-between mb-3">
-              <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Scenes <span class="text-slate-400 font-normal normal-case tracking-normal">(select one or more)</span>
-              </h2>
+              <div class="flex items-center gap-2">
+                <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Scenes <span class="text-slate-400 font-normal normal-case tracking-normal">(select one or more)</span>
+                </h2>
+                <UButton
+                  v-if="selectedSceneIds.length > 0"
+                  variant="ghost"
+                  color="error"
+                  size="xs"
+                  icon="i-lucide-x"
+                  @click="selectedSceneIds = []"
+                >
+                  Clear {{ selectedSceneIds.length }}
+                </UButton>
+              </div>
               <UButton to="/personas" variant="link" size="xs" trailing-icon="i-lucide-arrow-right">
                 Manage
               </UButton>
@@ -618,9 +641,21 @@ const gridClass = computed(() => {
     <!-- ═══ Generate Button (sticky) ═══ -->
     <div class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 py-3 px-4 z-10">
       <div class="max-w-4xl mx-auto flex items-center justify-between gap-3">
-        <UButton variant="outline" color="neutral" size="sm" icon="i-lucide-rotate-ccw" @click="resetForm">
-          Reset
-        </UButton>
+        <div class="flex items-center gap-2">
+          <UButton variant="outline" color="neutral" size="sm" icon="i-lucide-rotate-ccw" @click="resetForm">
+            Start Over
+          </UButton>
+          <UButton
+            v-if="gen.results.value.length > 0"
+            variant="ghost"
+            color="error"
+            size="sm"
+            icon="i-lucide-trash-2"
+            @click="gen.clearResults()"
+          >
+            Clear Results
+          </UButton>
+        </div>
         <UButton
           :loading="gen.generating.value"
           :disabled="!canGenerate"
@@ -630,7 +665,6 @@ const gridClass = computed(() => {
         >
           {{ gen.generating.value ? 'Generating…' : (canGenerate ? `Generate ${totalForButton()} Image${totalForButton() !== 1 ? 's' : ''}` : 'Configure above') }}
         </UButton>
-        <div class="w-20" />
       </div>
     </div>
 

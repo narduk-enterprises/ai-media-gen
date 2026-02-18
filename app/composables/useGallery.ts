@@ -4,6 +4,8 @@ export function useGallery() {
   const { data, pending, error, refresh } = useFetch<{ generations: GenerationResult[] }>('/api/generations', {
     headers: { 'X-Requested-With': 'XMLHttpRequest' },
     default: () => ({ generations: [] }),
+    server: false,
+    lazy: true,
   })
 
   const generations = computed(() => data.value?.generations ?? [])
