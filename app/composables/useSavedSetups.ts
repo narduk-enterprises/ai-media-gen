@@ -21,6 +21,7 @@ export interface SavedSetup {
   imageWidth: number
   imageHeight: number
   videoDuration: number
+  videoCfg: number
   varyPerImage: boolean
   /** Prompt builder attributes */
   attributes: Record<AttributeKey, string>

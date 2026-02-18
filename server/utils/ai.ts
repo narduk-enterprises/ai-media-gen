@@ -169,23 +169,39 @@ export async function generateImages(
 
 /**
  * Generate video from an image via Wan 2.2 image-to-video on RunPod.
+ * Uses dual high/low noise approach for best quality.
  */
 export async function generateVideo(
   prompt: string,
-  options?: { imageBase64?: string; width?: number; height?: number }
+  options?: {
+    imageBase64?: string
+    width?: number
+    height?: number
+    numFrames?: number
+    steps?: number
+    cfg?: number
+    negativePrompt?: string
+  }
 ): Promise<GenerateVideoResult> {
   const input: Record<string, any> = {
     action: 'image2video',
     prompt,
-    width: options?.width || 720,
-    height: options?.height || 480,
-    num_frames: 81,
-    steps: 20,
+    width: options?.width || 768,
+    height: options?.height || 768,
+    num_frames: options?.numFrames || 81,
+    steps: options?.steps || 20,
+    cfg: options?.cfg || 3.5,
+  }
+
+  if (options?.negativePrompt) {
+    input.negative_prompt = options.negativePrompt
   }
 
   if (options?.imageBase64) {
     input.image = options.imageBase64
   }
+
+  console.log(`[AI] image2video — ${input.num_frames} frames, ${input.width}x${input.height}, ${input.steps} steps, cfg=${input.cfg}`)
 
   // Use async + polling for video (can take >120s)
   const { jobId } = await callRunPodAsync(input)
@@ -241,15 +257,23 @@ export async function generateText2Video(
  */
 export async function generateVideoWithAudio(
   prompt: string,
-  options?: { imageBase64?: string; width?: number; height?: number }
+  options?: {
+    imageBase64?: string
+    width?: number
+    height?: number
+    numFrames?: number
+    steps?: number
+    cfg?: number
+  }
 ): Promise<GenerateVideoResult> {
   const input: Record<string, any> = {
     action: 'image2video_audio',
     prompt,
-    width: options?.width || 720,
-    height: options?.height || 480,
-    num_frames: 81,
-    steps: 20,
+    width: options?.width || 768,
+    height: options?.height || 768,
+    num_frames: options?.numFrames || 81,
+    steps: options?.steps || 20,
+    cfg: options?.cfg || 3.5,
   }
 
   if (options?.imageBase64) {

@@ -6,6 +6,11 @@ import { mediaItems, generations } from '../../database/schema'
 
 const videoSchema = z.object({
   mediaItemId: z.string().uuid('Invalid media item ID'),
+  numFrames: z.number().min(41).max(201).optional(),
+  steps: z.number().min(1).max(50).optional(),
+  cfg: z.number().min(1).max(10).optional(),
+  width: z.number().min(256).max(1280).optional(),
+  height: z.number().min(256).max(1280).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -17,7 +22,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { mediaItemId } = parsed.data
+  const { mediaItemId, numFrames, steps, cfg, width, height } = parsed.data
   const db = useDatabase()
 
   // Verify source image belongs to user
@@ -61,7 +66,14 @@ export default defineEventHandler(async (event) => {
 
   // Generate video (async — can take minutes)
   try {
-    const result = await generateVideo(prompt, { imageBase64 })
+    const result = await generateVideo(prompt, {
+      imageBase64,
+      numFrames,
+      steps,
+      cfg,
+      width,
+      height,
+    })
 
     if (result.status === 'complete' && result.data) {
       const videoUrl = `data:video/mp4;base64,${result.data}`
