@@ -18,13 +18,76 @@ function toggleCategory(key: AttributeKey) {
 }
 
 function handleAddPreset(key: AttributeKey) {
-  const raw = newPresetInputs[key] || ''
+  const raw = (newPresetInputs[key] || '').trim()
+  if (!raw) return
+
+  // Try JSON first: ["a", "b"] or {"hair": [...], "eyes": [...]}
+  if (raw.startsWith('[') || raw.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        // Flat array — add all to this category
+        for (const item of parsed) {
+          if (typeof item === 'string' && item.trim()) addPreset(key, item.trim())
+        }
+        newPresetInputs[key] = ''
+        return
+      }
+      if (typeof parsed === 'object' && parsed !== null) {
+        // Object — add to each matching category
+        for (const [k, vals] of Object.entries(parsed)) {
+          if (attributeKeys.includes(k as AttributeKey) && Array.isArray(vals)) {
+            for (const v of vals) {
+              if (typeof v === 'string' && v.trim()) addPreset(k as AttributeKey, v.trim())
+            }
+          }
+        }
+        newPresetInputs[key] = ''
+        return
+      }
+    } catch { /* not valid JSON, fall through to newline parsing */ }
+  }
+
+  // Newline-separated
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean)
-  if (!lines.length) return
   for (const line of lines) {
     addPreset(key, line)
   }
   newPresetInputs[key] = ''
+}
+
+const showJsonImport = ref(false)
+const jsonImportText = ref('')
+const jsonImportError = ref('')
+
+function handleJsonImport() {
+  jsonImportError.value = ''
+  const raw = jsonImportText.value.trim()
+  if (!raw) return
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      jsonImportError.value = 'Expected an object like { "hair": ["..."], "eyes": ["..."] }'
+      return
+    }
+    let count = 0
+    for (const [k, vals] of Object.entries(parsed)) {
+      if (attributeKeys.includes(k as AttributeKey) && Array.isArray(vals)) {
+        for (const v of vals) {
+          if (typeof v === 'string' && v.trim()) {
+            addPreset(k as AttributeKey, v.trim())
+            count++
+          }
+        }
+      }
+    }
+    jsonImportText.value = ''
+    showJsonImport.value = false
+    jsonImportError.value = ''
+  } catch {
+    jsonImportError.value = 'Invalid JSON. Check your syntax.'
+  }
 }
 
 async function handleLogout() {
@@ -68,9 +131,47 @@ const totalCustomPresets = computed(() =>
         </span>
       </div>
 
-      <p class="text-xs text-zinc-500 mb-4">
-        Add your own presets for each prompt attribute. These will appear alongside the built-in options on the Create page.
-      </p>
+      <div class="flex items-start justify-between mb-4">
+        <p class="text-xs text-zinc-500">
+          Add your own presets for each prompt attribute. These will appear alongside the built-in options on the Create page.
+        </p>
+        <UButton
+          size="xs"
+          variant="ghost"
+          class="ml-3 shrink-0"
+          @click="showJsonImport = !showJsonImport"
+        >
+          {{ showJsonImport ? '✕ Close' : '📋 Import JSON' }}
+        </UButton>
+      </div>
+
+      <!-- JSON bulk import panel -->
+      <div v-if="showJsonImport" class="mb-4 p-3 rounded-lg bg-zinc-900/60 border border-zinc-800">
+        <p class="text-[11px] text-zinc-400 mb-2">
+          Paste a JSON object to import presets across multiple categories at once:
+        </p>
+        <pre class="text-[10px] text-zinc-600 mb-2 overflow-x-auto">{{ `{
+  "hair": ["long black hair", "short blonde bob"],
+  "eyes": ["piercing blue eyes", "warm hazel eyes"],
+  "clothing": ["leather jacket", "flowing dress"]
+}` }}</pre>
+        <textarea
+          v-model="jsonImportText"
+          placeholder="Paste JSON here..."
+          rows="4"
+          class="w-full bg-zinc-800/80 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none font-mono"
+        />
+        <p v-if="jsonImportError" class="text-[11px] text-red-400 mt-1">{{ jsonImportError }}</p>
+        <div class="flex justify-end mt-2">
+          <UButton
+            size="xs"
+            :disabled="!jsonImportText.trim()"
+            @click="handleJsonImport"
+          >
+            Import All
+          </UButton>
+        </div>
+      </div>
 
       <!-- Merge mode toggle -->
       <div class="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50 border border-zinc-800 mb-4">
@@ -136,7 +237,7 @@ const totalCustomPresets = computed(() =>
                 class="w-full bg-zinc-800/80 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none"
               />
               <div class="flex items-center justify-between mt-1.5">
-                <p class="text-[10px] text-zinc-600">One preset per line</p>
+                <p class="text-[10px] text-zinc-600">One per line • or paste JSON array</p>
                 <UButton
                   size="xs"
                   :disabled="!newPresetInputs[key]?.trim()"
