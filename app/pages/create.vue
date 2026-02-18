@@ -343,7 +343,22 @@ function clearResults() {
 
 function startPolling(generationId: string) {
   stopPolling()
+  const startedAt = Date.now()
+  const maxPollMs = 5 * 60 * 1000 // 5 minutes
+
   pollingTimer.value = setInterval(async () => {
+    if (Date.now() - startedAt > maxPollMs) {
+      stopPolling()
+      generating.value = false
+      for (const img of allImages.value) {
+        if (img.status === 'processing') {
+          img.status = 'failed'
+          img.error = 'Generation timed out'
+        }
+      }
+      return
+    }
+
     try {
       const result = await $fetch<GenerationResult>('/api/generate/generation-status', {
         params: { id: generationId },

@@ -28,8 +28,10 @@ interface GenerateVideoResult {
 }
 
 /**
- * Call RunPod serverless endpoint (synchronous).
- * Uses /runsync for immediate results (up to 120s timeout).
+ * Call RunPod serverless endpoint.
+ * Tries /runsync first for fast results, but RunPod's sync window is ~120s.
+ * If the job outlives that window (cold starts, large images), we fall back
+ * to polling /status/{id} until it completes.
  */
 export async function callRunPod(input: Record<string, any>): Promise<RunPodResponse> {
   const config = useRuntimeConfig()
@@ -43,21 +45,38 @@ export async function callRunPod(input: Record<string, any>): Promise<RunPodResp
     })
   }
 
-  const response = await $fetch<RunPodResponse>(`${apiUrl}/runsync`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: { input },
-    timeout: 180_000, // 3 min — generation can be slow on cold starts
-  })
+  let response: RunPodResponse
+
+  try {
+    response = await $fetch<RunPodResponse>(`${apiUrl}/runsync`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: { input },
+      timeout: 180_000,
+    })
+  } catch (fetchError: any) {
+    if (fetchError.name === 'AbortError' || /timeout/i.test(fetchError.message ?? '')) {
+      console.warn('[AI] /runsync fetch timed out — falling back to async + polling')
+      const { jobId } = await callRunPodAsync(input)
+      return await pollRunPodJob(jobId)
+    }
+    throw fetchError
+  }
 
   if (response.status === 'FAILED' || response.error) {
     throw createError({
       statusCode: 502,
       message: `AI generation failed: ${response.error || 'Unknown error'}`,
     })
+  }
+
+  // /runsync returns IN_QUEUE or IN_PROGRESS when the job outlives the sync window — poll to completion
+  if (response.status === 'IN_QUEUE' || response.status === 'IN_PROGRESS') {
+    console.log(`[AI] /runsync returned ${response.status} for job ${response.id} — polling for completion`)
+    return await pollRunPodJob(response.id)
   }
 
   return response

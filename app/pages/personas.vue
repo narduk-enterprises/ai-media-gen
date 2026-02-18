@@ -26,6 +26,8 @@ const {
   renamePerson,
   updatePerson,
   duplicatePerson,
+  importPersons,
+  exportPerson,
 } = usePersons()
 
 // ─── Selection & Mode ────────────────────────────────────────────────────
@@ -172,6 +174,42 @@ function personSummary(person: any): string {
   return parts.join(' · ') || 'No details yet'
 }
 
+// ─── Persona Import/Export ───────────────────────────────────────────────
+const showPersonaImport = ref(false)
+const personaImportText = ref('')
+const personaImportError = ref('')
+const copiedPersona = ref(false)
+
+function handlePersonaImport() {
+  personaImportError.value = ''
+  const text = personaImportText.value.trim()
+  if (!text) return
+
+  try {
+    const parsed = JSON.parse(text)
+    const created = importPersons(parsed)
+    if (created.length === 0) {
+      personaImportError.value = 'No valid personas found in the JSON'
+      return
+    }
+    personaImportText.value = ''
+    showPersonaImport.value = false
+    selectPerson(created[0].id)
+  } catch {
+    personaImportError.value = 'Invalid JSON — expected an object or array of objects'
+  }
+}
+
+function handleExportPersona() {
+  if (!selectedPersonId.value) return
+  const data = exportPerson(selectedPersonId.value)
+  if (data) {
+    navigator.clipboard.writeText(JSON.stringify(data, null, 2))
+    copiedPersona.value = true
+    setTimeout(() => { copiedPersona.value = false }, 2000)
+  }
+}
+
 // ─── Scene Form ──────────────────────────────────────────────────────────
 const sceneForm = reactive<Record<string, string>>({
   scene: '',
@@ -199,6 +237,63 @@ function clearAllScene() {
   }
 }
 
+// ─── Scene Import/Export ─────────────────────────────────────────────────
+const showSceneImport = ref(false)
+const sceneImportText = ref('')
+const sceneImportError = ref('')
+const copiedScene = ref(false)
+
+function handleSceneImport() {
+  sceneImportError.value = ''
+  const text = sceneImportText.value.trim()
+  if (!text) return
+
+  try {
+    const parsed = JSON.parse(text)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      sceneImportError.value = 'Expected a JSON object with scene fields'
+      return
+    }
+    let imported = 0
+    for (const key of sceneAttributeKeys) {
+      if (typeof parsed[key] === 'string' && parsed[key].trim()) {
+        sceneForm[key] = parsed[key].trim()
+        imported++
+      }
+    }
+    if (typeof parsed.basePrompt === 'string') {
+      basePrompt.value = parsed.basePrompt.trim()
+      imported++
+    }
+    if (typeof parsed.width === 'number') { imageWidth.value = parsed.width; imported++ }
+    if (typeof parsed.height === 'number') { imageHeight.value = parsed.height; imported++ }
+    if (typeof parsed.steps === 'number') { steps.value = parsed.steps; imported++ }
+
+    if (imported === 0) {
+      sceneImportError.value = 'No recognized scene fields found'
+      return
+    }
+    sceneImportText.value = ''
+    showSceneImport.value = false
+  } catch {
+    sceneImportError.value = 'Invalid JSON format'
+  }
+}
+
+function handleExportScene() {
+  const obj: Record<string, any> = {}
+  for (const key of sceneAttributeKeys) {
+    if (sceneForm[key]) obj[key] = sceneForm[key]
+  }
+  if (basePrompt.value.trim()) obj.basePrompt = basePrompt.value.trim()
+  obj.width = imageWidth.value
+  obj.height = imageHeight.value
+  obj.steps = steps.value
+  navigator.clipboard.writeText(JSON.stringify(obj, null, 2))
+  copiedScene.value = true
+  setTimeout(() => { copiedScene.value = false }, 2000)
+}
+
 // ─── Prompt Preview ──────────────────────────────────────────────────────
 const basePrompt = ref('')
 
@@ -216,9 +311,13 @@ const promptPreview = computed(() => {
     if (sceneForm[key]) sceneAttrs[key] = sceneForm[key]
   }
 
-  const base = basePrompt.value.trim() || (presetConfig.value.basePrompts.length > 0 ? '[random base prompt]' : '')
+  const base = basePrompt.value.trim()
   return buildPersonaPrompt(base, personAttrs, sceneAttrs, person.description)
 })
+
+const willUseRandomBasePrompt = computed(() =>
+  !basePrompt.value.trim() && presetConfig.value.basePrompts.length > 0
+)
 
 const emptySceneFields = computed(() =>
   sceneAttributeKeys.filter(k => !sceneForm[k]).map(k => attributeLabels[k].label.toLowerCase())
@@ -340,7 +439,16 @@ async function generate(count: number) {
 
 function startPolling() {
   stopPolling()
+  const startedAt = Date.now()
+  const maxPollMs = 5 * 60 * 1000
+
   pollingTimer.value = setInterval(async () => {
+    if (Date.now() - startedAt > maxPollMs) {
+      stopPolling()
+      generating.value = false
+      return
+    }
+
     let allDone = true
     for (const genId of activeGenerationIds.value) {
       try {
@@ -407,12 +515,50 @@ function openLightbox(img: (typeof allImages.value)[number]) {
     <div class="mb-6">
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-sm font-semibold text-slate-700">My Personas</h2>
-        <button
-          class="text-xs font-medium text-violet-600 hover:text-violet-700 transition-colors"
-          @click="startCreate"
-        >
-          + New Persona
-        </button>
+        <div class="flex items-center gap-3">
+          <button
+            class="text-xs font-medium transition-colors"
+            :class="showPersonaImport ? 'text-violet-600' : 'text-slate-400 hover:text-slate-600'"
+            @click="showPersonaImport = !showPersonaImport; personaImportError = ''"
+          >
+            Import JSON
+          </button>
+          <button
+            class="text-xs font-medium text-violet-600 hover:text-violet-700 transition-colors"
+            @click="startCreate"
+          >
+            + New Persona
+          </button>
+        </div>
+      </div>
+
+      <!-- Persona Import Panel -->
+      <div v-if="showPersonaImport" class="mb-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+        <p class="text-[11px] text-slate-500 mb-2">Paste JSON to import one or more personas:</p>
+        <pre class="text-[9px] text-slate-400 mb-2 overflow-x-auto bg-white rounded-lg p-2 border border-slate-100">{{ '{ "name": "Cyber Girl", "description": "25yo hacker", "hair": "neon pink pixie cut", "eyes": "glowing blue" }' }}</pre>
+        <textarea
+          v-model="personaImportText"
+          rows="3"
+          placeholder='Paste a single object or an array of objects...'
+          class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none font-mono"
+        />
+        <p v-if="personaImportError" class="text-[10px] text-red-500 mt-1">{{ personaImportError }}</p>
+        <div class="flex gap-2 mt-2">
+          <button
+            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+            :class="{ 'opacity-50 cursor-not-allowed': !personaImportText.trim() }"
+            :disabled="!personaImportText.trim()"
+            @click="handlePersonaImport"
+          >
+            Import
+          </button>
+          <button
+            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+            @click="showPersonaImport = false"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
 
       <!-- Empty state: no personas at all -->
@@ -436,44 +582,46 @@ function openLightbox(img: (typeof allImages.value)[number]) {
         </button>
       </div>
 
-      <!-- Persona cards row -->
-      <div v-else class="flex gap-3 overflow-x-auto pb-2">
-        <button
-          v-for="person in persons"
-          :key="person.id"
-          class="shrink-0 w-52 p-3 rounded-xl border text-left transition-all"
-          :class="selectedPersonId === person.id && !isCreating
-            ? 'ring-2 ring-violet-400 border-violet-200 bg-violet-50/70 shadow-sm'
-            : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'"
-          @click="selectPerson(person.id)"
-        >
-          <div class="flex items-center gap-2.5 mb-1.5">
-            <div
-              class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
-              :class="selectedPersonId === person.id && !isCreating
-                ? 'bg-violet-200 text-violet-700'
-                : 'bg-slate-100 text-slate-500'"
-            >
-              {{ person.name.charAt(0).toUpperCase() }}
+      <!-- Persona cards row — inline-flex inside overflow container for reliable horizontal scroll -->
+      <div v-else class="overflow-x-auto pb-2">
+        <div class="inline-flex gap-3">
+          <button
+            v-for="person in persons"
+            :key="person.id"
+            class="shrink-0 w-52 p-3 rounded-xl border text-left transition-all"
+            :class="selectedPersonId === person.id && !isCreating
+              ? 'ring-2 ring-violet-400 border-violet-200 bg-violet-50/70 shadow-sm'
+              : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'"
+            @click="selectPerson(person.id)"
+          >
+            <div class="flex items-center gap-2.5 mb-1.5">
+              <div
+                class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
+                :class="selectedPersonId === person.id && !isCreating
+                  ? 'bg-violet-200 text-violet-700'
+                  : 'bg-slate-100 text-slate-500'"
+              >
+                {{ person.name.charAt(0).toUpperCase() }}
+              </div>
+              <span class="font-medium text-sm text-slate-700 truncate">{{ person.name }}</span>
             </div>
-            <span class="font-medium text-sm text-slate-700 truncate">{{ person.name }}</span>
-          </div>
-          <p class="text-[10px] text-slate-400 line-clamp-2 pl-[42px]">
-            {{ personSummary(person) }}
-          </p>
-        </button>
+            <p class="text-[10px] text-slate-400 line-clamp-2 pl-[42px]">
+              {{ personSummary(person) }}
+            </p>
+          </button>
 
-        <!-- New persona card -->
-        <button
-          class="shrink-0 w-44 p-3 rounded-xl border-2 border-dashed transition-all flex flex-col items-center justify-center gap-1"
-          :class="isCreating
-            ? 'border-violet-300 bg-violet-50/50'
-            : 'border-slate-200 hover:border-violet-300 hover:bg-slate-50'"
-          @click="startCreate"
-        >
-          <span class="text-2xl text-slate-300">+</span>
-          <span class="text-[11px] text-slate-400 font-medium">New Persona</span>
-        </button>
+          <!-- New persona card -->
+          <button
+            class="shrink-0 w-40 p-3 rounded-xl border-2 border-dashed transition-all flex flex-col items-center justify-center gap-1"
+            :class="isCreating
+              ? 'border-violet-300 bg-violet-50/50'
+              : 'border-slate-200 hover:border-violet-300 hover:bg-slate-50'"
+            @click="startCreate"
+          >
+            <span class="text-2xl text-slate-300">+</span>
+            <span class="text-[11px] text-slate-400 font-medium">New Persona</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -564,6 +712,14 @@ function openLightbox(img: (typeof allImages.value)[number]) {
             <h2 class="text-sm font-semibold text-slate-700">Persona Profile</h2>
             <div class="flex items-center gap-1">
               <span v-if="justSaved" class="text-xs text-emerald-500 font-medium mr-1 animate-pulse">Saved!</span>
+              <span v-if="copiedPersona" class="text-xs text-emerald-500 font-medium mr-1 animate-pulse">Copied!</span>
+              <button
+                class="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors flex items-center justify-center text-sm"
+                title="Export persona as JSON"
+                @click="handleExportPersona"
+              >
+                📤
+              </button>
               <button
                 class="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors flex items-center justify-center text-sm"
                 title="Duplicate persona"
@@ -661,6 +817,21 @@ function openLightbox(img: (typeof allImages.value)[number]) {
                 <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
               </select>
               <button
+                class="text-[10px] font-medium transition-colors"
+                :class="showSceneImport ? 'text-violet-500' : 'text-slate-400 hover:text-slate-600'"
+                @click="showSceneImport = !showSceneImport; sceneImportError = ''"
+              >
+                Import
+              </button>
+              <button
+                class="text-[10px] text-slate-400 hover:text-slate-600 font-medium transition-colors"
+                @click="handleExportScene"
+              >
+                <template v-if="copiedScene">Copied!</template>
+                <template v-else>Export</template>
+              </button>
+              <span class="text-slate-200">|</span>
+              <button
                 class="text-[10px] text-violet-500 hover:text-violet-600 font-medium transition-colors"
                 @click="randomizeAllScene"
               >
@@ -671,6 +842,35 @@ function openLightbox(img: (typeof allImages.value)[number]) {
                 @click="clearAllScene"
               >
                 Clear
+              </button>
+            </div>
+          </div>
+
+          <!-- Scene Import Panel -->
+          <div v-if="showSceneImport" class="mb-4 p-3 rounded-lg bg-slate-50 border border-slate-200">
+            <p class="text-[11px] text-slate-500 mb-2">Paste a scene setup JSON:</p>
+            <pre class="text-[9px] text-slate-400 mb-2 overflow-x-auto bg-white rounded-lg p-2 border border-slate-100">{{ '{ "scene": "neon city", "pose": "standing", "style": "cinematic", "steps": 30 }' }}</pre>
+            <textarea
+              v-model="sceneImportText"
+              rows="3"
+              placeholder='{ "scene": "...", "pose": "...", "style": "...", "lighting": "...", "mood": "...", "camera": "..." }'
+              class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none font-mono"
+            />
+            <p v-if="sceneImportError" class="text-[10px] text-red-500 mt-1">{{ sceneImportError }}</p>
+            <div class="flex gap-2 mt-2">
+              <button
+                class="px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+                :class="{ 'opacity-50 cursor-not-allowed': !sceneImportText.trim() }"
+                :disabled="!sceneImportText.trim()"
+                @click="handleSceneImport"
+              >
+                Import
+              </button>
+              <button
+                class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+                @click="showSceneImport = false"
+              >
+                Cancel
               </button>
             </div>
           </div>
@@ -706,15 +906,21 @@ function openLightbox(img: (typeof allImages.value)[number]) {
         </div>
 
         <!-- Prompt Preview -->
-        <div v-if="promptPreview" class="glass-card p-4">
+        <div v-if="promptPreview || willUseRandomBasePrompt" class="glass-card p-4">
           <div class="flex items-center justify-between mb-1.5">
             <h3 class="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Prompt Preview</h3>
             <span v-if="emptySceneFields.length > 0" class="text-[9px] text-slate-300">
               + random: {{ emptySceneFields.join(', ') }}
             </span>
           </div>
-          <p class="text-xs text-slate-600 leading-relaxed wrap-break-word">
+          <p v-if="willUseRandomBasePrompt" class="text-[10px] text-violet-400 italic mb-1">
+            A random base prompt from your project will be prepended to each image.
+          </p>
+          <p v-if="promptPreview" class="text-xs text-slate-600 leading-relaxed wrap-break-word">
             {{ promptPreview }}
+          </p>
+          <p v-else class="text-xs text-slate-400 italic">
+            (persona attributes + scene attributes will be combined)
           </p>
         </div>
 
@@ -740,7 +946,9 @@ function openLightbox(img: (typeof allImages.value)[number]) {
             </div>
             <textarea
               v-model="basePrompt"
-              placeholder="Leave empty to use a random base prompt from your project"
+              :placeholder="presetConfig.basePrompts.length > 0
+                ? 'Leave empty to use a random base prompt from your project'
+                : 'e.g. beautiful high-quality photograph of'"
               rows="1"
               class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none"
             />
