@@ -21,8 +21,9 @@ export default defineEventHandler(async (event) => {
 
   // Drive completion: check RunPod for processing items on every poll
   if (item.status === 'processing' && item.runpodJobId) {
+    const itemApiUrl = item.metadata ? JSON.parse(item.metadata).apiUrl : undefined
     try {
-      const result = await checkRunPodJob(item.runpodJobId)
+      const result = await checkRunPodJob(item.runpodJobId, itemApiUrl)
       if (result?.status === 'COMPLETED' && result.output?.output?.data) {
         const base64Data = result.output.output.data
         const isVideo = item.type === 'video'

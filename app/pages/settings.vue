@@ -13,6 +13,8 @@ const {
   setNegativePrompt,
 } = usePromptPresets()
 
+const { runpodEndpoint } = useAppSettings()
+
 import { attributeLabels, attributeKeys, attributePresets, characterAttributeKeys, type AttributeKey } from '~/utils/promptBuilder'
 import type { Person, PersonAttributes } from '~/composables/usePersons'
 
@@ -224,6 +226,51 @@ const totalCustomPresets = computed(() =>
           <label class="text-xs text-slate-500">Name</label>
           <p class="text-sm text-slate-800">{{ user?.name || 'Not set' }}</p>
         </div>
+      </div>
+    </div>
+
+    <!-- ═══ AI Backend ═══ -->
+    <div class="glass-card p-6 mb-6">
+      <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">AI Backend</h2>
+
+      <p class="text-xs text-slate-500 mb-4">
+        Choose which RunPod endpoint to use for generation. The <strong>full</strong> image has all models baked in
+        for fast cold starts. The <strong>slim</strong> image loads models from network volume (slower cold start, smaller image).
+      </p>
+
+      <div class="flex gap-2">
+        <button
+          class="flex-1 flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all"
+          :class="runpodEndpoint === 'full'
+            ? 'bg-violet-50 border-violet-300 ring-1 ring-violet-300'
+            : 'bg-white border-slate-200 hover:border-slate-300'"
+          @click="runpodEndpoint = 'full'"
+        >
+          <div
+            class="w-3 h-3 rounded-full border-2 shrink-0 transition-colors"
+            :class="runpodEndpoint === 'full' ? 'border-violet-500 bg-violet-500' : 'border-slate-300'"
+          />
+          <div>
+            <p class="text-xs font-medium" :class="runpodEndpoint === 'full' ? 'text-violet-700' : 'text-slate-700'">Full</p>
+            <p class="text-[10px]" :class="runpodEndpoint === 'full' ? 'text-violet-500' : 'text-slate-400'">~40GB image, fast cold start</p>
+          </div>
+        </button>
+        <button
+          class="flex-1 flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all"
+          :class="runpodEndpoint === 'slim'
+            ? 'bg-violet-50 border-violet-300 ring-1 ring-violet-300'
+            : 'bg-white border-slate-200 hover:border-slate-300'"
+          @click="runpodEndpoint = 'slim'"
+        >
+          <div
+            class="w-3 h-3 rounded-full border-2 shrink-0 transition-colors"
+            :class="runpodEndpoint === 'slim' ? 'border-violet-500 bg-violet-500' : 'border-slate-300'"
+          />
+          <div>
+            <p class="text-xs font-medium" :class="runpodEndpoint === 'slim' ? 'text-violet-700' : 'text-slate-700'">Slim</p>
+            <p class="text-[10px]" :class="runpodEndpoint === 'slim' ? 'text-violet-500' : 'text-slate-400'">~2-3GB image, network volume models</p>
+          </div>
+        </button>
       </div>
     </div>
 

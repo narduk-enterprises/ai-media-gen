@@ -254,3 +254,38 @@ export function buildPersonaPrompt(
 
   return parts.join(', ')
 }
+
+/**
+ * Generate prompts for batch generation: one persona × multiple scenes × countPerScene.
+ * Each scene's empty attributes are filled with random presets (per prompt for variation).
+ * Returns array of { sceneIndex, prompt } for total of scenes.length * countPerScene prompts.
+ */
+export function buildBatchPrompts(
+  persona: { description?: string } & Record<string, string>,
+  scenes: Record<string, string>[],
+  countPerScene: number,
+  basePrompts?: string[],
+): { sceneIndex: number; prompt: string }[] {
+  const result: { sceneIndex: number; prompt: string }[] = []
+  const personAttrs: Record<string, string> = {}
+  for (const key of characterAttributeKeys) {
+    const v = persona[key]?.trim()
+    if (v) personAttrs[key] = v
+  }
+  const description = persona.description?.trim()
+
+  for (let sceneIndex = 0; sceneIndex < scenes.length; sceneIndex++) {
+    const sceneTemplate = scenes[sceneIndex]!
+    for (let i = 0; i < countPerScene; i++) {
+      const sceneAttrs: Record<string, string> = {}
+      for (const key of sceneAttributeKeys) {
+        const val = sceneTemplate[key]?.trim()
+        sceneAttrs[key] = val || pickRandom(attributePresets[key])
+      }
+      const base = basePrompts?.length ? pickRandom(basePrompts) : ''
+      const prompt = buildPersonaPrompt(base, personAttrs, sceneAttrs, description)
+      result.push({ sceneIndex, prompt })
+    }
+  }
+  return result
+}

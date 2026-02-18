@@ -30,18 +30,29 @@ const emptySlots = computed(() =>
           <div
             v-for="thumb in thumbs"
             :key="thumb.id"
-            class="aspect-square overflow-hidden"
+            class="aspect-square overflow-hidden relative"
             :class="{
               'col-span-2 row-span-2': thumbs.length === 1,
             }"
           >
+            <video
+              v-if="thumb.type === 'video'"
+              :src="thumb.url!"
+              muted
+              preload="metadata"
+              class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
             <NuxtImg
+              v-else
               :src="thumb.url!"
               :alt="generation.prompt"
               width="400"
               class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
             />
+            <div v-if="thumb.type === 'video'" class="absolute bottom-1 left-1 px-1 py-0.5 rounded bg-black/50 text-white text-[8px] flex items-center gap-0.5 backdrop-blur-sm">
+              <UIcon name="i-heroicons-play" class="w-2.5 h-2.5" />
+            </div>
           </div>
           <!-- Fill empty slots -->
           <div
@@ -80,7 +91,7 @@ const emptySlots = computed(() =>
     <div class="flex items-center justify-between">
       <span class="text-[11px] text-slate-500">{{ formatDate(generation.createdAt) }}</span>
       <span class="text-[11px] text-slate-500">
-        {{ generation.imageCount }} image{{ generation.imageCount !== 1 ? 's' : '' }}
+        {{ generation.imageCount }} item{{ generation.imageCount !== 1 ? 's' : '' }}
       </span>
     </div>
   </UCard>

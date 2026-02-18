@@ -5,8 +5,10 @@ import {
   attributeLabels,
   pickRandom,
   buildPrompt,
+  buildPersonaPrompt,
   buildRandomVariantPrompt,
   buildVariedPrompts,
+  buildBatchPrompts,
   countActiveAttributes,
   createEmptyAttributes,
   randomizeAllAttributes,
@@ -360,5 +362,45 @@ describe('end-to-end prompt building', () => {
     for (const p of batch) {
       expect(p).toContain('a woman')
     }
+  })
+})
+
+describe('buildPersonaPrompt', () => {
+  it('combines base, description, person attrs, and scene attrs', () => {
+    const personAttrs = { hair: 'blonde', eyes: 'blue', bodyType: '', skinTone: '', clothing: '' }
+    const sceneAttrs = { scene: 'forest', pose: 'standing', style: 'anime', lighting: '', mood: '', camera: '' }
+    const out = buildPersonaPrompt('a woman', personAttrs, sceneAttrs, '25 years old')
+    expect(out).toContain('a woman')
+    expect(out).toContain('25 years old')
+    expect(out).toContain('blonde')
+    expect(out).toContain('blue')
+    expect(out).toContain('forest')
+    expect(out).toContain('standing')
+    expect(out).toContain('anime style')
+  })
+})
+
+describe('buildBatchPrompts', () => {
+  it('returns scenes.length * countPerScene entries', () => {
+    const persona = { description: '', hair: 'black', eyes: 'brown', bodyType: '', skinTone: '', clothing: 'suit' }
+    const scenes = [
+      { scene: 'city', pose: 'standing', style: 'cinematic', lighting: '', mood: '', camera: '' },
+      { scene: 'beach', pose: '', style: '', lighting: 'golden hour', mood: '', camera: '' },
+    ]
+    const result = buildBatchPrompts(persona, scenes, 2, ['base prompt'])
+    expect(result).toHaveLength(4) // 2 scenes * 2 per scene
+    expect(result.every(r => r.prompt.includes('base prompt'))).toBe(true)
+    expect(result.every(r => r.prompt.includes('black') && r.prompt.includes('brown') && r.prompt.includes('suit'))).toBe(true)
+    expect(result.filter(r => r.sceneIndex === 0)).toHaveLength(2)
+    expect(result.filter(r => r.sceneIndex === 1)).toHaveLength(2)
+  })
+
+  it('fills empty scene fields with random presets', () => {
+    const persona = { description: '', hair: '', eyes: '', bodyType: '', skinTone: '', clothing: '' }
+    const scenes = [{ scene: 'only this', pose: '', style: '', lighting: '', mood: '', camera: '' }]
+    const result = buildBatchPrompts(persona, scenes, 1, ['base'])
+    expect(result).toHaveLength(1)
+    expect(result[0]!.prompt).toContain('base')
+    expect(result[0]!.prompt).toContain('only this')
   })
 })

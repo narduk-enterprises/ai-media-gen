@@ -14,12 +14,12 @@ const open = computed({
   set: (val: boolean) => { if (!val) emit('close') },
 })
 
-const images = computed(() =>
-  props.generation?.items.filter(i => i.type === 'image' && i.url) ?? []
+const mediaItems = computed(() =>
+  props.generation?.items.filter(i => (i.type === 'image' || i.type === 'video') && i.url) ?? []
 )
 
-const nonImageItems = computed(() =>
-  props.generation?.items.filter(i => i.type !== 'image') ?? []
+const otherItems = computed(() =>
+  props.generation?.items.filter(i => i.type !== 'image' && i.type !== 'video') ?? []
 )
 </script>
 
@@ -44,11 +44,11 @@ const nonImageItems = computed(() =>
           />
         </div>
 
-        <!-- Image carousel -->
-        <div v-if="images.length" class="p-4">
+        <!-- Media carousel (images + videos) -->
+        <div v-if="mediaItems.length" class="p-4">
           <UCarousel
-            v-if="images.length > 1"
-            :items="images"
+            v-if="mediaItems.length > 1"
+            :items="mediaItems"
             arrows
             dots
             :ui="{
@@ -57,7 +57,14 @@ const nonImageItems = computed(() =>
           >
             <template #default="{ item }">
               <div class="flex items-center justify-center w-full">
+                <video
+                  v-if="item.type === 'video'"
+                  :src="item.url!"
+                  controls
+                  class="max-h-[70vh] w-auto rounded-lg object-contain"
+                />
                 <NuxtImg
+                  v-else
                   :src="item.url!"
                   :alt="generation.prompt"
                   class="max-h-[70vh] w-auto rounded-lg object-contain"
@@ -66,26 +73,33 @@ const nonImageItems = computed(() =>
             </template>
           </UCarousel>
 
-          <!-- Single image (no carousel needed) -->
+          <!-- Single item (no carousel needed) -->
           <div v-else class="flex items-center justify-center">
+            <video
+              v-if="mediaItems[0].type === 'video'"
+              :src="mediaItems[0].url!"
+              controls
+              class="max-h-[70vh] w-auto rounded-lg object-contain"
+            />
             <NuxtImg
-              :src="images[0].url!"
+              v-else
+              :src="mediaItems[0].url!"
               :alt="generation.prompt"
               class="max-h-[70vh] w-auto rounded-lg object-contain"
             />
           </div>
         </div>
 
-        <!-- Video / Audio items -->
-        <div v-if="nonImageItems.length" class="px-4 pb-4 space-y-2">
+        <!-- Audio / other items -->
+        <div v-if="otherItems.length" class="px-4 pb-4 space-y-2">
           <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Other media</div>
           <div
-            v-for="item in nonImageItems"
+            v-for="item in otherItems"
             :key="item.id"
             class="flex items-center gap-2 text-sm text-slate-600 p-2 rounded-lg bg-slate-50"
           >
             <UIcon
-              :name="item.type === 'video' ? 'i-heroicons-film' : 'i-heroicons-speaker-wave'"
+              name="i-heroicons-speaker-wave"
               class="w-4 h-4 shrink-0"
             />
             <span class="capitalize">{{ item.type }}</span>

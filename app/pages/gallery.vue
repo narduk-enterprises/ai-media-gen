@@ -13,8 +13,8 @@ const viewMode = ref<ViewMode>('grouped')
 const searchQuery = ref('')
 const sortOrder = ref<'newest' | 'oldest'>('newest')
 
-// ─── Flattened images across all generations ───────────────────────────
-interface GalleryImage {
+// ─── Flattened media across all generations ─────────────────────────────
+interface GalleryMedia {
   id: string
   url: string
   generationId: string
@@ -26,8 +26,8 @@ interface GalleryImage {
   status: string
 }
 
-const allImages = computed<GalleryImage[]>(() => {
-  const result: GalleryImage[] = []
+const allMedia = computed<GalleryMedia[]>(() => {
+  const result: GalleryMedia[] = []
   const gens = generations.value || []
   for (const gen of gens) {
     let settings: Record<string, any> | null = null
@@ -35,7 +35,7 @@ const allImages = computed<GalleryImage[]>(() => {
       try { settings = JSON.parse(gen.settings) } catch {}
     }
     for (const item of gen.items) {
-      if (item.type === 'image' && item.url && item.status === 'complete') {
+      if ((item.type === 'image' || item.type === 'video') && item.url && item.status === 'complete') {
         result.push({
           id: item.id,
           url: item.url,
@@ -54,16 +54,16 @@ const allImages = computed<GalleryImage[]>(() => {
 })
 
 // ─── Filter & sort ─────────────────────────────────────────────────────
-const filteredImages = computed(() => {
-  let imgs = allImages.value
+const filteredMedia = computed(() => {
+  let items = allMedia.value
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase()
-    imgs = imgs.filter(i => i.prompt.toLowerCase().includes(q))
+    items = items.filter(i => i.prompt.toLowerCase().includes(q))
   }
   if (sortOrder.value === 'oldest') {
-    imgs = [...imgs].reverse()
+    items = [...items].reverse()
   }
-  return imgs
+  return items
 })
 
 const filteredGenerations = computed(() => {
@@ -83,7 +83,7 @@ const lightboxOpen = ref(false)
 const lightboxIndex = ref(0)
 const showLightboxInfo = ref(false)
 
-const currentImage = computed(() => filteredImages.value[lightboxIndex.value] ?? null)
+const currentItem = computed(() => filteredMedia.value[lightboxIndex.value] ?? null)
 
 function openLightbox(index: number) {
   lightboxIndex.value = index
@@ -96,7 +96,7 @@ function closeLightbox() {
 }
 
 function lightboxNext() {
-  if (lightboxIndex.value < filteredImages.value.length - 1) lightboxIndex.value++
+  if (lightboxIndex.value < filteredMedia.value.length - 1) lightboxIndex.value++
 }
 
 function lightboxPrev() {
@@ -119,10 +119,11 @@ onUnmounted(() => {
 })
 
 // ─── Image actions ─────────────────────────────────────────────────────
-function downloadImage(url: string, index: number) {
+function downloadMedia(url: string, index: number, type: string = 'image') {
+  const ext = type === 'video' ? 'mp4' : 'png'
   const a = document.createElement('a')
   a.href = url
-  a.download = `gallery-${index + 1}.png`
+  a.download = `gallery-${index + 1}.${ext}`
   a.click()
 }
 
@@ -147,16 +148,16 @@ function toggleGeneration(id: string) {
   }
 }
 
-function generationImages(gen: GenerationResult): MediaItemResult[] {
-  return gen.items.filter(i => i.type === 'image' && i.url && i.status === 'complete')
+function generationMedia(gen: GenerationResult): MediaItemResult[] {
+  return gen.items.filter(i => (i.type === 'image' || i.type === 'video') && i.url && i.status === 'complete')
 }
 
 // ─── Stats ─────────────────────────────────────────────────────────────
-const totalImages = computed(() => allImages.value.length)
+const totalMedia = computed(() => allMedia.value.length)
 const totalGenerations = computed(() => (generations.value || []).length)
 
 // ─── Navigate to create with settings ──────────────────────────────────
-function recreateFromImage(img: GalleryImage) {
+function recreateFromImage(img: GalleryMedia) {
   const query: Record<string, string> = { prompt: img.prompt }
   if (img.settings) {
     query.settings = JSON.stringify(img.settings)
@@ -166,8 +167,8 @@ function recreateFromImage(img: GalleryImage) {
 
 // ─── Grid class based on image count ───────────────────────────────────
 const gridClass = computed(() => {
-  if (filteredImages.value.length <= 2) return 'grid-cols-1 sm:grid-cols-2 max-w-3xl mx-auto'
-  if (filteredImages.value.length <= 4) return 'grid-cols-2 lg:grid-cols-4'
+  if (filteredMedia.value.length <= 2) return 'grid-cols-1 sm:grid-cols-2 max-w-3xl mx-auto'
+  if (filteredMedia.value.length <= 4) return 'grid-cols-2 lg:grid-cols-4'
   return 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'
 })
 </script>
@@ -181,7 +182,7 @@ const gridClass = computed(() => {
 
         <!-- Stats -->
         <div class="flex items-center gap-2 text-xs text-slate-400">
-          <span><span class="font-medium text-slate-600">{{ totalImages }}</span> images</span>
+          <span><span class="font-medium text-slate-600">{{ totalMedia }}</span> items</span>
           <span class="text-slate-300">·</span>
           <span><span class="font-medium text-slate-600">{{ totalGenerations }}</span> generations</span>
         </div>
@@ -260,10 +261,10 @@ const gridClass = computed(() => {
       </div>
 
       <!-- No search results -->
-      <div v-else-if="searchQuery && filteredImages.length === 0" class="flex items-center justify-center min-h-[30vh]">
+      <div v-else-if="searchQuery && filteredMedia.length === 0" class="flex items-center justify-center min-h-[30vh]">
         <div class="text-center">
           <UIcon name="i-heroicons-magnifying-glass" class="w-8 h-8 text-slate-300 mx-auto mb-2" />
-          <p class="text-slate-500 text-sm">No images match "{{ searchQuery }}"</p>
+          <p class="text-slate-500 text-sm">No results match "{{ searchQuery }}"</p>
           <button class="text-violet-500 text-xs mt-1 hover:underline" @click="searchQuery = ''">Clear search</button>
         </div>
       </div>
@@ -272,31 +273,47 @@ const gridClass = computed(() => {
       <div v-else-if="viewMode === 'grid'">
         <div :class="['grid gap-2', gridClass]">
           <div
-            v-for="(img, index) in filteredImages"
-            :key="img.id"
+            v-for="(item, index) in filteredMedia"
+            :key="item.id"
             class="group relative aspect-square rounded-lg overflow-hidden cursor-pointer border border-slate-200 hover:border-violet-300 transition-all shadow-sm hover:shadow-md"
             @click="openLightbox(index)"
           >
+            <video
+              v-if="item.type === 'video'"
+              :src="item.url"
+              muted
+              loop
+              preload="metadata"
+              class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              @mouseenter="($event.target as HTMLVideoElement).play()"
+              @mouseleave="($event.target as HTMLVideoElement).pause()"
+            />
             <NuxtImg
-              :src="img.url"
-              :alt="img.prompt"
+              v-else
+              :src="item.url"
+              :alt="item.prompt"
               width="400"
               class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
             />
 
-            <!-- Hover overlay -->
-            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              <div class="absolute bottom-0 left-0 right-0 p-2.5">
-                <p class="text-white text-[10px] line-clamp-2 leading-relaxed">{{ img.prompt }}</p>
-                <p class="text-white/50 text-[9px] mt-0.5">{{ formatDate(img.createdAt) }}</p>
-              </div>
-              <button
-                class="absolute top-2 right-2 p-1 rounded bg-black/30 text-white/70 hover:text-white hover:bg-black/50 transition-all text-xs"
-                @click.stop="downloadImage(img.url, index)"
-                title="Download"
-              >⬇</button>
+            <!-- Video badge -->
+            <div v-if="item.type === 'video'" class="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/50 text-white text-[10px] flex items-center gap-1 backdrop-blur-sm">
+              <UIcon name="i-heroicons-play" class="w-3 h-3" /> Video
             </div>
+
+            <!-- Hover overlay -->
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+              <div class="absolute bottom-0 left-0 right-0 p-2.5">
+                <p class="text-white text-[10px] line-clamp-2 leading-relaxed">{{ item.prompt }}</p>
+                <p class="text-white/50 text-[9px] mt-0.5">{{ formatDate(item.createdAt) }}</p>
+              </div>
+            </div>
+            <button
+              class="absolute top-2 right-2 p-1 rounded bg-black/30 text-white/70 hover:text-white hover:bg-black/50 transition-all text-xs opacity-0 group-hover:opacity-100"
+              @click.stop="downloadMedia(item.url, index, item.type)"
+              title="Download"
+            >⬇</button>
           </div>
         </div>
       </div>
@@ -311,9 +328,16 @@ const gridClass = computed(() => {
           >
             <!-- Thumbnail preview -->
             <div class="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-200">
+              <video
+                v-if="generationMedia(gen)[0]?.type === 'video' && generationMedia(gen)[0]?.url"
+                :src="generationMedia(gen)[0]!.url!"
+                muted
+                preload="metadata"
+                class="w-full h-full object-cover"
+              />
               <NuxtImg
-                v-if="generationImages(gen)[0]?.url"
-                :src="generationImages(gen)[0]!.url!"
+                v-else-if="generationMedia(gen)[0]?.url"
+                :src="generationMedia(gen)[0]!.url!"
                 alt=""
                 width="80"
                 class="w-full h-full object-cover"
@@ -326,7 +350,7 @@ const gridClass = computed(() => {
               <div class="flex items-center gap-2 mt-0.5">
                 <span class="text-[10px] text-slate-400">{{ formatDate(gen.createdAt) }}</span>
                 <span class="text-[10px] text-slate-300">·</span>
-                <span class="text-[10px] text-slate-400">{{ generationImages(gen).length }} image{{ generationImages(gen).length !== 1 ? 's' : '' }}</span>
+                <span class="text-[10px] text-slate-400">{{ generationMedia(gen).length }} item{{ generationMedia(gen).length !== 1 ? 's' : '' }}</span>
                 <UBadge
                   v-if="gen.status !== 'complete'"
                   :color="gen.status === 'processing' ? 'warning' : 'error'"
@@ -359,24 +383,38 @@ const gridClass = computed(() => {
 
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 mt-1">
               <div
-                v-for="img in generationImages(gen)"
-                :key="img.id"
+                v-for="item in generationMedia(gen)"
+                :key="item.id"
                 class="group relative aspect-square rounded-lg overflow-hidden cursor-pointer border border-slate-200 hover:border-violet-300 transition-all"
-                @click="openLightbox(filteredImages.findIndex(i => i.id === img.id))"
+                @click="openLightbox(filteredMedia.findIndex(i => i.id === item.id))"
               >
+                <video
+                  v-if="item.type === 'video'"
+                  :src="item.url!"
+                  muted
+                  loop
+                  preload="metadata"
+                  class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  @mouseenter="($event.target as HTMLVideoElement).play()"
+                  @mouseleave="($event.target as HTMLVideoElement).pause()"
+                />
                 <NuxtImg
-                  :src="img.url!"
+                  v-else
+                  :src="item.url!"
                   alt=""
                   width="300"
                   class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   loading="lazy"
                 />
-                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors">
-                  <button
-                    class="absolute top-1.5 right-1.5 p-1 rounded bg-black/30 text-white/70 hover:text-white opacity-0 group-hover:opacity-100 transition-all text-xs"
-                    @click.stop="downloadImage(img.url!, 0)"
-                  >⬇</button>
+                <!-- Video badge -->
+                <div v-if="item.type === 'video'" class="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/50 text-white text-[9px] flex items-center gap-0.5 backdrop-blur-sm">
+                  <UIcon name="i-heroicons-play" class="w-2.5 h-2.5" /> Video
                 </div>
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none" />
+                <button
+                  class="absolute top-1.5 right-1.5 p-1 rounded bg-black/30 text-white/70 hover:text-white opacity-0 group-hover:opacity-100 transition-all text-xs"
+                  @click.stop="downloadMedia(item.url!, 0, item.type)"
+                >⬇</button>
               </div>
             </div>
 
@@ -400,7 +438,7 @@ const gridClass = computed(() => {
     <Teleport to="body">
       <Transition name="fade">
         <div
-          v-if="lightboxOpen && currentImage"
+          v-if="lightboxOpen && currentItem"
           class="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md"
           @click.self="closeLightbox"
         >
@@ -414,7 +452,7 @@ const gridClass = computed(() => {
 
           <!-- Counter -->
           <div class="absolute top-4 left-4 px-3 py-1.5 rounded-full bg-white/10 text-white/70 text-xs font-mono backdrop-blur-sm">
-            {{ lightboxIndex + 1 }} / {{ filteredImages.length }}
+            {{ lightboxIndex + 1 }} / {{ filteredMedia.length }}
           </div>
 
           <!-- Prev arrow -->
@@ -428,18 +466,28 @@ const gridClass = computed(() => {
 
           <!-- Next arrow -->
           <button
-            v-if="lightboxIndex < filteredImages.length - 1"
+            v-if="lightboxIndex < filteredMedia.length - 1"
             class="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full text-white/40 hover:text-white hover:bg-white/10 transition-all"
             @click="lightboxNext"
           >
             <UIcon name="i-heroicons-chevron-right" class="w-8 h-8" />
           </button>
 
-          <!-- Image -->
+          <!-- Media (image or video) -->
           <div class="max-w-[90vw] max-h-[85vh] relative">
+            <video
+              v-if="currentItem.type === 'video'"
+              :src="currentItem.url"
+              :key="currentItem.id"
+              controls
+              autoplay
+              loop
+              class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+            />
             <img
-              :src="currentImage.url"
-              :key="currentImage.id"
+              v-else
+              :src="currentItem.url"
+              :key="currentItem.id"
               alt="Generated image"
               class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
             />
@@ -449,14 +497,14 @@ const gridClass = computed(() => {
           <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-5 py-2.5 rounded-full bg-white/10 backdrop-blur-md">
             <button
               class="text-white/60 hover:text-white transition-colors text-sm flex items-center gap-1"
-              @click="downloadImage(currentImage.url, lightboxIndex)"
+              @click="downloadMedia(currentItem.url, lightboxIndex, currentItem.type)"
             >
               ⬇ Download
             </button>
             <span class="text-white/20">|</span>
             <button
               class="text-white/60 hover:text-white transition-colors text-sm flex items-center gap-1"
-              @click="copyPrompt(currentImage.prompt)"
+              @click="copyPrompt(currentItem.prompt)"
             >
               📋 Prompt
             </button>
@@ -470,7 +518,7 @@ const gridClass = computed(() => {
             <span class="text-white/20">|</span>
             <button
               class="text-white/60 hover:text-white transition-colors text-sm flex items-center gap-1"
-              @click="recreateFromImage(currentImage)"
+              @click="recreateFromImage(currentItem)"
             >
               🔄 Recreate
             </button>
@@ -484,31 +532,37 @@ const gridClass = computed(() => {
                 <button class="text-white/40 hover:text-white text-xs" @click="showLightboxInfo = false">✕</button>
               </div>
 
+              <!-- Type -->
+              <div v-if="currentItem.type === 'video'" class="flex items-center gap-1.5">
+                <UIcon name="i-heroicons-film" class="w-3.5 h-3.5 text-violet-400" />
+                <span class="text-xs text-violet-400 font-medium">Video</span>
+              </div>
+
               <!-- Prompt -->
               <div>
                 <span class="text-[10px] text-white/40 uppercase tracking-wider">Prompt</span>
-                <p class="text-xs text-white/80 mt-0.5 leading-relaxed">{{ currentImage.prompt }}</p>
+                <p class="text-xs text-white/80 mt-0.5 leading-relaxed">{{ currentItem.prompt }}</p>
               </div>
 
               <!-- Settings -->
-              <div v-if="currentImage.settings" class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+              <div v-if="currentItem.settings" class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                 <span class="text-white/40">Dimensions</span>
-                <span>{{ currentImage.settings.width }} × {{ currentImage.settings.height }}</span>
+                <span>{{ currentItem.settings.width }} × {{ currentItem.settings.height }}</span>
                 <span class="text-white/40">Steps</span>
-                <span>{{ currentImage.settings.steps }}</span>
+                <span>{{ currentItem.settings.steps }}</span>
                 <span class="text-white/40">Created</span>
-                <span>{{ new Date(currentImage.createdAt).toLocaleString() }}</span>
-                <template v-if="currentImage.settings.negativePrompt">
+                <span>{{ new Date(currentItem.createdAt).toLocaleString() }}</span>
+                <template v-if="currentItem.settings.negativePrompt">
                   <span class="text-white/40">Neg. prompt</span>
-                  <span class="text-white/60 line-clamp-2" :title="currentImage.settings.negativePrompt">{{ currentImage.settings.negativePrompt }}</span>
+                  <span class="text-white/60 line-clamp-2" :title="currentItem.settings.negativePrompt">{{ currentItem.settings.negativePrompt }}</span>
                 </template>
               </div>
 
               <!-- Attributes -->
-              <div v-if="currentImage.settings?.attributes && Object.keys(currentImage.settings.attributes).length > 0" class="border-t border-white/10 pt-2">
+              <div v-if="currentItem.settings?.attributes && Object.keys(currentItem.settings.attributes).length > 0" class="border-t border-white/10 pt-2">
                 <span class="text-[10px] text-white/40 uppercase tracking-wider">Attributes</span>
                 <div class="flex flex-wrap gap-1 mt-1">
-                  <span v-for="(val, key) in currentImage.settings.attributes" :key="String(key)" class="px-2 py-0.5 rounded-full bg-white/10 text-[10px]">{{ key }}: {{ val }}</span>
+                  <span v-for="(val, key) in currentItem.settings.attributes" :key="String(key)" class="px-2 py-0.5 rounded-full bg-white/10 text-[10px]">{{ key }}: {{ val }}</span>
                 </div>
               </div>
 

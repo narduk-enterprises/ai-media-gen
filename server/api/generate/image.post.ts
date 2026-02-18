@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { callRunPodAsync } from '../../utils/ai'
+import { callRunPodAsync, resolveApiUrl } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
 
 const generateSchema = z.object({
@@ -13,6 +13,7 @@ const generateSchema = z.object({
   width: z.number().int().min(512).max(2048).default(1024),
   height: z.number().int().min(512).max(2048).default(1024),
   attributes: z.record(z.string()).optional(),
+  endpoint: z.enum(['full', 'slim']).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -24,7 +25,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, prompts, negativePrompt, count, steps, width, height, attributes } = parsed.data
+  const { prompt, prompts, negativePrompt, count, steps, width, height, attributes, endpoint } = parsed.data
+  const apiUrl = resolveApiUrl(endpoint)
 
   const settings = JSON.stringify({
     negativePrompt,
@@ -65,7 +67,7 @@ export default defineEventHandler(async (event) => {
           width,
           height,
           steps,
-        })
+        }, apiUrl)
         jobId = result.jobId
         console.log(`[Image] ${i + 1}/${count} submitted — job ${jobId}`)
       } catch (error: any) {
@@ -80,6 +82,7 @@ export default defineEventHandler(async (event) => {
         runpodJobId: jobId,
         status: jobId ? 'processing' : 'failed',
         error: jobId ? null : 'Failed to submit to RunPod',
+        metadata: JSON.stringify({ apiUrl }),
         createdAt: now,
       })
 

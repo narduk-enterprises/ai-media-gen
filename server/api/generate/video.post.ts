@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { callRunPodAsync } from '../../utils/ai'
+import { callRunPodAsync, resolveApiUrl } from '../../utils/ai'
 import { useMediaBucket, readBase64FromR2 } from '../../utils/r2'
 import { mediaItems, generations } from '../../database/schema'
 
@@ -12,6 +12,7 @@ const videoSchema = z.object({
   cfg: z.number().min(1).max(10).optional(),
   width: z.number().min(256).max(1280).optional(),
   height: z.number().min(256).max(1280).optional(),
+  endpoint: z.enum(['full', 'slim']).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -23,7 +24,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { mediaItemId, numFrames, steps, cfg, width, height } = parsed.data
+  const { mediaItemId, numFrames, steps, cfg, width, height, endpoint } = parsed.data
+  const apiUrl = resolveApiUrl(endpoint)
   const db = useDatabase()
 
   const source = await db
@@ -75,7 +77,7 @@ export default defineEventHandler(async (event) => {
       num_frames: numFrames || 81,
       steps: steps || 20,
       cfg: cfg || 3.5,
-    })
+    }, apiUrl)
     jobId = result.jobId
     console.log(`[I2V] Submitted job ${jobId}`)
   } catch (error: any) {
@@ -91,6 +93,7 @@ export default defineEventHandler(async (event) => {
     runpodJobId: jobId,
     status: jobId ? 'processing' : 'failed',
     error: jobId ? null : 'Failed to submit to RunPod',
+    metadata: JSON.stringify({ apiUrl }),
     createdAt: now,
   })
 

@@ -33,8 +33,9 @@ export default defineEventHandler(async (event) => {
     // completion. No background work exists; each frontend poll advances state.
     for (const item of pending) {
       if (item.runpodJobId) {
+        const itemApiUrl = item.metadata ? JSON.parse(item.metadata).apiUrl : undefined
         try {
-          const result = await checkRunPodJob(item.runpodJobId)
+          const result = await checkRunPodJob(item.runpodJobId, itemApiUrl)
           if (!result) continue // still running on RunPod
 
           if (result.status === 'COMPLETED' && result.output?.output?.data) {

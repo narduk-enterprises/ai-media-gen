@@ -11,10 +11,10 @@ export function useGallery() {
   return { generations, pending, error, refresh }
 }
 
-/** Return up to 4 image thumbnails for a generation. */
+/** Return up to 4 media thumbnails (images and videos) for a generation. */
 export function thumbnails(gen: GenerationResult): MediaItemResult[] {
   return gen.items
-    .filter(i => i.type === 'image' && i.url)
+    .filter(i => (i.type === 'image' || i.type === 'video') && i.url)
     .slice(0, 4)
 }
 

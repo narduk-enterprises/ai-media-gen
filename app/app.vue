@@ -4,7 +4,7 @@ const { user, loggedIn, logout } = useAuth()
 
 const navItems = [
   { label: 'Create', to: '/create', icon: 'i-heroicons-sparkles' },
-  { label: 'Personas', to: '/personas', icon: 'i-heroicons-users' },
+  { label: 'Personas & Scenes', to: '/personas', icon: 'i-heroicons-users' },
   { label: 'Gallery', to: '/gallery', icon: 'i-heroicons-photo' },
   { label: 'Settings', to: '/settings', icon: 'i-heroicons-cog-6-tooth' },
 ]

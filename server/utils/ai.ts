@@ -4,10 +4,17 @@
  * Calls the gpu-by-the-hour RunPod serverless endpoint which runs ComfyUI
  * with FLUX.1 Dev (text2image) and Wan 2.2 (text2video / image2video).
  *
+ * Two endpoint modes:
+ *   "full" — full image with all models baked in (~40GB)
+ *   "slim" — slim image (~2-3GB) that loads models from network volume
+ *
  * Required env vars:
- *   NUXT_AI_API_KEY  — RunPod API key
- *   NUXT_AI_API_URL  — RunPod endpoint URL (https://api.runpod.ai/v2/<endpoint_id>)
+ *   NUXT_AI_API_KEY       — RunPod API key
+ *   NUXT_AI_API_URL       — RunPod "full" endpoint URL
+ *   NUXT_AI_API_URL_SLIM  — RunPod "slim" endpoint URL
  */
+
+export type EndpointType = 'full' | 'slim';
 
 interface RunPodResponse {
   id: string;
@@ -28,15 +35,27 @@ interface GenerateVideoResult {
 }
 
 /**
+ * Resolve the API URL for a given endpoint type.
+ * Falls back to the full endpoint if slim isn't configured.
+ */
+export function resolveApiUrl(endpointType?: EndpointType | string): string {
+  const config = useRuntimeConfig();
+  if (endpointType === 'slim' && config.aiApiUrlSlim) {
+    return config.aiApiUrlSlim;
+  }
+  return config.aiApiUrl;
+}
+
+/**
  * Call RunPod serverless endpoint.
  * Tries /runsync first for fast results, but RunPod's sync window is ~120s.
  * If the job outlives that window (cold starts, large images), we fall back
  * to polling /status/{id} until it completes.
  */
-export async function callRunPod(input: Record<string, any>): Promise<RunPodResponse> {
+export async function callRunPod(input: Record<string, any>, apiUrlOverride?: string): Promise<RunPodResponse> {
   const config = useRuntimeConfig();
   const apiKey = config.aiApiKey;
-  const apiUrl = config.aiApiUrl;
+  const apiUrl = apiUrlOverride || config.aiApiUrl;
 
   if (!apiKey || !apiUrl) {
     throw createError({
@@ -60,8 +79,8 @@ export async function callRunPod(input: Record<string, any>): Promise<RunPodResp
   } catch (fetchError: any) {
     if (fetchError.name === 'AbortError' || /timeout/i.test(fetchError.message ?? '')) {
       console.warn('[AI] /runsync fetch timed out — falling back to async + polling');
-      const { jobId } = await callRunPodAsync(input);
-      return await pollRunPodJob(jobId);
+      const { jobId } = await callRunPodAsync(input, apiUrl);
+      return await pollRunPodJob(jobId, 300_000, apiUrl);
     }
     throw fetchError;
   }
@@ -73,12 +92,11 @@ export async function callRunPod(input: Record<string, any>): Promise<RunPodResp
     });
   }
 
-  // /runsync returns IN_QUEUE or IN_PROGRESS when the job outlives the sync window — poll to completion
   if (response.status === 'IN_QUEUE' || response.status === 'IN_PROGRESS') {
     console.log(
       `[AI] /runsync returned ${response.status} for job ${response.id} — polling for completion`
     );
-    return await pollRunPodJob(response.id);
+    return await pollRunPodJob(response.id, 300_000, apiUrl);
   }
 
   return response;
@@ -86,12 +104,12 @@ export async function callRunPod(input: Record<string, any>): Promise<RunPodResp
 
 /**
  * Call RunPod serverless endpoint (async — for long jobs like video).
- * Returns job ID for polling.
+ * Returns job ID and the API URL used (for later status checks).
  */
-export async function callRunPodAsync(input: Record<string, any>): Promise<{ jobId: string }> {
+export async function callRunPodAsync(input: Record<string, any>, apiUrlOverride?: string): Promise<{ jobId: string; apiUrl: string }> {
   const config = useRuntimeConfig();
   const apiKey = config.aiApiKey;
-  const apiUrl = config.aiApiUrl;
+  const apiUrl = apiUrlOverride || config.aiApiUrl;
 
   if (!apiKey || !apiUrl) {
     throw createError({
@@ -109,16 +127,16 @@ export async function callRunPodAsync(input: Record<string, any>): Promise<{ job
     body: { input },
   });
 
-  return { jobId: response.id };
+  return { jobId: response.id, apiUrl };
 }
 
 /**
  * Poll RunPod job status until complete.
  */
-export async function pollRunPodJob(jobId: string, maxWaitMs = 300_000): Promise<RunPodResponse> {
+export async function pollRunPodJob(jobId: string, maxWaitMs = 300_000, apiUrlOverride?: string): Promise<RunPodResponse> {
   const config = useRuntimeConfig();
   const apiKey = config.aiApiKey;
-  const apiUrl = config.aiApiUrl;
+  const apiUrl = apiUrlOverride || config.aiApiUrl;
 
   const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
@@ -138,7 +156,6 @@ export async function pollRunPodJob(jobId: string, maxWaitMs = 300_000): Promise
       });
     }
 
-    // Still processing — wait before polling again
     await new Promise((resolve) => setTimeout(resolve, 3000));
   }
 
@@ -149,10 +166,10 @@ export async function pollRunPodJob(jobId: string, maxWaitMs = 300_000): Promise
  * One-shot status check for a RunPod job. Returns null if the job
  * isn't finished yet — callers decide whether to wait or give up.
  */
-export async function checkRunPodJob(jobId: string): Promise<RunPodResponse | null> {
+export async function checkRunPodJob(jobId: string, apiUrlOverride?: string): Promise<RunPodResponse | null> {
   const config = useRuntimeConfig();
   const apiKey = config.aiApiKey;
-  const apiUrl = config.aiApiUrl;
+  const apiUrl = apiUrlOverride || config.aiApiUrl;
 
   if (!apiKey || !apiUrl) return null;
 
@@ -181,9 +198,8 @@ export async function checkRunPodJob(jobId: string): Promise<RunPodResponse | nu
 export async function generateImages(
   prompt: string,
   count: number,
-  options?: { negativePrompt?: string; steps?: number; width?: number; height?: number }
+  options?: { negativePrompt?: string; steps?: number; width?: number; height?: number; apiUrl?: string }
 ): Promise<GenerateImagesResult> {
-  // Fire all requests in parallel — each hits a separate serverless worker
   const promises = Array.from({ length: count }, (_, i) =>
     callRunPod({
       action: 'text2image',
@@ -192,7 +208,7 @@ export async function generateImages(
       width: options?.width || 1024,
       height: options?.height || 1024,
       steps: options?.steps || 20,
-    })
+    }, options?.apiUrl)
       .then((response): { data: string; filename: string } | null => {
         if (response.output?.output) {
           const filename = response.output.output.filename || `image_${i}.png`;
@@ -241,6 +257,7 @@ export async function generateVideo(
     steps?: number;
     cfg?: number;
     negativePrompt?: string;
+    apiUrl?: string;
   }
 ): Promise<GenerateVideoResult> {
   const input: Record<string, any> = {
@@ -265,9 +282,8 @@ export async function generateVideo(
     `[AI] image2video — ${input.num_frames} frames, ${input.width}x${input.height}, ${input.steps} steps, cfg=${input.cfg}`
   );
 
-  // Use async + polling for video (can take >120s)
-  const { jobId } = await callRunPodAsync(input);
-  const response = await pollRunPodJob(jobId);
+  const { jobId, apiUrl } = await callRunPodAsync(input, options?.apiUrl);
+  const response = await pollRunPodJob(jobId, 300_000, apiUrl);
 
   if (response.output?.output) {
     return {
@@ -286,7 +302,7 @@ export async function generateVideo(
  */
 export async function generateText2Video(
   prompt: string,
-  options?: { width?: number; height?: number; numFrames?: number; steps?: number }
+  options?: { width?: number; height?: number; numFrames?: number; steps?: number; apiUrl?: string }
 ): Promise<GenerateVideoResult> {
   const input: Record<string, any> = {
     action: 'text2video',
@@ -301,8 +317,8 @@ export async function generateText2Video(
     `[AI] text2video — ${input.num_frames} frames, ${input.width}x${input.height}, ${input.steps} steps`
   );
 
-  const { jobId } = await callRunPodAsync(input);
-  const response = await pollRunPodJob(jobId);
+  const { jobId, apiUrl } = await callRunPodAsync(input, options?.apiUrl);
+  const response = await pollRunPodJob(jobId, 300_000, apiUrl);
 
   if (response.output?.output) {
     console.log(`[AI] text2video complete — filename: ${response.output.output.filename}`);
@@ -328,6 +344,7 @@ export async function generateVideoWithAudio(
     numFrames?: number;
     steps?: number;
     cfg?: number;
+    apiUrl?: string;
   }
 ): Promise<GenerateVideoResult> {
   const input: Record<string, any> = {
@@ -344,9 +361,8 @@ export async function generateVideoWithAudio(
     input.image = options.imageBase64;
   }
 
-  // Use async + polling (video+audio can take >120s)
-  const { jobId } = await callRunPodAsync(input);
-  const response = await pollRunPodJob(jobId);
+  const { jobId, apiUrl } = await callRunPodAsync(input, options?.apiUrl);
+  const response = await pollRunPodJob(jobId, 300_000, apiUrl);
 
   if (response.output?.output) {
     return {
