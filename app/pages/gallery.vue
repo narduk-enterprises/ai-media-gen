@@ -6,6 +6,7 @@ definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Gallery' })
 
 const { generations, pending, error, refresh } = useGallery()
+const { runpodEndpoint } = useAppSettings()
 
 // ─── View modes ────────────────────────────────────────────────────────
 type ViewMode = 'grid' | 'grouped'
@@ -165,6 +166,77 @@ function recreateFromImage(img: GalleryMedia) {
   navigateTo({ path: '/create', query })
 }
 
+// ─── Video generation from gallery ──────────────────────────────────────
+const actionLoading = ref<Record<string, boolean>>({})
+const videoProcessingItems = ref<Array<{ id: string; mediaItemId: string; status: string }>>([])
+const videoError = ref('')
+
+async function makeVideoFromGallery(mediaItemId: string, settings?: Record<string, any> | null) {
+  const loadingKey = `video-${mediaItemId}`
+  if (actionLoading.value[loadingKey]) return
+  actionLoading.value[loadingKey] = true
+  videoError.value = ''
+
+  try {
+    const result = await $fetch<{ item: { id: string; status: string } }>('/api/generate/video', {
+      method: 'POST',
+      body: {
+        mediaItemId,
+        numFrames: 81,
+        steps: settings?.steps || 20,
+        cfg: 3.5,
+        width: settings?.width || 768,
+        height: settings?.height || 768,
+        endpoint: runpodEndpoint.value,
+      },
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+
+    if (result.item) {
+      videoProcessingItems.value.push({
+        id: result.item.id,
+        mediaItemId,
+        status: result.item.status,
+      })
+
+      if (result.item.status === 'processing') {
+        pollVideoStatus(result.item.id, loadingKey)
+      } else {
+        actionLoading.value[loadingKey] = false
+      }
+    }
+  } catch (e: any) {
+    videoError.value = e.data?.message || 'Video generation failed'
+    actionLoading.value[loadingKey] = false
+  }
+}
+
+async function pollVideoStatus(itemId: string, loadingKey: string) {
+  const maxAttempts = 120
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 5000))
+    try {
+      const result = await $fetch<{ item: { id: string; status: string } }>(`/api/generate/status/${itemId}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+
+      const idx = videoProcessingItems.value.findIndex(v => v.id === itemId)
+      if (idx >= 0) videoProcessingItems.value[idx]!.status = result.item.status
+
+      if (result.item.status === 'complete' || result.item.status === 'failed') {
+        actionLoading.value[loadingKey] = false
+        videoProcessingItems.value = videoProcessingItems.value.filter(v => v.id !== itemId)
+        refresh()
+        return
+      }
+    } catch { /* continue polling */ }
+  }
+  actionLoading.value[loadingKey] = false
+  videoProcessingItems.value = videoProcessingItems.value.filter(v => v.id !== itemId)
+}
+
+const activeVideoCount = computed(() => videoProcessingItems.value.length)
+
 // ─── Grid class based on image count ───────────────────────────────────
 const gridClass = computed(() => {
   if (filteredMedia.value.length <= 2) return 'grid-cols-1 sm:grid-cols-2 max-w-3xl mx-auto'
@@ -303,17 +375,31 @@ const gridClass = computed(() => {
             </div>
 
             <!-- Hover overlay -->
-            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-              <div class="absolute bottom-0 left-0 right-0 p-2.5">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <div class="absolute bottom-0 left-0 right-0 p-2.5 pointer-events-none">
                 <p class="text-white text-[10px] line-clamp-2 leading-relaxed">{{ item.prompt }}</p>
                 <p class="text-white/50 text-[9px] mt-0.5">{{ formatDate(item.createdAt) }}</p>
               </div>
             </div>
-            <button
-              class="absolute top-2 right-2 p-1 rounded bg-black/30 text-white/70 hover:text-white hover:bg-black/50 transition-all text-xs opacity-0 group-hover:opacity-100"
-              @click.stop="downloadMedia(item.url, index, item.type)"
-              title="Download"
-            >⬇</button>
+            <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                v-if="item.type === 'image'"
+                class="p-1.5 rounded-lg bg-black/40 text-white/80 hover:text-white hover:bg-black/60 transition-all"
+                :class="{ 'opacity-50 pointer-events-none': actionLoading[`video-${item.id}`] }"
+                title="Create video"
+                @click.stop="makeVideoFromGallery(item.id, item.settings)"
+              >
+                <UIcon v-if="actionLoading[`video-${item.id}`]" name="i-heroicons-arrow-path" class="w-3.5 h-3.5 animate-spin" />
+                <UIcon v-else name="i-heroicons-film" class="w-3.5 h-3.5" />
+              </button>
+              <button
+                class="p-1.5 rounded-lg bg-black/40 text-white/80 hover:text-white hover:bg-black/60 transition-all"
+                title="Download"
+                @click.stop="downloadMedia(item.url, index, item.type)"
+              >
+                <UIcon name="i-heroicons-arrow-down-tray" class="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

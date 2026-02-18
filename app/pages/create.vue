@@ -104,12 +104,13 @@ function getScenePayloads(): Record<string, string>[] {
 }
 
 // ─── Base prompt & settings ──────────────────────────────────────────────
+const defaultNegativePrompt = 'ugly, deformed, noisy, blurry, distorted, grainy, low quality, low resolution, watermark, text, signature, out of frame, poorly drawn, bad anatomy, extra limbs, mutation, disfigured, duplicate, cropped, username, error, jpeg artifacts'
 const basePrompt = ref('')
 const countPerScene = ref(1)
 const steps = ref(20)
 const imageWidth = ref(1024)
 const imageHeight = ref(1024)
-const negativePrompt = ref('ugly, deformed, noisy, blurry, distorted, grainy, low quality, low resolution, watermark, text, signature, out of frame, poorly drawn, bad anatomy, extra limbs, mutation, disfigured, duplicate, cropped, username, error, jpeg artifacts')
+const negativePrompt = ref(defaultNegativePrompt)
 const showAdvanced = ref(false)
 const showBasePrompt = ref(false)
 
@@ -253,6 +254,21 @@ function clearResults() {
   activeGenerationId.value = null
 }
 
+function resetForm() {
+  activePersonId.value = null
+  selectedSceneIds.value = []
+  basePrompt.value = ''
+  countPerScene.value = 1
+  steps.value = 20
+  imageWidth.value = 1024
+  imageHeight.value = 1024
+  negativePrompt.value = defaultNegativePrompt
+  showAdvanced.value = false
+  showBasePrompt.value = false
+  clearResults()
+  persistForm()
+}
+
 function startPolling(generationId: string) {
   stopPolling()
   const startedAt = Date.now()
@@ -387,7 +403,7 @@ function downloadImage(url: string, index: number) {
 // ─── Lightbox ───────────────────────────────────────────────────────────
 const lightboxOpen = ref(false)
 const lightboxIndex = ref(0)
-const completedImages = computed(() => allImages.value.filter(i => i.status === 'complete' && i.url))
+const completedMedia = computed(() => allImages.value.filter(i => i.status === 'complete' && i.url))
 
 function openLightbox(index: number) {
   lightboxIndex.value = index
@@ -399,7 +415,7 @@ function closeLightbox() {
 }
 
 function lightboxNext() {
-  if (lightboxIndex.value < completedImages.value.length - 1) lightboxIndex.value++
+  if (lightboxIndex.value < completedMedia.value.length - 1) lightboxIndex.value++
 }
 
 function lightboxPrev() {
@@ -425,7 +441,7 @@ onUnmounted(() => {
   }
 })
 
-const currentLightboxImage = computed(() => completedImages.value[lightboxIndex.value] ?? null)
+const currentLightboxItem = computed(() => completedMedia.value[lightboxIndex.value] ?? null)
 const showLightboxInfo = ref(false)
 
 function recreateFromSettings() {
@@ -500,12 +516,14 @@ const gridClass = computed(() => {
 
 <template>
   <div class="max-w-4xl mx-auto px-4 sm:px-6 py-8 pb-32">
-    <h1 class="font-display text-2xl font-bold text-slate-800 mb-2">
-      <span class="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-cyan-600">Create</span>
-    </h1>
-    <p class="text-sm text-slate-500 mb-6">
-      Pick a persona, pick one or more scenes, then generate. Combine your building blocks in one go.
-    </p>
+    <div class="mb-8">
+      <h1 class="font-display text-3xl font-bold text-slate-800 mb-1">
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-cyan-600">Create</span>
+      </h1>
+      <p class="text-sm text-slate-500">
+        Pick a persona, choose scenes, and generate. Combine building blocks in a single batch.
+      </p>
+    </div>
 
     <!-- Project selector -->
     <div v-if="projects.length > 0" class="flex items-center gap-2 mb-6">
@@ -532,7 +550,7 @@ const gridClass = computed(() => {
 
     <!-- Section 1: Persona Picker -->
     <section class="mb-8">
-      <h2 class="text-sm font-semibold text-slate-700 mb-3">Persona</h2>
+      <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Persona</h2>
       <div class="overflow-x-auto pb-2">
         <div class="inline-flex gap-3">
           <button
@@ -581,7 +599,7 @@ const gridClass = computed(() => {
 
     <!-- Section 2: Scene Picker (multi-select) -->
     <section class="mb-8">
-      <h2 class="text-sm font-semibold text-slate-700 mb-3">Scenes <span class="text-slate-400 font-normal">(select one or more)</span></h2>
+      <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Scenes <span class="text-slate-400 font-normal normal-case tracking-normal">(select one or more)</span></h2>
       <div class="overflow-x-auto pb-2">
         <div class="inline-flex gap-3">
           <button
@@ -623,7 +641,7 @@ const gridClass = computed(() => {
     </section>
 
     <!-- Section 3: Quick Settings -->
-    <section class="mb-6">
+    <section class="mb-6 p-4 rounded-xl bg-white border border-slate-200/80 shadow-sm">
       <div class="flex flex-wrap items-end gap-4">
         <div class="flex items-center gap-2">
           <span class="text-[10px] text-slate-500 font-medium">Per scene</span>
@@ -711,7 +729,7 @@ const gridClass = computed(() => {
     </section>
 
     <!-- Section 4: Prompt Preview -->
-    <div v-if="promptPreviewItems.length > 0" class="mb-6 p-4 rounded-xl bg-slate-50 border border-slate-200">
+    <div v-if="promptPreviewItems.length > 0" class="mb-6 p-4 rounded-xl bg-slate-50/80 border border-slate-200/80">
       <h3 class="text-[10px] text-slate-500 uppercase tracking-wider font-medium mb-2">Prompt preview</h3>
       <div class="space-y-2">
         <div v-for="(item, i) in promptPreviewItems" :key="i" class="flex gap-2">
@@ -722,53 +740,77 @@ const gridClass = computed(() => {
     </div>
 
     <!-- Section 5: Generate Button (sticky) -->
-    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-3 px-4 flex justify-center z-10">
-      <UButton
-        :loading="generating"
-        :disabled="!canGenerate"
-        size="lg"
-        @click="generate(false)"
-      >
-        <template #leading>
-          <UIcon name="i-heroicons-sparkles" />
-        </template>
-        {{ generating ? 'Generating…' : (totalImages > 0 ? `Generate ${totalImages} Image${totalImages !== 1 ? 's' : ''}` : 'Select at least one scene') }}
-        <template v-if="!generating && scenePayloads.length > 0 && totalImages > 0" #trailing>
-          <span class="text-[10px] opacity-80">{{ scenePayloads.length }} × {{ countPerScene }}</span>
-        </template>
-      </UButton>
+    <div class="fixed bottom-0 left-0 right-0 glass border-t border-slate-200/60 py-3 px-4 z-10">
+      <div class="max-w-4xl mx-auto flex items-center justify-between gap-3">
+        <button
+          class="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-600 hover:bg-slate-100 border border-slate-200 transition-all"
+          @click="resetForm"
+        >
+          <span class="flex items-center gap-1.5">
+            <UIcon name="i-heroicons-arrow-path" class="w-3.5 h-3.5" />
+            Reset
+          </span>
+        </button>
+        <UButton
+          :loading="generating"
+          :disabled="!canGenerate"
+          size="lg"
+          @click="generate(false)"
+        >
+          <template #leading>
+            <UIcon name="i-heroicons-sparkles" />
+          </template>
+          {{ generating ? 'Generating…' : (totalImages > 0 ? `Generate ${totalImages} Image${totalImages !== 1 ? 's' : ''}` : 'Select at least one scene') }}
+          <template v-if="!generating && scenePayloads.length > 0 && totalImages > 0" #trailing>
+            <span class="text-[10px] opacity-80">{{ scenePayloads.length }} × {{ countPerScene }}</span>
+          </template>
+        </UButton>
+        <div class="w-[72px]" />
+      </div>
     </div>
 
     <!-- Section 6: Results -->
     <section v-if="allImages.length > 0" class="mt-8">
       <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <span class="text-sm text-slate-600">
-          <span class="font-medium text-slate-800">{{ totalGenerated }}</span> generated
-          <span v-if="totalFailed > 0" class="text-red-500">· {{ totalFailed }} failed</span>
-          <span v-if="pendingCount > 0" class="text-violet-500">· {{ pendingCount }} pending</span>
-        </span>
+        <div class="flex items-center gap-3">
+          <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Results</h2>
+          <div class="flex items-center gap-2 text-xs text-slate-500">
+            <span class="flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span class="font-medium text-slate-700">{{ totalGenerated }}</span> done
+            </span>
+            <span v-if="totalFailed > 0" class="flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-red-400" />
+              {{ totalFailed }} failed
+            </span>
+            <span v-if="pendingCount > 0" class="flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+              {{ pendingCount }} pending
+            </span>
+          </div>
+        </div>
         <div class="flex gap-2">
           <button
             v-if="!generating && canGenerate"
-            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 transition-colors flex items-center gap-1"
             @click="loadMore"
           >
-            ➕ Load More
+            <UIcon name="i-heroicons-plus" class="w-3.5 h-3.5" /> More
           </button>
           <button
-            class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1"
             @click="clearResults"
           >
-            ✕ Clear
+            <UIcon name="i-heroicons-x-mark" class="w-3.5 h-3.5" /> Clear
           </button>
         </div>
       </div>
 
       <div v-if="generating && allImages.length > 0" class="mb-4">
-        <div class="h-1 bg-slate-200 rounded-full overflow-hidden max-w-lg">
+        <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
           <div
-            class="h-full bg-gradient-to-r from-violet-500 to-cyan-500 rounded-full transition-all duration-700"
-            :style="{ width: `${(totalGenerated / allImages.length) * 100}%` }"
+            class="h-full bg-gradient-to-r from-violet-500 to-cyan-500 rounded-full transition-all duration-700 ease-out"
+            :style="{ width: `${Math.max(5, (totalGenerated / allImages.length) * 100)}%` }"
           />
         </div>
       </div>
@@ -777,12 +819,13 @@ const gridClass = computed(() => {
         <div
           v-for="(item, index) in allImages"
           :key="item.id"
-          class="group relative"
+          class="group relative animate-reveal"
         >
+          <!-- Completed image -->
           <div
-            v-if="item.url && item.status === 'complete'"
+            v-if="item.url && item.status === 'complete' && item.type === 'image'"
             class="relative aspect-square rounded-xl overflow-hidden border border-slate-200 hover:border-violet-300 transition-all cursor-pointer shadow-sm hover:shadow-md"
-            @click="openLightbox(completedImages.findIndex(i => i.id === item.id))"
+            @click="openLightbox(completedMedia.findIndex(i => i.id === item.id))"
           >
             <NuxtImg
               :src="item.url"
@@ -797,22 +840,28 @@ const gridClass = computed(() => {
                 title="Download"
                 @click.stop="downloadImage(item.url!, index)"
               >
-                ⬇
+                <UIcon name="i-heroicons-arrow-down-tray" class="w-4 h-4" />
               </button>
               <div class="absolute bottom-0 left-0 right-0 p-2.5 flex gap-1.5">
                 <button
-                  class="flex-1 px-2 py-1.5 rounded-lg text-xs font-medium bg-white/20 backdrop-blur-sm text-white hover:bg-white/30"
+                  class="flex-1 px-2 py-1.5 rounded-lg text-xs font-medium bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors"
                   :class="{ 'opacity-50 pointer-events-none': actionLoading[`video-${item.id}`] }"
                   @click.stop="makeVideo(item.id)"
                 >
-                  🎬 Video
+                  <span class="flex items-center justify-center gap-1">
+                    <UIcon name="i-heroicons-film" class="w-3.5 h-3.5" />
+                    Video
+                  </span>
                 </button>
                 <button
-                  class="flex-1 px-2 py-1.5 rounded-lg text-xs font-medium bg-white/20 backdrop-blur-sm text-white hover:bg-white/30"
+                  class="flex-1 px-2 py-1.5 rounded-lg text-xs font-medium bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors"
                   :class="{ 'opacity-50 pointer-events-none': actionLoading[`audio-${item.id}`] }"
                   @click.stop="addAudio(item.id)"
                 >
-                  🔊 Audio
+                  <span class="flex items-center justify-center gap-1">
+                    <UIcon name="i-heroicons-speaker-wave" class="w-3.5 h-3.5" />
+                    Audio
+                  </span>
                 </button>
               </div>
             </div>
@@ -820,31 +869,70 @@ const gridClass = computed(() => {
               {{ index + 1 }}
             </div>
           </div>
-          <div v-else-if="item.status === 'failed'" class="aspect-square rounded-xl border border-red-200 bg-red-50 flex items-center justify-center">
-            <p class="text-[10px] text-red-500">Failed</p>
+
+          <!-- Completed video -->
+          <div
+            v-else-if="item.url && item.status === 'complete' && item.type === 'video'"
+            class="relative aspect-square rounded-xl overflow-hidden border border-cyan-200 hover:border-cyan-400 transition-all cursor-pointer shadow-sm hover:shadow-md bg-slate-900"
+            @click="openLightbox(completedMedia.findIndex(i => i.id === item.id))"
+          >
+            <video
+              :src="item.url"
+              class="w-full h-full object-cover"
+              muted
+              loop
+              playsinline
+              @mouseenter="($event.target as HTMLVideoElement).play()"
+              @mouseleave="($event.target as HTMLVideoElement).pause()"
+            />
+            <div class="absolute top-2 left-2 flex items-center gap-1.5">
+              <span class="px-1.5 py-0.5 rounded bg-black/30 text-white text-[10px] font-mono">{{ index + 1 }}</span>
+              <span class="px-2 py-0.5 rounded-full bg-cyan-500/80 text-white text-[10px] font-medium flex items-center gap-1">
+                <UIcon name="i-heroicons-film" class="w-3 h-3" /> Video
+              </span>
+            </div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <button
+                class="absolute top-2 right-2 p-1.5 rounded-lg bg-black/40 text-white/80 hover:text-white hover:bg-black/60 text-xs"
+                title="Download"
+                @click.stop="downloadImage(item.url!, index)"
+              >
+                <UIcon name="i-heroicons-arrow-down-tray" class="w-4 h-4" />
+              </button>
+            </div>
           </div>
-          <div v-else class="aspect-square rounded-xl shimmer border border-slate-200 flex items-center justify-center">
-            <div class="w-5 h-5 border-2 border-violet-200 border-t-violet-500 rounded-full animate-spin" />
+
+          <!-- Failed -->
+          <div v-else-if="item.status === 'failed'" class="aspect-square rounded-xl border border-red-200 bg-red-50/50 flex flex-col items-center justify-center gap-2">
+            <UIcon name="i-heroicons-exclamation-circle" class="w-6 h-6 text-red-300" />
+            <p class="text-[10px] text-red-400 font-medium">Failed</p>
+          </div>
+
+          <!-- Loading -->
+          <div v-else class="aspect-square rounded-xl shimmer border border-slate-200 flex flex-col items-center justify-center gap-2">
+            <div class="w-6 h-6 border-2 border-violet-200 border-t-violet-500 rounded-full animate-spin" />
+            <p class="text-[10px] text-slate-400">{{ item.type === 'video' ? 'Generating video…' : 'Generating…' }}</p>
           </div>
         </div>
       </div>
 
       <div v-if="!generating && totalGenerated > 0 && canGenerate" class="mt-6 text-center">
         <button
-          class="px-6 py-2.5 rounded-xl text-sm font-medium bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200"
+          class="px-6 py-2.5 rounded-xl text-sm font-medium bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 transition-colors inline-flex items-center gap-2"
           @click="loadMore"
         >
-          ➕ Generate {{ totalImages }} More
+          <UIcon name="i-heroicons-plus-circle" class="w-4 h-4" />
+          Generate {{ totalImages }} More
         </button>
       </div>
     </section>
 
     <!-- Empty state -->
-    <div v-else-if="!generating" class="flex flex-col items-center justify-center min-h-[320px] text-center">
-      <div class="w-20 h-20 rounded-2xl bg-violet-50 border border-violet-100 flex items-center justify-center mb-4">
-        <UIcon name="i-heroicons-sparkles" class="w-10 h-10 text-violet-300" />
+    <div v-else-if="!generating" class="flex flex-col items-center justify-center min-h-[280px] text-center">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-50 to-cyan-50 border border-violet-100/50 flex items-center justify-center mb-4">
+        <UIcon name="i-heroicons-sparkles" class="w-8 h-8 text-violet-300" />
       </div>
-      <p class="text-slate-500 text-sm">Select a persona and one or more scenes, then hit Generate.</p>
+      <p class="text-slate-400 text-sm max-w-xs">Select a persona and one or more scenes above, then hit <strong class="text-slate-500">Generate</strong>.</p>
     </div>
   </div>
 
@@ -852,7 +940,7 @@ const gridClass = computed(() => {
   <Teleport to="body">
     <Transition name="fade">
       <div
-        v-if="lightboxOpen && currentLightboxImage"
+        v-if="lightboxOpen && currentLightboxItem"
         class="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md"
         @click.self="closeLightbox"
       >
@@ -862,8 +950,16 @@ const gridClass = computed(() => {
         >
           <UIcon name="i-heroicons-x-mark" class="w-6 h-6" />
         </button>
-        <div class="absolute top-4 left-4 px-3 py-1.5 rounded-full bg-white/10 text-white/70 text-xs font-mono">
-          {{ lightboxIndex + 1 }} / {{ completedImages.length }}
+        <div class="absolute top-4 left-4 flex items-center gap-2">
+          <span class="px-3 py-1.5 rounded-full bg-white/10 text-white/70 text-xs font-mono">
+            {{ lightboxIndex + 1 }} / {{ completedMedia.length }}
+          </span>
+          <span
+            v-if="currentLightboxItem.type === 'video'"
+            class="px-2.5 py-1 rounded-full bg-cyan-500/80 text-white text-[10px] font-medium flex items-center gap-1"
+          >
+            <UIcon name="i-heroicons-film" class="w-3 h-3" /> Video
+          </span>
         </div>
         <button
           v-if="lightboxIndex > 0"
@@ -873,38 +969,74 @@ const gridClass = computed(() => {
           <UIcon name="i-heroicons-chevron-left" class="w-8 h-8" />
         </button>
         <button
-          v-if="lightboxIndex < completedImages.length - 1"
+          v-if="lightboxIndex < completedMedia.length - 1"
           class="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full text-white/40 hover:text-white hover:bg-white/10"
           @click="lightboxNext"
         >
           <UIcon name="i-heroicons-chevron-right" class="w-8 h-8" />
         </button>
         <div class="max-w-[90vw] max-h-[85vh] relative">
+          <video
+            v-if="currentLightboxItem.type === 'video'"
+            :src="currentLightboxItem.url!"
+            :key="currentLightboxItem.id"
+            class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+            controls
+            autoplay
+            loop
+          />
           <img
-            :src="currentLightboxImage.url!"
-            :key="currentLightboxImage.id"
+            v-else
+            :src="currentLightboxItem.url!"
+            :key="currentLightboxItem.id"
             alt="Generated"
             class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
           />
         </div>
-        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md">
-          <button class="text-white/60 hover:text-white text-sm" @click="downloadImage(currentLightboxImage.url!, lightboxIndex)">⬇ Download</button>
-          <span class="text-white/20">|</span>
-          <button :class="['text-sm', actionLoading[`video-${currentLightboxImage.id}`] ? 'opacity-50 pointer-events-none' : 'text-white/60 hover:text-white']" @click="makeVideo(currentLightboxImage.id)">🎬 Video</button>
-          <span class="text-white/20">|</span>
-          <button :class="['text-sm', actionLoading[`audio-${currentLightboxImage.id}`] ? 'opacity-50 pointer-events-none' : 'text-white/60 hover:text-white']" @click="addAudio(currentLightboxImage.id)">🔊 Audio</button>
-          <span class="text-white/20">|</span>
-          <button class="text-white/60 hover:text-white text-sm" @click="showLightboxInfo = !showLightboxInfo">ℹ️ Info</button>
-          <template v-if="lastGenerationSettings">
-            <span class="text-white/20">|</span>
-            <button class="text-white/60 hover:text-white text-sm" @click="recreateFromSettings">🔄 Recreate</button>
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1.5 rounded-full bg-white/10 backdrop-blur-md">
+          <button
+            class="px-3 py-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors flex items-center gap-1.5"
+            @click="downloadImage(currentLightboxItem.url!, lightboxIndex)"
+          >
+            <UIcon name="i-heroicons-arrow-down-tray" class="w-3.5 h-3.5" /> Download
+          </button>
+          <template v-if="currentLightboxItem.type === 'image'">
+            <button
+              class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5"
+              :class="actionLoading[`video-${currentLightboxItem.id}`] ? 'opacity-50 pointer-events-none text-white/30' : 'text-white/60 hover:text-white hover:bg-white/10'"
+              @click="makeVideo(currentLightboxItem.id)"
+            >
+              <UIcon name="i-heroicons-film" class="w-3.5 h-3.5" /> Video
+            </button>
+            <button
+              class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5"
+              :class="actionLoading[`audio-${currentLightboxItem.id}`] ? 'opacity-50 pointer-events-none text-white/30' : 'text-white/60 hover:text-white hover:bg-white/10'"
+              @click="addAudio(currentLightboxItem.id)"
+            >
+              <UIcon name="i-heroicons-speaker-wave" class="w-3.5 h-3.5" /> Audio
+            </button>
           </template>
+          <button
+            class="px-3 py-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors flex items-center gap-1.5"
+            @click="showLightboxInfo = !showLightboxInfo"
+          >
+            <UIcon name="i-heroicons-information-circle" class="w-3.5 h-3.5" /> Info
+          </button>
+          <button
+            v-if="lastGenerationSettings"
+            class="px-3 py-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors flex items-center gap-1.5"
+            @click="recreateFromSettings"
+          >
+            <UIcon name="i-heroicons-arrow-path" class="w-3.5 h-3.5" /> Recreate
+          </button>
         </div>
         <Transition name="fade">
           <div v-if="showLightboxInfo && lastGenerationSettings" class="absolute bottom-16 left-1/2 -translate-x-1/2 w-[400px] max-h-[300px] overflow-y-auto rounded-xl bg-black/80 backdrop-blur-md p-4 text-sm text-white/80 space-y-2">
             <div class="flex justify-between mb-2">
               <span class="text-xs uppercase tracking-wider text-white/50 font-medium">Settings</span>
-              <button class="text-white/40 hover:text-white text-xs" @click="showLightboxInfo = false">✕</button>
+              <button class="text-white/40 hover:text-white text-xs" @click="showLightboxInfo = false">
+                <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
+              </button>
             </div>
             <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
               <span class="text-white/40">Dimensions</span>
