@@ -1,8 +1,8 @@
 /**
  * Client-side route middleware: redirects unauthenticated users to `/login`.
  *
- * Because `useAuth()` uses `lazy: false`, the auth state is already resolved
- * by the time middleware runs. No need for manual refresh/await logic.
+ * Auth state is resolved synchronously via useState (populated by the
+ * server plugin during SSR), so loggedIn is available immediately.
  *
  * Usage in a page:
  *   definePageMeta({ middleware: 'auth' })

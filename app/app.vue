@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const route = useRoute()
 const colorMode = useColorMode()
-const { user, loggedIn, logout, loading } = useAuth()
+const { user, loggedIn, logout } = useAuth()
 
 const isDark = computed({
   get: () => colorMode.value === 'dark',

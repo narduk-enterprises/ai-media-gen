@@ -1,4 +1,18 @@
 <script setup lang="ts">
+import {
+  attributeLabels,
+  attributeKeys,
+  pickRandom,
+  buildPrompt as _buildPrompt,
+  buildRandomVariantPrompt as _buildRandomVariant,
+  buildVariedPrompts,
+  countActiveAttributes,
+  createEmptyAttributes,
+  randomizeAllAttributes as _randomizeAll,
+  clearAllAttributes as _clearAll,
+  type AttributeKey,
+} from '~/utils/promptBuilder'
+
 definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Create' })
 
@@ -21,114 +35,28 @@ const pollingTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const showPromptBuilder = ref(false)
 const varyPerImage = ref(false)
 
-// ─── Prompt Builder Attributes ────────────────────────────────────────
-const attributePresets = {
-  scene: [
-    'futuristic city skyline', 'enchanted forest glade', 'underwater ancient ruins',
-    'neon-lit rainy alleyway', 'mountain temple at dawn', 'space station interior',
-    'desert oasis at sunset', 'cyberpunk marketplace', 'frozen tundra landscape',
-    'rooftop garden above the clouds', 'abandoned cathedral', 'bioluminescent cave',
-    'tropical beach at golden hour', 'steampunk workshop', 'floating island archipelago',
-  ],
-  pose: [
-    'standing confidently', 'sitting cross-legged', 'mid-action dynamic leap',
-    'reclining elegantly', 'walking toward camera', 'dramatic side profile',
-    'kneeling with hands extended', 'arms crossed looking away',
-    'dancing gracefully', 'meditating peacefully', 'running in motion blur',
-    'leaning against a wall', 'reaching upward',
-  ],
-  style: [
-    'photorealistic', 'anime', 'oil painting', 'watercolor', 'cyberpunk',
-    'art nouveau', 'comic book', 'cinematic', 'digital illustration',
-    'studio ghibli', 'baroque', 'vaporwave', 'film noir', 'pop art',
-    'hyperrealism', 'impressionist', 'minimalist',
-  ],
-  lighting: [
-    'golden hour warmth', 'dramatic chiaroscuro', 'neon glow', 'soft diffused ambient',
-    'harsh single spotlight', 'moonlit silver', 'backlit silhouette',
-    'volumetric fog rays', 'candlelit warm', 'studio rim lighting',
-    'bioluminescent glow', 'overcast moody', 'sunrise gradient',
-  ],
-  mood: [
-    'serene', 'intense', 'mysterious', 'joyful', 'melancholic',
-    'epic', 'whimsical', 'ethereal', 'dark and brooding', 'dreamlike',
-    'nostalgic', 'triumphant', 'ominous', 'romantic', 'psychedelic',
-  ],
-  camera: [
-    'wide angle establishing shot', 'close-up portrait', 'bird\'s eye view',
-    'low angle heroic', 'dutch angle dramatic', 'macro detail', 'panoramic vista',
-    'medium shot', 'over the shoulder', 'fisheye lens',
-    'telephoto bokeh', 'symmetrical composition', 'rule of thirds',
-  ],
-}
-
-type AttributeKey = keyof typeof attributePresets
-
-const attributeLabels: Record<AttributeKey, { emoji: string; label: string; suffix: string }> = {
-  scene: { emoji: '🏔️', label: 'Scene', suffix: '' },
-  pose: { emoji: '🧍', label: 'Pose', suffix: '' },
-  style: { emoji: '🎨', label: 'Style', suffix: 'style' },
-  lighting: { emoji: '💡', label: 'Lighting', suffix: 'lighting' },
-  mood: { emoji: '🎭', label: 'Mood', suffix: 'mood' },
-  camera: { emoji: '📷', label: 'Camera', suffix: '' },
-}
-
-const attributes = reactive<Record<AttributeKey, string>>({
-  scene: '',
-  pose: '',
-  style: '',
-  lighting: '',
-  mood: '',
-  camera: '',
-})
-
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]!
-}
+// ─── Prompt Builder (uses extracted composable + user presets) ─────────
+const { getPresets } = usePromptPresets()
+const attributes = reactive(createEmptyAttributes())
 
 function randomizeAttribute(key: AttributeKey) {
-  attributes[key] = pickRandom(attributePresets[key])
+  const presets = getPresets(key)
+  attributes[key] = pickRandom(presets)
 }
 
 function randomizeAll() {
-  for (const key of Object.keys(attributePresets) as AttributeKey[]) {
+  for (const key of attributeKeys) {
     randomizeAttribute(key)
   }
 }
 
-function clearAllAttributes() {
-  for (const key of Object.keys(attributes) as AttributeKey[]) {
-    attributes[key] = ''
-  }
+function clearAttributes() {
+  _clearAll(attributes)
 }
 
-function buildPrompt(): string {
-  const parts: string[] = []
-  if (prompt.value.trim()) parts.push(prompt.value.trim())
-  for (const [key, value] of Object.entries(attributes) as [AttributeKey, string][]) {
-    if (!value.trim()) continue
-    const info = attributeLabels[key]
-    parts.push(info.suffix ? `${value.trim()} ${info.suffix}` : value.trim())
-  }
-  return parts.join(', ')
-}
+const composedPrompt = computed(() => _buildPrompt(prompt.value, attributes))
 
-function buildRandomVariantPrompt(): string {
-  const parts: string[] = []
-  if (prompt.value.trim()) parts.push(prompt.value.trim())
-  for (const [key, _value] of Object.entries(attributes) as [AttributeKey, string][]) {
-    const info = attributeLabels[key]
-    const val = pickRandom(attributePresets[key])
-    parts.push(info.suffix ? `${val} ${info.suffix}` : val)
-  }
-  return parts.join(', ')
-}
-
-const composedPrompt = computed(() => buildPrompt())
-
-const activeAttributeCount = computed(() =>
-  Object.values(attributes).filter(v => v.trim()).length
-)
+const activeAttributeCount = computed(() => countActiveAttributes(attributes))
 
 // ─── Rest of state ─────────────────────────────────────────────────────
 
@@ -206,7 +134,7 @@ async function generate() {
 
   if (varyPerImage.value && imageCount.value > 1) {
     // Generate a unique random variant for each image
-    perImagePrompts = Array.from({ length: imageCount.value }, () => buildRandomVariantPrompt())
+    perImagePrompts = buildVariedPrompts(prompt.value, attributes, imageCount.value)
   }
 
   try {
@@ -456,7 +384,7 @@ const gridClass = computed(() => {
               <button
                 v-if="activeAttributeCount > 0"
                 class="px-2.5 py-1 rounded-lg text-[11px] font-medium text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors flex items-center gap-1"
-                @click="clearAllAttributes"
+                @click="clearAttributes"
               >
                 ✕ Clear
               </button>
@@ -499,7 +427,7 @@ const gridClass = computed(() => {
               <div class="flex-1 relative">
                 <input
                   v-model="attributes[key]"
-                  :placeholder="`e.g. ${attributePresets[key][0]}`"
+                  :placeholder="`e.g. ${getPresets(key)[0]}`"
                   class="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/30 pr-8"
                   :disabled="generating"
                 />
@@ -513,7 +441,7 @@ const gridClass = computed(() => {
                   @change="(e: Event) => { attributes[key] = (e.target as HTMLSelectElement).value; (e.target as HTMLSelectElement).value = '' }"
                 >
                   <option value="" disabled selected>Presets</option>
-                  <option v-for="preset in attributePresets[key]" :key="preset" :value="preset">
+                  <option v-for="preset in getPresets(key)" :key="preset" :value="preset">
                     {{ preset }}
                   </option>
                 </select>

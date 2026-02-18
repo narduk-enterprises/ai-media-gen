@@ -25,9 +25,11 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250620.0",
     "@nuxt/fonts": "^0.11.4",
+    "@nuxt/test-utils": "^4.0.0",
     "@nuxtjs/robots": "^5.7.0",
     "@nuxtjs/sitemap": "^7.6.0",
     "@types/node": "^22.15.0",
+    "vitest": "^4.0.18",
     "wrangler": "^4.20.0"
   },
   "overrides": {
