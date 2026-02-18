@@ -17,8 +17,11 @@ import {
 // ─── Data Integrity ─────────────────────────────────────────────────────
 
 describe('attributePresets', () => {
-  it('has all 6 required attribute categories', () => {
-    expect(attributeKeys).toEqual(['scene', 'pose', 'style', 'lighting', 'mood', 'camera'])
+  it('has all 11 required attribute categories', () => {
+    expect(attributeKeys).toEqual([
+      'scene', 'pose', 'style', 'lighting', 'mood', 'camera',
+      'hair', 'eyes', 'bodyType', 'skinTone', 'clothing',
+    ])
   })
 
   it('every category has at least 5 presets', () => {
@@ -61,6 +64,11 @@ describe('attributeLabels', () => {
     expect(attributeLabels.scene.suffix).toBe('')
     expect(attributeLabels.pose.suffix).toBe('')
     expect(attributeLabels.camera.suffix).toBe('')
+    expect(attributeLabels.hair.suffix).toBe('')
+    expect(attributeLabels.eyes.suffix).toBe('')
+    expect(attributeLabels.bodyType.suffix).toBe('')
+    expect(attributeLabels.skinTone.suffix).toBe('')
+    expect(attributeLabels.clothing.suffix).toBe('')
   })
 })
 
@@ -159,10 +167,10 @@ describe('buildRandomVariantPrompt', () => {
   it('returns a prompt with the base + random values for all attrs when randomizeAll=true', () => {
     const attrs = createEmptyAttributes()
     const result = buildRandomVariantPrompt('a cat', attrs, true)
-    // Should have the base prompt + 6 attribute segments
+    // Should have the base prompt + 11 attribute segments
     const parts = result.split(', ')
     expect(parts[0]).toBe('a cat')
-    expect(parts.length).toBe(7) // base + 6 attributes
+    expect(parts.length).toBe(12) // base + 11 attributes
   })
 
   it('only randomizes populated attributes when randomizeAll=false', () => {
@@ -243,9 +251,9 @@ describe('createEmptyAttributes', () => {
     }
   })
 
-  it('has exactly 6 keys', () => {
+  it('has exactly 11 keys', () => {
     const attrs = createEmptyAttributes()
-    expect(Object.keys(attrs)).toHaveLength(6)
+    expect(Object.keys(attrs)).toHaveLength(11)
   })
 })
 
@@ -267,10 +275,10 @@ describe('countActiveAttributes', () => {
     expect(countActiveAttributes(attrs)).toBe(0)
   })
 
-  it('returns 6 when all attributes are set', () => {
+  it('returns 11 when all attributes are set', () => {
     const attrs = createEmptyAttributes()
     randomizeAllAttributes(attrs)
-    expect(countActiveAttributes(attrs)).toBe(6)
+    expect(countActiveAttributes(attrs)).toBe(11)
   })
 })
 
@@ -326,7 +334,7 @@ describe('end-to-end prompt building', () => {
     randomizeAllAttributes(attrs)
     const full = buildPrompt('hero', attrs)
     expect(full.startsWith('hero')).toBe(true)
-    expect(full.split(', ').length).toBe(7) // base + 6
+    expect(full.split(', ').length).toBe(12) // base + 11
 
     clearAllAttributes(attrs)
     expect(buildPrompt('hero', attrs)).toBe('hero')

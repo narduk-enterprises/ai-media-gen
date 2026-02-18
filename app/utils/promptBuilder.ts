@@ -1,8 +1,8 @@
 /**
  * Prompt Builder — composable for building prompts with randomizable attributes.
  *
- * Extracts scene, pose, style, lighting, mood, and camera into structured
- * attributes that can be individually set, randomized, or varied per image.
+ * Includes scene/environment attributes and character appearance attributes
+ * (hair, eyes, body type, skin tone, clothing).
  */
 
 export const attributePresets = {
@@ -43,6 +43,43 @@ export const attributePresets = {
     'medium shot', 'over the shoulder', 'fisheye lens',
     'telephoto bokeh', 'symmetrical composition', 'rule of thirds',
   ],
+
+  // ─── Character Appearance ───────────────────────────────────────────
+  hair: [
+    'long flowing black hair', 'short platinum blonde pixie cut', 'curly auburn hair',
+    'braided silver hair', 'messy dark brown hair', 'slicked-back red hair',
+    'wavy golden blonde hair', 'buzz cut', 'long white hair with bangs',
+    'twin tails pink hair', 'dreadlocks', 'undercut with fade',
+    'voluminous afro', 'half-up half-down chestnut hair', 'mohawk',
+  ],
+  eyes: [
+    'piercing blue eyes', 'deep brown eyes', 'striking green eyes',
+    'golden amber eyes', 'heterochromia eyes', 'glowing violet eyes',
+    'sharp grey eyes', 'warm hazel eyes', 'crimson red eyes',
+    'ice-white eyes', 'dark obsidian eyes', 'cat-like emerald eyes',
+    'soft doe eyes', 'almond-shaped dark eyes', 'bright teal eyes',
+  ],
+  bodyType: [
+    'athletic build', 'slim and slender', 'curvy figure', 'muscular and toned',
+    'petite frame', 'tall and statuesque', 'stocky and broad-shouldered',
+    'lean and wiry', 'hourglass figure', 'average build',
+    'plus-size', 'lithe and graceful', 'compact and powerful',
+  ],
+  skinTone: [
+    'fair porcelain skin', 'warm olive skin', 'rich dark brown skin',
+    'golden tan skin', 'pale ivory skin', 'deep ebony skin',
+    'bronze sun-kissed skin', 'cool beige skin', 'warm caramel skin',
+    'rosy peach skin', 'light brown skin', 'dark olive skin',
+    'freckled fair skin', 'luminous medium skin',
+  ],
+  clothing: [
+    'elegant evening gown', 'tactical combat gear', 'casual streetwear',
+    'flowing kimono', 'futuristic armor suit', 'vintage Victorian dress',
+    'leather jacket and jeans', 'royal court attire', 'athletic sportswear',
+    'cyberpunk neon outfit', 'minimalist white outfit', 'gothic black ensemble',
+    'bohemian layered outfit', 'sleek business suit', 'fantasy wizard robes',
+    'medieval knight armor', 'summer dress with floral print',
+  ],
 } as const
 
 export type AttributeKey = keyof typeof attributePresets
@@ -54,6 +91,11 @@ export const attributeLabels: Record<AttributeKey, { emoji: string; label: strin
   lighting: { emoji: '💡', label: 'Lighting', suffix: 'lighting' },
   mood: { emoji: '🎭', label: 'Mood', suffix: 'mood' },
   camera: { emoji: '📷', label: 'Camera', suffix: '' },
+  hair: { emoji: '💇', label: 'Hair', suffix: '' },
+  eyes: { emoji: '👁️', label: 'Eyes', suffix: '' },
+  bodyType: { emoji: '🏋️', label: 'Body Type', suffix: '' },
+  skinTone: { emoji: '🎨', label: 'Skin Tone', suffix: '' },
+  clothing: { emoji: '👗', label: 'Clothing', suffix: '' },
 }
 
 export const attributeKeys = Object.keys(attributePresets) as AttributeKey[]
