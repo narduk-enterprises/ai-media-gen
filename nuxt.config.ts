@@ -20,7 +20,7 @@ export default defineNuxtConfig({
   },
 
   ui: {
-    colorMode: true
+    colorMode: false
   },
 
   image: {
@@ -30,7 +30,8 @@ export default defineNuxtConfig({
   },
 
   colorMode: {
-    preference: 'dark'
+    preference: 'light',
+    fallback: 'light',
   },
 
   vite: {
@@ -105,7 +106,11 @@ export default defineNuxtConfig({
       }
     },
     externals: {
-      inline: ['drizzle-orm']
+      inline: ['drizzle-orm'],
+      external: ['@mlc-ai/web-llm']
+    },
+    rollupConfig: {
+      external: ['@mlc-ai/web-llm']
     }
   },
 
@@ -123,7 +128,7 @@ export default defineNuxtConfig({
         { name: 'twitter:card', content: 'summary_large_image' },
         { name: 'twitter:title', content: 'AI Media Gen — Create Images, Videos & Audio with AI' },
         { name: 'twitter:description', content: 'Generate stunning AI images, videos, and audio. Type a prompt, get results instantly.' },
-        { name: 'theme-color', content: '#0c0a1a' },
+        { name: 'theme-color', content: '#ffffff' },
       ],
     },
     pageTransition: { name: 'page', mode: 'out-in' }

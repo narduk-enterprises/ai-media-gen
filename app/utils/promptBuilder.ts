@@ -100,6 +100,14 @@ export const attributeLabels: Record<AttributeKey, { emoji: string; label: strin
 
 export const attributeKeys = Object.keys(attributePresets) as AttributeKey[]
 
+/** Attribute keys that belong to a character/person (appearance traits). */
+export const characterAttributeKeys = ['hair', 'eyes', 'bodyType', 'skinTone', 'clothing'] as const satisfies readonly AttributeKey[]
+export type CharacterAttributeKey = (typeof characterAttributeKeys)[number]
+
+/** Attribute keys that belong to a scene/environment (non-character traits). */
+export const sceneAttributeKeys = ['scene', 'pose', 'style', 'lighting', 'mood', 'camera'] as const satisfies readonly AttributeKey[]
+export type SceneAttributeKey = (typeof sceneAttributeKeys)[number]
+
 /**
  * Pick a random element from an array.
  */
@@ -159,16 +167,21 @@ export function buildRandomVariantPrompt(
 
 /**
  * Generate an array of varied prompts, one per image.
- * Each gets different random attributes, all sharing the same base prompt.
+ * Each gets different random attributes. When `basePrompts` is provided,
+ * each image also gets a random base prompt from the pool.
  */
 export function buildVariedPrompts(
   basePrompt: string,
   attributes: Record<AttributeKey, string>,
   count: number,
+  basePrompts?: string[],
 ): string[] {
-  return Array.from({ length: count }, () =>
-    buildRandomVariantPrompt(basePrompt, attributes, true)
-  )
+  return Array.from({ length: count }, () => {
+    const prompt = basePrompts?.length
+      ? pickRandom(basePrompts)
+      : basePrompt
+    return buildRandomVariantPrompt(prompt, attributes, true)
+  })
 }
 
 /**
@@ -203,4 +216,41 @@ export function clearAllAttributes(attributes: Record<AttributeKey, string>): Re
     attributes[key] = ''
   }
   return attributes
+}
+
+/**
+ * Build a composed prompt from a base prompt, person appearance attributes,
+ * and scene/environment attributes. Used by the Personas page.
+ */
+export function buildPersonaPrompt(
+  basePrompt: string,
+  personAttrs: Record<string, string>,
+  sceneAttrs: Record<string, string>,
+  personDescription?: string,
+): string {
+  const parts: string[] = []
+
+  const trimmedBase = basePrompt.trim()
+  if (trimmedBase) parts.push(trimmedBase)
+
+  const trimmedDesc = personDescription?.trim()
+  if (trimmedDesc) parts.push(trimmedDesc)
+
+  // Person appearance traits
+  for (const key of characterAttributeKeys) {
+    const value = personAttrs[key]?.trim()
+    if (!value) continue
+    const info = attributeLabels[key]
+    parts.push(info.suffix ? `${value} ${info.suffix}` : value)
+  }
+
+  // Scene/environment traits
+  for (const key of sceneAttributeKeys) {
+    const value = sceneAttrs[key]?.trim()
+    if (!value) continue
+    const info = attributeLabels[key]
+    parts.push(info.suffix ? `${value} ${info.suffix}` : value)
+  }
+
+  return parts.join(', ')
 }

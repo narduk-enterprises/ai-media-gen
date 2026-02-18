@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
+  <div class="min-h-screen flex items-center justify-center bg-slate-50 px-4">
     <div class="text-center max-w-md">
       <!-- Error code -->
       <p class="text-7xl font-bold font-display text-primary mb-2">
@@ -7,12 +7,12 @@
       </p>
 
       <!-- Title -->
-      <h1 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">
+      <h1 class="text-2xl font-semibold text-slate-800 mb-3">
         {{ title }}
       </h1>
 
       <!-- Description -->
-      <p class="text-gray-500 dark:text-gray-400 mb-8">
+      <p class="text-slate-500 mb-8">
         {{ description }}
       </p>
 

@@ -5,7 +5,7 @@
     >
       <UIcon name="i-heroicons-photo" class="w-10 h-10 text-violet-500/30" />
     </div>
-    <p class="text-zinc-500 mb-4">No creations yet</p>
+    <p class="text-slate-500 mb-4">No creations yet</p>
     <UButton to="/create">
       <template #leading>
         <UIcon name="i-heroicons-sparkles" />

@@ -33,8 +33,8 @@ const nonImageItems = computed(() =>
     <template #content>
       <div v-if="generation" class="flex flex-col">
         <!-- Close button -->
-        <div class="flex items-center justify-between p-4 border-b border-zinc-800/50">
-          <p class="text-sm text-zinc-300 line-clamp-1 flex-1 mr-4">{{ generation.prompt }}</p>
+        <div class="flex items-center justify-between p-4 border-b border-slate-200">
+          <p class="text-sm text-slate-700 line-clamp-1 flex-1 mr-4">{{ generation.prompt }}</p>
           <UButton
             variant="ghost"
             color="neutral"
@@ -78,11 +78,11 @@ const nonImageItems = computed(() =>
 
         <!-- Video / Audio items -->
         <div v-if="nonImageItems.length" class="px-4 pb-4 space-y-2">
-          <div class="text-xs text-zinc-500 uppercase tracking-wider mb-1">Other media</div>
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Other media</div>
           <div
             v-for="item in nonImageItems"
             :key="item.id"
-            class="flex items-center gap-2 text-sm text-zinc-400 p-2 rounded-lg bg-zinc-900/50"
+            class="flex items-center gap-2 text-sm text-slate-600 p-2 rounded-lg bg-slate-50"
           >
             <UIcon
               :name="item.type === 'video' ? 'i-heroicons-film' : 'i-heroicons-speaker-wave'"

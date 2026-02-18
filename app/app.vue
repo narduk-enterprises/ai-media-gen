@@ -1,15 +1,10 @@
 <script setup lang="ts">
 const route = useRoute()
-const colorMode = useColorMode()
 const { user, loggedIn, logout } = useAuth()
-
-const isDark = computed({
-  get: () => colorMode.value === 'dark',
-  set: (val: boolean) => { colorMode.preference = val ? 'dark' : 'light' }
-})
 
 const navItems = [
   { label: 'Create', to: '/create', icon: 'i-heroicons-sparkles' },
+  { label: 'Personas', to: '/personas', icon: 'i-heroicons-users' },
   { label: 'Gallery', to: '/gallery', icon: 'i-heroicons-photo' },
   { label: 'Settings', to: '/settings', icon: 'i-heroicons-cog-6-tooth' },
 ]
@@ -49,14 +44,10 @@ useHead({
 
 <template>
   <UApp>
-    <!-- Aurora background orbs -->
-    <div class="aurora-orb" style="width: 600px; height: 600px; background: rgba(139, 92, 246, 0.15); top: -200px; left: -100px;" />
-    <div class="aurora-orb" style="width: 500px; height: 500px; background: rgba(6, 182, 212, 0.1); bottom: -200px; right: -100px; animation-delay: -7s;" />
-
-    <div class="min-h-screen flex flex-col">
+    <div class="min-h-screen flex flex-col bg-slate-50">
       <!-- Header (only for logged-in users) -->
       <header v-if="loggedIn" class="glass sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-between h-16">
             <!-- Brand -->
             <NuxtLink to="/create" class="flex items-center gap-2.5 group">
@@ -67,7 +58,7 @@ useHead({
                   <path d="M2 12l10 5 10-5" />
                 </svg>
               </div>
-              <span class="font-display font-bold text-lg tracking-tight hidden sm:block">AI Media Gen</span>
+              <span class="font-display font-bold text-lg tracking-tight text-slate-800 hidden sm:block">AI Media Gen</span>
             </NuxtLink>
 
             <!-- Desktop nav -->
@@ -78,8 +69,8 @@ useHead({
                 :to="item.to"
                 class="px-4 py-2 rounded-lg text-sm font-medium transition-all"
                 :class="route.path === item.to
-                  ? 'bg-violet-500/15 text-violet-300'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'"
+                  ? 'bg-violet-50 text-violet-700'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'"
               >
                 {{ item.label }}
               </NuxtLink>
@@ -87,15 +78,8 @@ useHead({
 
             <!-- Actions -->
             <div class="flex items-center gap-3">
-              <USwitch
-                v-model="isDark"
-                on-icon="i-heroicons-moon"
-                off-icon="i-heroicons-sun"
-                size="lg"
-              />
-
               <div v-if="user" class="flex items-center gap-2">
-                <span class="text-sm text-zinc-400 hidden sm:block">{{ user.email }}</span>
+                <span class="text-sm text-slate-500 hidden sm:block">{{ user.email }}</span>
                 <UButton
                   color="neutral"
                   variant="ghost"
@@ -106,7 +90,7 @@ useHead({
               </div>
 
               <!-- Mobile hamburger -->
-              <button class="md:hidden p-2 text-zinc-400 hover:text-white" @click="mobileMenuOpen = !mobileMenuOpen">
+              <button class="md:hidden p-2 text-slate-500 hover:text-slate-800" @click="mobileMenuOpen = !mobileMenuOpen">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <template v-if="!mobileMenuOpen">
                     <line x1="3" y1="6" x2="21" y2="6" />
@@ -131,8 +115,8 @@ useHead({
                 :to="item.to"
                 class="px-4 py-3 rounded-lg text-sm font-medium"
                 :class="route.path === item.to
-                  ? 'bg-violet-500/15 text-violet-300'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'"
+                  ? 'bg-violet-50 text-violet-700'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'"
               >
                 {{ item.label }}
               </NuxtLink>
@@ -147,12 +131,9 @@ useHead({
       </main>
 
       <!-- Footer -->
-      <footer v-if="loggedIn" class="text-center py-6 text-xs text-zinc-600">
+      <footer v-if="loggedIn" class="text-center py-6 text-xs text-slate-400">
         AI Media Gen &middot; {{ new Date().getFullYear() }}
       </footer>
     </div>
   </UApp>
 </template>
-
-
-

@@ -32,7 +32,7 @@ async function handleLogin() {
   <div class="min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-md">
       <!-- Back link -->
-      <NuxtLink to="/" class="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-white mb-8 transition-colors">
+      <NuxtLink to="/" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 mb-8 transition-colors">
         <UIcon name="i-heroicons-arrow-left" class="w-4 h-4" />
         Back
       </NuxtLink>
@@ -47,12 +47,12 @@ async function handleLogin() {
               <path d="M2 12l10 5 10-5" />
             </svg>
           </div>
-          <h1 class="font-display text-2xl font-bold">Welcome back</h1>
-          <p class="text-sm text-zinc-400 mt-1">Sign in to start creating</p>
+          <h1 class="font-display text-2xl font-bold text-slate-800">Welcome back</h1>
+          <p class="text-sm text-slate-500 mt-1">Sign in to start creating</p>
         </div>
 
         <!-- Error -->
-        <div v-if="error" class="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+        <div v-if="error" class="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
           {{ error }}
         </div>
 
@@ -94,10 +94,10 @@ async function handleLogin() {
         <!-- Divider -->
         <div class="relative my-6">
           <div class="absolute inset-0 flex items-center">
-            <div class="w-full border-t border-zinc-800" />
+            <div class="w-full border-t border-slate-200" />
           </div>
           <div class="relative flex justify-center text-xs">
-            <span class="px-3 bg-[rgba(15,10,30,0.5)] text-zinc-500">or</span>
+            <span class="px-3 bg-white text-slate-400">or</span>
           </div>
         </div>
 
@@ -118,9 +118,9 @@ async function handleLogin() {
         </UButton>
 
         <!-- Sign up link -->
-        <p class="text-center text-sm text-zinc-500 mt-6">
+        <p class="text-center text-sm text-slate-500 mt-6">
           Don't have an account?
-          <NuxtLink to="/signup" class="text-violet-400 hover:text-violet-300 font-medium">
+          <NuxtLink to="/signup" class="text-violet-600 hover:text-violet-700 font-medium">
             Create one
           </NuxtLink>
         </p>

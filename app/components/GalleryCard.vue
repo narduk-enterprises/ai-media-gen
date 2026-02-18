@@ -47,7 +47,7 @@ const emptySlots = computed(() =>
           <div
             v-for="i in emptySlots"
             :key="`empty-${i}`"
-            class="aspect-square bg-zinc-900"
+            class="aspect-square bg-slate-100"
           />
         </div>
 
@@ -76,10 +76,10 @@ const emptySlots = computed(() =>
     </template>
 
     <!-- Info -->
-    <p class="text-sm text-zinc-300 line-clamp-2 mb-2">{{ generation.prompt }}</p>
+    <p class="text-sm text-slate-700 line-clamp-2 mb-2">{{ generation.prompt }}</p>
     <div class="flex items-center justify-between">
-      <span class="text-[11px] text-zinc-600">{{ formatDate(generation.createdAt) }}</span>
-      <span class="text-[11px] text-zinc-500">
+      <span class="text-[11px] text-slate-500">{{ formatDate(generation.createdAt) }}</span>
+      <span class="text-[11px] text-slate-500">
         {{ generation.imageCount }} image{{ generation.imageCount !== 1 ? 's' : '' }}
       </span>
     </div>

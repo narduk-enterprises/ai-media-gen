@@ -11,6 +11,7 @@ export interface GenerationResult {
   prompt: string
   imageCount: number
   status: string
+  settings?: string | null
   createdAt: string
   items: MediaItemResult[]
 }

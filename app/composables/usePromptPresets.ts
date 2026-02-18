@@ -23,6 +23,7 @@ export interface Project {
   createdAt: string
   updatedAt: string
   mergeWithDefaults: boolean
+  negativePrompt: string
   basePrompts: string[]
   presets: Partial<Record<AttributeKey, string[]>>
 }
@@ -38,7 +39,7 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 }
 
-function createProject(name: string, data?: Partial<Pick<Project, 'basePrompts' | 'presets' | 'mergeWithDefaults'>>): Project {
+function createProject(name: string, data?: Partial<Pick<Project, 'basePrompts' | 'presets' | 'mergeWithDefaults' | 'negativePrompt'>>): Project {
   const now = new Date().toISOString()
   return {
     id: generateId(),
@@ -46,6 +47,7 @@ function createProject(name: string, data?: Partial<Pick<Project, 'basePrompts' 
     createdAt: now,
     updatedAt: now,
     mergeWithDefaults: data?.mergeWithDefaults ?? true,
+    negativePrompt: data?.negativePrompt ?? '',
     basePrompts: data?.basePrompts ?? [],
     presets: data?.presets ?? {},
   }
@@ -112,7 +114,7 @@ export function usePromptPresets() {
 
   // ─── Project CRUD ────────────────────────────────────────────────────
 
-  function addProject(name: string, data?: Partial<Pick<Project, 'basePrompts' | 'presets' | 'mergeWithDefaults'>>): Project {
+  function addProject(name: string, data?: Partial<Pick<Project, 'basePrompts' | 'presets' | 'mergeWithDefaults' | 'negativePrompt'>>): Project {
     const project = createProject(name, data)
     store.value.projects.push(project)
     store.value.activeProjectId = project.id
@@ -149,6 +151,7 @@ export function usePromptPresets() {
     if (!source) return null
     const copy = createProject(`${source.name} (Copy)`, {
       mergeWithDefaults: source.mergeWithDefaults,
+      negativePrompt: source.negativePrompt,
       basePrompts: [...source.basePrompts],
       presets: Object.fromEntries(
         Object.entries(source.presets).map(([k, v]) => [k, [...(v ?? [])]])
@@ -181,13 +184,16 @@ export function usePromptPresets() {
       }
     }
 
-    return addProject(name, { basePrompts, presets })
+    const negativePrompt = typeof json.negativePrompt === 'string' ? json.negativePrompt : ''
+
+    return addProject(name, { basePrompts, presets, negativePrompt })
   }
 
   function exportProject(id: string): Record<string, unknown> | null {
     const project = store.value.projects.find(p => p.id === id)
     if (!project) return null
     const result: Record<string, unknown> = { name: project.name }
+    if (project.negativePrompt) result.negativePrompt = project.negativePrompt
     if (project.basePrompts.length > 0) result.basePrompt = [...project.basePrompts]
     for (const key of attributeKeys) {
       const vals = project.presets[key]
@@ -316,8 +322,17 @@ export function usePromptPresets() {
   const config = computed(() => ({
     custom: activeProject.value?.presets ?? {},
     mergeWithDefaults: activeProject.value?.mergeWithDefaults ?? true,
+    negativePrompt: activeProject.value?.negativePrompt ?? '',
     basePrompts: activeProject.value?.basePrompts ?? [],
   }))
+
+  function setNegativePrompt(value: string) {
+    const project = activeProject.value
+    if (!project) return
+    project.negativePrompt = value
+    _touch(project)
+    _save()
+  }
 
   return {
     // Project management
@@ -345,5 +360,6 @@ export function usePromptPresets() {
     addBasePrompt,
     removeBasePrompt,
     clearBasePrompts,
+    setNegativePrompt,
   }
 }

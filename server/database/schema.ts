@@ -27,6 +27,7 @@ export const generations = sqliteTable('generations', {
   prompt: text('prompt').notNull(),
   imageCount: integer('image_count').notNull().default(1),
   status: text('status').notNull().default('pending'), // pending | processing | complete | failed
+  settings: text('settings'), // JSON blob: { negativePrompt, steps, width, height, attributes, ... }
   error: text('error'),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 })

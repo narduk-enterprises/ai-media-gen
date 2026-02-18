@@ -13,6 +13,7 @@ const generateSchema = z.object({
   steps: z.number().int().min(1).max(50).default(20),
   width: z.number().int().min(512).max(2048).default(1024),
   height: z.number().int().min(512).max(2048).default(1024),
+  attributes: z.record(z.string()).optional(), // prompt builder attributes used
 })
 
 export default defineEventHandler(async (event) => {
@@ -24,18 +25,28 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, prompts, negativePrompt, count, steps, width, height } = parsed.data
+  const { prompt, prompts, negativePrompt, count, steps, width, height, attributes } = parsed.data
+
+  // Build settings JSON to persist with the generation
+  const settings = JSON.stringify({
+    negativePrompt,
+    steps,
+    width,
+    height,
+    attributes: attributes || {},
+  })
   const db = useDatabase()
   const generationId = crypto.randomUUID()
   const now = new Date().toISOString()
 
-  // Create generation record
+  // Create generation record with full settings
   await db.insert(generations).values({
     id: generationId,
     userId: user.id,
     prompt,
     imageCount: count,
     status: 'processing',
+    settings,
     createdAt: now,
   })
 
@@ -128,6 +139,7 @@ export default defineEventHandler(async (event) => {
       prompt,
       imageCount: count,
       status: 'processing',
+      settings,
       createdAt: now,
     },
     items,

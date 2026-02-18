@@ -13,10 +13,6 @@ useSeoMeta({
 
 <template>
   <div class="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
-    <!-- Background decoration -->
-    <div class="aurora-orb" style="width: 500px; height: 500px; background: rgba(139, 92, 246, 0.12); top: 10%; left: 20%;" />
-    <div class="aurora-orb" style="width: 400px; height: 400px; background: rgba(6, 182, 212, 0.08); bottom: 10%; right: 20%; animation-delay: -5s;" />
-
     <div class="text-center max-w-2xl relative z-10">
       <!-- Logo -->
       <div class="flex justify-center mb-8">
@@ -30,11 +26,11 @@ useSeoMeta({
       </div>
 
       <h1 class="font-display text-5xl sm:text-6xl font-black tracking-tight mb-4">
-        <span class="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-purple-300 to-cyan-400">
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 via-purple-500 to-cyan-600">
           AI Media Gen
         </span>
       </h1>
-      <p class="text-lg sm:text-xl text-zinc-400 mb-10 max-w-lg mx-auto leading-relaxed">
+      <p class="text-lg sm:text-xl text-slate-500 mb-10 max-w-lg mx-auto leading-relaxed">
         Type a prompt. Get stunning images, videos, and audio — powered by cutting-edge generative AI.
       </p>
 
@@ -63,16 +59,16 @@ useSeoMeta({
 
       <!-- Feature pills -->
       <div class="mt-16 flex flex-wrap justify-center gap-3">
-        <span class="px-4 py-2 rounded-full text-xs font-medium bg-violet-500/10 text-violet-300 border border-violet-500/20">
+        <span class="px-4 py-2 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200">
           🎨 Text → Image
         </span>
-        <span class="px-4 py-2 rounded-full text-xs font-medium bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+        <span class="px-4 py-2 rounded-full text-xs font-medium bg-cyan-50 text-cyan-700 border border-cyan-200">
           🎬 Image → Video
         </span>
-        <span class="px-4 py-2 rounded-full text-xs font-medium bg-pink-500/10 text-pink-300 border border-pink-500/20">
+        <span class="px-4 py-2 rounded-full text-xs font-medium bg-pink-50 text-pink-700 border border-pink-200">
           🔊 Add Audio
         </span>
-        <span class="px-4 py-2 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+        <span class="px-4 py-2 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
           ⚡ 1–16 images per prompt
         </span>
       </div>
