@@ -4,14 +4,12 @@
  * Provides reactive `user`, `loggedIn`, and helper methods (`login`, `signup`,
  * `logout`, `refresh`). State is shared across the app via `useAsyncData`.
  *
- * Key design decisions:
- * - NOT lazy: auth state must resolve before rendering to prevent flash of
- *   unauthenticated content / incorrect redirects.
- * - SSR context (useRequestEvent, useRequestFetch) is captured in the
- *   composable's setup scope — NOT inside the useAsyncData handler — because
- *   Cloudflare Workers can lose async context inside callbacks.
- * - `useRequestFetch` automatically forwards cookies during SSR, avoiding
- *   fragile manual header copying.
+ * SSR strategy (Cloudflare Workers compatible):
+ * - Auth is resolved BEFORE the Vue app renders, by a Nitro server middleware
+ *   that queries D1 directly (server/middleware/03.auth.ts).
+ * - A Nuxt server plugin bridges the result into useState('auth-user-ssr').
+ * - This composable reads from useState on the server — zero internal fetches.
+ * - On the client, $fetch('/api/auth/me') is used for re-validation.
  *
  * Usage:
  *   const { user, loggedIn, login, logout } = useAuth()
@@ -25,28 +23,21 @@ interface AuthUser {
 }
 
 export function useAuth() {
-  // CRITICAL: Capture SSR context in the composable's setup scope, NOT inside
-  // the useAsyncData handler. On Cloudflare Workers, the Nuxt/Nitro async
-  // context can be lost inside async callbacks, causing useRequestEvent() to
-  // return undefined and the session cookie check to silently fail.
-  const requestFetch = useRequestFetch()
-  const ssrEvent = import.meta.server ? useRequestEvent() : undefined
-
   const { data: user, refresh, status } = useAsyncData<AuthUser | null>(
     'auth-user',
     async () => {
-      // On the server, check for the session cookie first — skip the fetch
-      // entirely if there is no cookie (avoids an unnecessary internal request).
+      // ── Server (SSR): read pre-resolved auth from useState ──
+      // The Nitro middleware already validated the session cookie against D1
+      // and the Nuxt server plugin stored the result in useState.
+      // No internal $fetch needed — this is instant and reliable on CF Workers.
       if (import.meta.server) {
-        const sessionId = ssrEvent ? getCookie(ssrEvent, 'session') : undefined
-        if (!sessionId) return null
+        const ssrAuth = useState<AuthUser | null>('auth-user-ssr')
+        return ssrAuth.value ?? null
       }
 
+      // ── Client: fetch from API (cookies sent automatically by browser) ──
       try {
-        // useRequestFetch() automatically forwards cookies during SSR,
-        // eliminating the need for manual header copying which is fragile
-        // on edge runtimes like Cloudflare Workers.
-        const res = await requestFetch<{ user: AuthUser | null }>('/api/auth/me')
+        const res = await $fetch<{ user: AuthUser | null }>('/api/auth/me')
         return res.user ?? null
       } catch {
         return null
