@@ -236,6 +236,7 @@ const totalCustomPresets = computed(() =>
       <p class="text-xs text-slate-500 mb-4">
         Choose which RunPod endpoint to use for generation. The <strong>full</strong> image has all models baked in
         for fast cold starts. The <strong>slim</strong> image loads models from network volume (slower cold start, smaller image).
+        The <strong>EU</strong> endpoint is a full image hosted in Europe for lower latency.
       </p>
 
       <div class="flex gap-2">
@@ -269,6 +270,22 @@ const totalCustomPresets = computed(() =>
           <div>
             <p class="text-xs font-medium" :class="runpodEndpoint === 'slim' ? 'text-violet-700' : 'text-slate-700'">Slim</p>
             <p class="text-[10px]" :class="runpodEndpoint === 'slim' ? 'text-violet-500' : 'text-slate-400'">~2-3GB image, network volume models</p>
+          </div>
+        </button>
+        <button
+          class="flex-1 flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all"
+          :class="runpodEndpoint === 'eu'
+            ? 'bg-violet-50 border-violet-300 ring-1 ring-violet-300'
+            : 'bg-white border-slate-200 hover:border-slate-300'"
+          @click="runpodEndpoint = 'eu'"
+        >
+          <div
+            class="w-3 h-3 rounded-full border-2 shrink-0 transition-colors"
+            :class="runpodEndpoint === 'eu' ? 'border-violet-500 bg-violet-500' : 'border-slate-300'"
+          />
+          <div>
+            <p class="text-xs font-medium" :class="runpodEndpoint === 'eu' ? 'text-violet-700' : 'text-slate-700'">EU</p>
+            <p class="text-[10px]" :class="runpodEndpoint === 'eu' ? 'text-violet-500' : 'text-slate-400'">EU region, lower latency for Europe</p>
           </div>
         </button>
       </div>

@@ -1,4 +1,4 @@
-type EndpointType = 'full' | 'slim'
+type EndpointType = 'full' | 'slim' | 'eu'
 
 interface AppSettings {
   runpodEndpoint: EndpointType

@@ -13,7 +13,7 @@ const generateSchema = z.object({
   width: z.number().int().min(512).max(2048).default(1024),
   height: z.number().int().min(512).max(2048).default(1024),
   attributes: z.record(z.string()).optional(),
-  endpoint: z.enum(['full', 'slim']).optional(),
+  endpoint: z.enum(['full', 'slim', 'eu']).optional(),
 })
 
 export default defineEventHandler(async (event) => {

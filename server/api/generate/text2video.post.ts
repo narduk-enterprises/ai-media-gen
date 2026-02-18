@@ -11,7 +11,7 @@ const text2videoSchema = z.object({
   height: z.number().min(256).max(1280).optional().default(640),
   numFrames: z.number().min(41).max(201).optional().default(81),
   steps: z.number().min(1).max(20).optional().default(4),
-  endpoint: z.enum(['full', 'slim']).optional(),
+  endpoint: z.enum(['full', 'slim', 'eu']).optional(),
 })
 
 export default defineEventHandler(async (event) => {

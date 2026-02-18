@@ -31,6 +31,8 @@ const modeTabs: TabsItem[] = [
   { label: 'Persona + Scene', icon: 'i-lucide-users', value: 'persona', slot: 'persona' },
   { label: 'Free Build', icon: 'i-lucide-wand-sparkles', value: 'free', slot: 'free' },
   { label: 'Batch', icon: 'i-lucide-layers', value: 'batch', slot: 'batch' },
+  { label: 'Text to Video', icon: 'i-lucide-film', value: 'text2video', slot: 'text2video' },
+  { label: 'Batch Video', icon: 'i-lucide-clapperboard', value: 'batchvideo', slot: 'batchvideo' },
 ]
 
 // ─── Shared settings ────────────────────────────────────────────────────
@@ -259,6 +261,122 @@ async function generateBatch() {
   })
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// MODE 4: Text to Video
+// ═══════════════════════════════════════════════════════════════════════
+
+const t2vPrompt = ref('')
+const t2vNegativePrompt = ref('')
+const t2vNumFrames = ref(81)
+const t2vSteps = ref(4)
+const t2vResolutionIndex = ref(0)
+
+const t2vDurationPresets = [
+  { label: '~1.7s', value: 41, description: 'Quick' },
+  { label: '~3.4s', value: 81, description: 'Standard' },
+  { label: '~5s', value: 121, description: 'Long' },
+  { label: '~6.7s', value: 161, description: 'Extended' },
+  { label: '~8.4s', value: 201, description: 'Maximum' },
+]
+
+const t2vResolutionPresets = [
+  { label: '640 × 640', w: 640, h: 640 },
+  { label: '512 × 512', w: 512, h: 512 },
+  { label: '768 × 512', w: 768, h: 512 },
+  { label: '512 × 768', w: 512, h: 768 },
+  { label: '832 × 480', w: 832, h: 480 },
+  { label: '480 × 832', w: 480, h: 832 },
+]
+
+const t2vCurrentResolution = computed(() => t2vResolutionPresets[t2vResolutionIndex.value]!)
+const canGenerateT2V = computed(() => t2vPrompt.value.trim().length > 0)
+
+async function generateText2Video() {
+  if (!canGenerateT2V.value) return
+  await gen.generateText2Video({
+    prompt: t2vPrompt.value.trim(),
+    negativePrompt: t2vNegativePrompt.value,
+    numFrames: t2vNumFrames.value,
+    steps: t2vSteps.value,
+    width: t2vCurrentResolution.value.w,
+    height: t2vCurrentResolution.value.h,
+  })
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MODE 5: Batch Video
+// ═══════════════════════════════════════════════════════════════════════
+
+const bvPrompts = ref<string[]>([])
+const bvJsonInput = ref('')
+const bvFileError = ref('')
+const bvNumFrames = ref(81)
+const bvSteps = ref(4)
+const bvResolutionIndex = ref(0)
+const bvNegativePrompt = ref('')
+
+const bvCurrentResolution = computed(() => t2vResolutionPresets[bvResolutionIndex.value]!)
+const bvTotal = computed(() => bvPrompts.value.length)
+const canGenerateBV = computed(() => bvPrompts.value.length > 0)
+
+function handleBvFileUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  bvFileError.value = ''
+
+  const reader = new FileReader()
+  reader.onload = () => {
+    const text = reader.result as string
+    const prompts = parseBatchJson(text)
+    if (prompts) {
+      bvPrompts.value = prompts
+      bvJsonInput.value = text
+      bvFileError.value = ''
+    } else {
+      bvFileError.value = 'Invalid JSON. Expected an array of strings or objects with a "prompt" field.'
+    }
+  }
+  reader.onerror = () => { bvFileError.value = 'Failed to read file' }
+  reader.readAsText(file)
+  input.value = ''
+}
+
+function handleBvPaste() {
+  const raw = bvJsonInput.value.trim()
+  if (!raw) return
+  bvFileError.value = ''
+  const prompts = parseBatchJson(raw)
+  if (prompts) {
+    bvPrompts.value = prompts
+    bvFileError.value = ''
+  } else {
+    bvFileError.value = 'Invalid JSON. Expected an array of strings or objects with a "prompt" field.'
+  }
+}
+
+function clearBv() {
+  bvPrompts.value = []
+  bvJsonInput.value = ''
+  bvFileError.value = ''
+}
+
+function removeBvPrompt(index: number) {
+  bvPrompts.value = bvPrompts.value.filter((_, i) => i !== index)
+}
+
+async function generateBatchVideo() {
+  if (!canGenerateBV.value) return
+  await gen.generateBatchText2Video({
+    prompts: bvPrompts.value,
+    negativePrompt: bvNegativePrompt.value,
+    numFrames: bvNumFrames.value,
+    steps: bvSteps.value,
+    width: bvCurrentResolution.value.w,
+    height: bvCurrentResolution.value.h,
+  })
+}
+
 // ─── AI prompt remix ────────────────────────────────────────────────────
 const { isSupported: webGpuSupported, loadProgress, loadingModel, remixPrompt } = useWebLLM()
 const remixing = ref(false)
@@ -287,23 +405,43 @@ async function remixFreePrompt() {
   }
 }
 
+async function remixT2VPrompt() {
+  if (!t2vPrompt.value.trim()) return
+  remixing.value = true
+  try {
+    t2vPrompt.value = await remixPrompt(t2vPrompt.value)
+  } catch (e: any) {
+    gen.error.value = e.message || 'Prompt remix failed'
+  } finally {
+    remixing.value = false
+  }
+}
+
 // ─── Shared: can generate / generate ────────────────────────────────────
 const canGenerate = computed(() => {
   if (mode.value === 'persona') return canGeneratePersona.value
   if (mode.value === 'free') return canGenerateFree.value
   if (mode.value === 'batch') return canGenerateBatch.value
+  if (mode.value === 'text2video') return canGenerateT2V.value
+  if (mode.value === 'batchvideo') return canGenerateBV.value
   return false
 })
+
+const isVideoMode = computed(() => mode.value === 'text2video' || mode.value === 'batchvideo')
 
 function handleGenerate(append = false) {
   if (mode.value === 'persona') generatePersona(append)
   else if (mode.value === 'free') generateFree(append)
   else if (mode.value === 'batch') generateBatch()
+  else if (mode.value === 'text2video') generateText2Video()
+  else if (mode.value === 'batchvideo') generateBatchVideo()
 }
 
 function totalForButton() {
   if (mode.value === 'persona') return personaTotal.value
   if (mode.value === 'batch') return batchTotal.value
+  if (mode.value === 'text2video') return 1
+  if (mode.value === 'batchvideo') return bvTotal.value
   return freeCount.value
 }
 
@@ -372,6 +510,15 @@ function persistForm() {
       imageWidth: imageWidth.value,
       imageHeight: imageHeight.value,
       negativePrompt: negativePrompt.value,
+      t2vPrompt: t2vPrompt.value,
+      t2vNegativePrompt: t2vNegativePrompt.value,
+      t2vNumFrames: t2vNumFrames.value,
+      t2vSteps: t2vSteps.value,
+      t2vResolutionIndex: t2vResolutionIndex.value,
+      bvNumFrames: bvNumFrames.value,
+      bvSteps: bvSteps.value,
+      bvResolutionIndex: bvResolutionIndex.value,
+      bvNegativePrompt: bvNegativePrompt.value,
     }))
   } catch {}
 }
@@ -394,6 +541,15 @@ function restoreForm() {
     if (s.imageWidth != null) imageWidth.value = s.imageWidth
     if (s.imageHeight != null) imageHeight.value = s.imageHeight
     if (s.negativePrompt != null) negativePrompt.value = s.negativePrompt
+    if (s.t2vPrompt != null) t2vPrompt.value = s.t2vPrompt
+    if (s.t2vNegativePrompt != null) t2vNegativePrompt.value = s.t2vNegativePrompt
+    if (s.t2vNumFrames != null) t2vNumFrames.value = s.t2vNumFrames
+    if (s.t2vSteps != null) t2vSteps.value = s.t2vSteps
+    if (s.t2vResolutionIndex != null) t2vResolutionIndex.value = s.t2vResolutionIndex
+    if (s.bvNumFrames != null) bvNumFrames.value = s.bvNumFrames
+    if (s.bvSteps != null) bvSteps.value = s.bvSteps
+    if (s.bvResolutionIndex != null) bvResolutionIndex.value = s.bvResolutionIndex
+    if (s.bvNegativePrompt != null) bvNegativePrompt.value = s.bvNegativePrompt
   } catch {}
 }
 
@@ -405,7 +561,7 @@ onMounted(() => {
 })
 
 watch(
-  [mode, activePersonId, selectedSceneIds, basePrompt, countPerScene, freePrompt, freeAttributes, freeCount, steps, imageWidth, imageHeight, negativePrompt],
+  [mode, activePersonId, selectedSceneIds, basePrompt, countPerScene, freePrompt, freeAttributes, freeCount, steps, imageWidth, imageHeight, negativePrompt, t2vPrompt, t2vNegativePrompt, t2vNumFrames, t2vSteps, t2vResolutionIndex, bvNumFrames, bvSteps, bvResolutionIndex, bvNegativePrompt],
   () => persistForm(),
   { deep: true },
 )
@@ -428,6 +584,18 @@ function resetForm() {
   negativePrompt.value = DEFAULT_NEG
   showAdvanced.value = false
   showBasePrompt.value = false
+  t2vPrompt.value = ''
+  t2vNegativePrompt.value = ''
+  t2vNumFrames.value = 81
+  t2vSteps.value = 4
+  t2vResolutionIndex.value = 0
+  bvPrompts.value = []
+  bvJsonInput.value = ''
+  bvFileError.value = ''
+  bvNumFrames.value = 81
+  bvSteps.value = 4
+  bvResolutionIndex.value = 0
+  bvNegativePrompt.value = ''
   gen.clearResults()
   persistForm()
 }
@@ -470,7 +638,7 @@ const gridClass = computed(() => {
         <h1 class="font-display text-3xl font-bold text-slate-800 mb-1">
           <span class="text-transparent bg-clip-text bg-linear-to-r from-violet-600 to-cyan-600">Create</span>
         </h1>
-        <p class="text-sm text-slate-500">Build prompts and generate images in batches.</p>
+        <p class="text-sm text-slate-500">{{ isVideoMode ? (mode === 'batchvideo' ? 'Generate multiple videos from a batch of prompts.' : 'Create videos from text prompts.') : 'Build prompts and generate images in batches.' }}</p>
       </div>
       <UButton
         variant="outline"
@@ -914,10 +1082,293 @@ const gridClass = computed(() => {
           </div>
         </div>
       </template>
+
+      <!-- Text to Video mode -->
+      <template #text2video>
+        <div class="space-y-6 pt-4">
+          <!-- Prompt -->
+          <UFormField label="Prompt" size="lg">
+            <UTextarea
+              v-model="t2vPrompt"
+              placeholder="Describe the video you want to generate..."
+              :rows="3"
+              autoresize
+              :disabled="gen.generating.value"
+              class="w-full"
+            />
+            <template #hint>
+              <UButton
+                v-if="webGpuSupported"
+                size="xs"
+                :variant="remixing || loadingModel ? 'soft' : 'outline'"
+                :color="remixing || loadingModel ? 'primary' : 'neutral'"
+                icon="i-lucide-sparkles"
+                :loading="remixing || loadingModel"
+                :disabled="!t2vPrompt.trim() || gen.generating.value"
+                @click="remixT2VPrompt"
+              >
+                {{ loadingModel ? `AI (${loadProgress}%)` : 'AI Remix' }}
+              </UButton>
+            </template>
+          </UFormField>
+
+          <!-- Negative prompt -->
+          <UFormField label="Negative prompt" size="sm">
+            <UTextarea
+              v-model="t2vNegativePrompt"
+              placeholder="Things to avoid (optional)..."
+              :rows="2"
+              autoresize
+              :disabled="gen.generating.value"
+              class="w-full"
+              size="sm"
+            />
+          </UFormField>
+
+          <!-- Duration -->
+          <section>
+            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Duration</label>
+            <div class="grid grid-cols-5 gap-1.5">
+              <button
+                v-for="preset in t2vDurationPresets"
+                :key="preset.value"
+                class="py-2 px-1 rounded-lg text-center transition-all border"
+                :class="t2vNumFrames === preset.value
+                  ? 'bg-cyan-50 border-cyan-300 text-cyan-700 ring-1 ring-cyan-200'
+                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'"
+                @click="t2vNumFrames = preset.value"
+              >
+                <span class="block text-xs font-semibold">{{ preset.label }}</span>
+                <span class="block text-[9px] mt-0.5 opacity-60">{{ preset.description }}</span>
+              </button>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-1.5">{{ t2vNumFrames }} frames at ~24fps</p>
+          </section>
+
+          <!-- Steps -->
+          <section>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Quality (Steps)</label>
+              <span class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{{ t2vSteps }}</span>
+            </div>
+            <USlider v-model="t2vSteps" :min="1" :max="20" class="w-full" size="xs" />
+            <div class="flex justify-between text-[9px] text-slate-400 mt-1">
+              <span>Faster</span>
+              <span>Higher quality</span>
+            </div>
+          </section>
+
+          <!-- Resolution -->
+          <section>
+            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Resolution</label>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button
+                v-for="(preset, i) in t2vResolutionPresets"
+                :key="i"
+                class="py-1.5 px-2 rounded-lg text-[11px] font-medium text-center transition-all border"
+                :class="t2vResolutionIndex === i
+                  ? 'bg-cyan-50 border-cyan-300 text-cyan-700 ring-1 ring-cyan-200'
+                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'"
+                @click="t2vResolutionIndex = i"
+              >
+                {{ preset.label }}
+              </button>
+            </div>
+          </section>
+
+          <!-- Summary -->
+          <UCard v-if="t2vPrompt.trim()" variant="subtle">
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider font-medium mb-1">Video settings</div>
+            <p class="text-xs text-slate-600">
+              {{ t2vNumFrames }} frames · {{ t2vSteps }} steps · {{ t2vCurrentResolution.w }}×{{ t2vCurrentResolution.h }}
+            </p>
+          </UCard>
+        </div>
+      </template>
+
+      <!-- Batch Video mode -->
+      <template #batchvideo>
+        <div class="space-y-6 pt-4">
+          <!-- Upload / Paste -->
+          <section>
+            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Upload Video Prompts JSON</h2>
+            <div class="space-y-3">
+              <div class="flex items-center gap-3">
+                <label
+                  class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-slate-200 hover:border-cyan-300 hover:bg-cyan-50/30 cursor-pointer transition-all"
+                >
+                  <UIcon name="i-lucide-upload" class="w-4 h-4 text-slate-400" />
+                  <span class="text-sm text-slate-600 font-medium">Choose JSON file</span>
+                  <input
+                    type="file"
+                    accept=".json,application/json"
+                    class="hidden"
+                    @change="handleBvFileUpload"
+                  />
+                </label>
+                <span class="text-xs text-slate-400">or paste below</span>
+              </div>
+
+              <UTextarea
+                v-model="bvJsonInput"
+                placeholder='["a cat walking through a garden", "ocean waves crashing on rocks", "timelapse of a city at night"]'
+                :rows="4"
+                autoresize
+                class="w-full font-mono"
+                size="sm"
+              />
+
+              <div class="flex items-center gap-2">
+                <UButton
+                  size="xs"
+                  variant="soft"
+                  icon="i-lucide-check"
+                  :disabled="!bvJsonInput.trim()"
+                  @click="handleBvPaste"
+                >
+                  Parse JSON
+                </UButton>
+                <UButton
+                  v-if="bvPrompts.length > 0"
+                  size="xs"
+                  variant="ghost"
+                  color="error"
+                  icon="i-lucide-trash-2"
+                  @click="clearBv"
+                >
+                  Clear All
+                </UButton>
+              </div>
+
+              <UAlert
+                v-if="bvFileError"
+                color="error"
+                variant="subtle"
+                icon="i-lucide-triangle-alert"
+                :title="bvFileError"
+                :close="true"
+                @update:open="bvFileError = ''"
+              />
+
+              <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                <p class="text-[10px] text-slate-500 leading-relaxed">
+                  Accepts an array of strings: <code class="bg-slate-200 px-1 rounded text-[10px]">["prompt 1", "prompt 2"]</code>
+                  <br />
+                  Or objects: <code class="bg-slate-200 px-1 rounded text-[10px]">[{"prompt": "prompt 1"}, {"prompt": "prompt 2"}]</code>
+                  <br />
+                  Each prompt generates one video. Videos are submitted sequentially and polled in parallel.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Negative prompt -->
+          <UFormField label="Negative prompt" size="sm">
+            <UTextarea
+              v-model="bvNegativePrompt"
+              placeholder="Things to avoid (optional)..."
+              :rows="2"
+              autoresize
+              :disabled="gen.generating.value"
+              class="w-full"
+              size="sm"
+            />
+          </UFormField>
+
+          <!-- Duration -->
+          <section>
+            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Duration</label>
+            <div class="grid grid-cols-5 gap-1.5">
+              <button
+                v-for="preset in t2vDurationPresets"
+                :key="preset.value"
+                class="py-2 px-1 rounded-lg text-center transition-all border"
+                :class="bvNumFrames === preset.value
+                  ? 'bg-cyan-50 border-cyan-300 text-cyan-700 ring-1 ring-cyan-200'
+                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'"
+                @click="bvNumFrames = preset.value"
+              >
+                <span class="block text-xs font-semibold">{{ preset.label }}</span>
+                <span class="block text-[9px] mt-0.5 opacity-60">{{ preset.description }}</span>
+              </button>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-1.5">{{ bvNumFrames }} frames at ~24fps</p>
+          </section>
+
+          <!-- Steps -->
+          <section>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Quality (Steps)</label>
+              <span class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{{ bvSteps }}</span>
+            </div>
+            <USlider v-model="bvSteps" :min="1" :max="20" class="w-full" size="xs" />
+            <div class="flex justify-between text-[9px] text-slate-400 mt-1">
+              <span>Faster</span>
+              <span>Higher quality</span>
+            </div>
+          </section>
+
+          <!-- Resolution -->
+          <section>
+            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Resolution</label>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button
+                v-for="(preset, i) in t2vResolutionPresets"
+                :key="i"
+                class="py-1.5 px-2 rounded-lg text-[11px] font-medium text-center transition-all border"
+                :class="bvResolutionIndex === i
+                  ? 'bg-cyan-50 border-cyan-300 text-cyan-700 ring-1 ring-cyan-200'
+                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'"
+                @click="bvResolutionIndex = i"
+              >
+                {{ preset.label }}
+              </button>
+            </div>
+          </section>
+
+          <!-- Parsed prompts preview -->
+          <UCard v-if="bvPrompts.length > 0" variant="subtle">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-slate-500 uppercase tracking-wider font-medium">{{ bvPrompts.length }} video{{ bvPrompts.length !== 1 ? 's' : '' }}</span>
+                <UBadge size="xs" variant="subtle" color="info">
+                  {{ bvNumFrames }} frames · {{ bvSteps }} steps · {{ bvCurrentResolution.w }}×{{ bvCurrentResolution.h }}
+                </UBadge>
+              </div>
+            </div>
+
+            <div class="space-y-1.5 max-h-64 overflow-y-auto">
+              <div
+                v-for="(prompt, i) in bvPrompts"
+                :key="i"
+                class="flex items-start gap-2 group"
+              >
+                <span class="text-[10px] text-slate-400 font-mono w-6 shrink-0 text-right pt-0.5">{{ i + 1 }}</span>
+                <p class="text-xs text-slate-600 leading-relaxed flex-1 line-clamp-2">{{ prompt }}</p>
+                <button
+                  class="p-0.5 rounded text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                  @click="removeBvPrompt(i)"
+                >
+                  <UIcon name="i-lucide-x" class="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </UCard>
+
+          <!-- Batch progress -->
+          <div v-if="gen.generating.value && gen.batchProgress.value.total > 0" class="flex items-center gap-3 p-3 rounded-lg bg-cyan-50 border border-cyan-200">
+            <div class="w-4 h-4 border-2 border-cyan-300 border-t-cyan-600 rounded-full animate-spin shrink-0" />
+            <div class="text-xs text-cyan-700">
+              Submitted {{ gen.batchProgress.value.current }} / {{ gen.batchProgress.value.total }} videos to API.
+              Waiting for results…
+            </div>
+          </div>
+        </div>
+      </template>
     </UTabs>
 
-    <!-- ═══ Shared Settings ═══ -->
-    <UCard class="mb-6" variant="outline">
+    <!-- ═══ Shared Settings (image modes only) ═══ -->
+    <UCard v-if="!isVideoMode" class="mb-6" variant="outline">
       <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
         <UFormField label="Steps" size="sm">
           <div class="flex items-center gap-2">
@@ -974,10 +1425,10 @@ const gridClass = computed(() => {
           :loading="gen.generating.value"
           :disabled="!canGenerate"
           size="lg"
-          icon="i-lucide-sparkles"
+          :icon="isVideoMode ? 'i-lucide-film' : 'i-lucide-sparkles'"
           @click="handleGenerate(false)"
         >
-          {{ gen.generating.value ? 'Generating…' : (canGenerate ? `Generate ${totalForButton()} Image${totalForButton() !== 1 ? 's' : ''}` : 'Configure above') }}
+          {{ gen.generating.value ? 'Generating…' : (canGenerate ? (isVideoMode ? `Generate ${totalForButton()} Video${totalForButton() !== 1 ? 's' : ''}` : `Generate ${totalForButton()} Image${totalForButton() !== 1 ? 's' : ''}`) : 'Configure above') }}
         </UButton>
       </div>
     </div>
@@ -1116,7 +1567,7 @@ const gridClass = computed(() => {
         <UIcon name="i-lucide-sparkles" class="w-8 h-8 text-violet-300" />
       </div>
       <p class="text-slate-400 text-sm max-w-xs">
-        {{ mode === 'persona' ? 'Select scenes above, then hit Generate.' : 'Enter a prompt and configure attributes, then Generate.' }}
+        {{ mode === 'persona' ? 'Select scenes above, then hit Generate.' : mode === 'text2video' ? 'Enter a prompt and configure video settings, then Generate.' : mode === 'batchvideo' ? 'Upload a JSON array of prompts to generate multiple videos.' : 'Enter a prompt and configure attributes, then Generate.' }}
       </p>
     </div>
   </div>

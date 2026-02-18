@@ -4,17 +4,19 @@
  * Calls the gpu-by-the-hour RunPod serverless endpoint which runs ComfyUI
  * with FLUX.1 Dev (text2image) and Wan 2.2 (text2video / image2video).
  *
- * Two endpoint modes:
+ * Three endpoint modes:
  *   "full" — full image with all models baked in (~40GB)
  *   "slim" — slim image (~2-3GB) that loads models from network volume
+ *   "eu"   — EU-region endpoint (full image, lower latency for EU users)
  *
  * Required env vars:
  *   NUXT_AI_API_KEY       — RunPod API key
  *   NUXT_AI_API_URL       — RunPod "full" endpoint URL
  *   NUXT_AI_API_URL_SLIM  — RunPod "slim" endpoint URL
+ *   NUXT_AI_API_URL_EU    — RunPod "eu" endpoint URL
  */
 
-export type EndpointType = 'full' | 'slim';
+export type EndpointType = 'full' | 'slim' | 'eu';
 
 interface RunPodResponse {
   id: string;
@@ -42,6 +44,9 @@ export function resolveApiUrl(endpointType?: EndpointType | string): string {
   const config = useRuntimeConfig();
   if (endpointType === 'slim' && config.aiApiUrlSlim) {
     return config.aiApiUrlSlim;
+  }
+  if (endpointType === 'eu' && config.aiApiUrlEu) {
+    return config.aiApiUrlEu;
   }
   return config.aiApiUrl;
 }
