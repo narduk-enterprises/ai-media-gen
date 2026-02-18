@@ -30,6 +30,7 @@ const mode = ref<string | number>('persona')
 const modeTabs: TabsItem[] = [
   { label: 'Persona + Scene', icon: 'i-lucide-users', value: 'persona', slot: 'persona' },
   { label: 'Free Build', icon: 'i-lucide-wand-sparkles', value: 'free', slot: 'free' },
+  { label: 'Batch', icon: 'i-lucide-layers', value: 'batch', slot: 'batch' },
 ]
 
 // ─── Shared settings ────────────────────────────────────────────────────
@@ -161,6 +162,103 @@ async function generateFree(append = false) {
   })
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// MODE 3: Batch (JSON upload)
+// ═══════════════════════════════════════════════════════════════════════
+
+const batchPrompts = ref<string[]>([])
+const batchCountPerPrompt = ref(1)
+const batchFileError = ref('')
+const batchJsonInput = ref('')
+
+const batchExpandedPrompts = computed(() => {
+  const out: string[] = []
+  for (const p of batchPrompts.value) {
+    for (let i = 0; i < batchCountPerPrompt.value; i++) out.push(p)
+  }
+  return out
+})
+
+const batchTotal = computed(() => batchExpandedPrompts.value.length)
+const canGenerateBatch = computed(() => batchPrompts.value.length > 0 && batchTotal.value > 0)
+
+function parseBatchJson(raw: string): string[] | null {
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      const prompts: string[] = []
+      for (const item of parsed) {
+        if (typeof item === 'string' && item.trim()) {
+          prompts.push(item.trim())
+        } else if (typeof item === 'object' && item !== null && typeof item.prompt === 'string' && item.prompt.trim()) {
+          prompts.push(item.prompt.trim())
+        }
+      }
+      return prompts.length > 0 ? prompts : null
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function handleBatchFileUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  batchFileError.value = ''
+
+  const reader = new FileReader()
+  reader.onload = () => {
+    const text = reader.result as string
+    const prompts = parseBatchJson(text)
+    if (prompts) {
+      batchPrompts.value = prompts
+      batchJsonInput.value = text
+      batchFileError.value = ''
+    } else {
+      batchFileError.value = 'Invalid JSON. Expected an array of strings or objects with a "prompt" field.'
+    }
+  }
+  reader.onerror = () => { batchFileError.value = 'Failed to read file' }
+  reader.readAsText(file)
+  input.value = ''
+}
+
+function handleBatchPaste() {
+  const raw = batchJsonInput.value.trim()
+  if (!raw) return
+  batchFileError.value = ''
+  const prompts = parseBatchJson(raw)
+  if (prompts) {
+    batchPrompts.value = prompts
+    batchFileError.value = ''
+  } else {
+    batchFileError.value = 'Invalid JSON. Expected an array of strings or objects with a "prompt" field.'
+  }
+}
+
+function clearBatch() {
+  batchPrompts.value = []
+  batchJsonInput.value = ''
+  batchFileError.value = ''
+}
+
+function removeBatchPrompt(index: number) {
+  batchPrompts.value = batchPrompts.value.filter((_, i) => i !== index)
+}
+
+async function generateBatch() {
+  if (!canGenerateBatch.value) return
+  await gen.generateBatch({
+    prompts: batchExpandedPrompts.value,
+    negativePrompt: negativePrompt.value,
+    steps: steps.value,
+    width: imageWidth.value,
+    height: imageHeight.value,
+  })
+}
+
 // ─── AI prompt remix ────────────────────────────────────────────────────
 const { isSupported: webGpuSupported, loadProgress, loadingModel, remixPrompt } = useWebLLM()
 const remixing = ref(false)
@@ -190,15 +288,23 @@ async function remixFreePrompt() {
 }
 
 // ─── Shared: can generate / generate ────────────────────────────────────
-const canGenerate = computed(() => mode.value === 'persona' ? canGeneratePersona.value : canGenerateFree.value)
+const canGenerate = computed(() => {
+  if (mode.value === 'persona') return canGeneratePersona.value
+  if (mode.value === 'free') return canGenerateFree.value
+  if (mode.value === 'batch') return canGenerateBatch.value
+  return false
+})
 
 function handleGenerate(append = false) {
   if (mode.value === 'persona') generatePersona(append)
-  else generateFree(append)
+  else if (mode.value === 'free') generateFree(append)
+  else if (mode.value === 'batch') generateBatch()
 }
 
 function totalForButton() {
-  return mode.value === 'persona' ? personaTotal.value : freeCount.value
+  if (mode.value === 'persona') return personaTotal.value
+  if (mode.value === 'batch') return batchTotal.value
+  return freeCount.value
 }
 
 // ─── Video modal ────────────────────────────────────────────────────────
@@ -312,6 +418,10 @@ function resetForm() {
   freePrompt.value = ''
   freeAttributes.value = createEmptyAttributes()
   freeCount.value = 1
+  batchPrompts.value = []
+  batchCountPerPrompt.value = 1
+  batchJsonInput.value = ''
+  batchFileError.value = ''
   steps.value = 20
   imageWidth.value = 1024
   imageHeight.value = 1024
@@ -670,6 +780,138 @@ const gridClass = computed(() => {
             <div class="text-[10px] text-slate-500 uppercase tracking-wider font-medium mb-1">Composed prompt</div>
             <p class="text-xs text-slate-600 leading-relaxed">{{ freePromptPreview }}</p>
           </UCard>
+        </div>
+      </template>
+
+      <!-- Batch mode -->
+      <template #batch>
+        <div class="space-y-6 pt-4">
+          <!-- Upload / Paste -->
+          <section>
+            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Upload Prompts JSON</h2>
+            <div class="space-y-3">
+              <div class="flex items-center gap-3">
+                <label
+                  class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-slate-200 hover:border-violet-300 hover:bg-violet-50/30 cursor-pointer transition-all"
+                >
+                  <UIcon name="i-lucide-upload" class="w-4 h-4 text-slate-400" />
+                  <span class="text-sm text-slate-600 font-medium">Choose JSON file</span>
+                  <input
+                    type="file"
+                    accept=".json,application/json"
+                    class="hidden"
+                    @change="handleBatchFileUpload"
+                  />
+                </label>
+                <span class="text-xs text-slate-400">or paste below</span>
+              </div>
+
+              <UTextarea
+                v-model="batchJsonInput"
+                placeholder='["a cat in a spacesuit", "a dog surfing", "sunset over mountains"]'
+                :rows="4"
+                autoresize
+                class="w-full font-mono"
+                size="sm"
+              />
+
+              <div class="flex items-center gap-2">
+                <UButton
+                  size="xs"
+                  variant="soft"
+                  icon="i-lucide-check"
+                  :disabled="!batchJsonInput.trim()"
+                  @click="handleBatchPaste"
+                >
+                  Parse JSON
+                </UButton>
+                <UButton
+                  v-if="batchPrompts.length > 0"
+                  size="xs"
+                  variant="ghost"
+                  color="error"
+                  icon="i-lucide-trash-2"
+                  @click="clearBatch"
+                >
+                  Clear All
+                </UButton>
+              </div>
+
+              <UAlert
+                v-if="batchFileError"
+                color="error"
+                variant="subtle"
+                icon="i-lucide-triangle-alert"
+                :title="batchFileError"
+                :close="true"
+                @update:open="batchFileError = ''"
+              />
+
+              <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                <p class="text-[10px] text-slate-500 leading-relaxed">
+                  Accepts an array of strings: <code class="bg-slate-200 px-1 rounded text-[10px]">["prompt 1", "prompt 2"]</code>
+                  <br />
+                  Or objects: <code class="bg-slate-200 px-1 rounded text-[10px]">[{"prompt": "prompt 1"}, {"prompt": "prompt 2"}]</code>
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Count per prompt -->
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-500 font-medium">Images per prompt</span>
+            <UButton
+              v-for="n in [1, 2, 4]"
+              :key="n"
+              size="xs"
+              :variant="batchCountPerPrompt === n ? 'soft' : 'outline'"
+              :color="batchCountPerPrompt === n ? 'primary' : 'neutral'"
+              @click="batchCountPerPrompt = n"
+            >
+              {{ n }}
+            </UButton>
+          </div>
+
+          <!-- Parsed prompts preview -->
+          <UCard v-if="batchPrompts.length > 0" variant="subtle">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-slate-500 uppercase tracking-wider font-medium">{{ batchPrompts.length }} prompt{{ batchPrompts.length !== 1 ? 's' : '' }}</span>
+                <UBadge size="xs" variant="subtle" color="primary">
+                  {{ batchTotal }} total image{{ batchTotal !== 1 ? 's' : '' }}
+                </UBadge>
+                <UBadge v-if="batchTotal > gen.MAX_IMAGES_PER_BATCH" size="xs" variant="subtle" color="warning">
+                  {{ Math.ceil(batchTotal / gen.MAX_IMAGES_PER_BATCH) }} batches
+                </UBadge>
+              </div>
+            </div>
+
+            <div class="space-y-1.5 max-h-64 overflow-y-auto">
+              <div
+                v-for="(prompt, i) in batchPrompts"
+                :key="i"
+                class="flex items-start gap-2 group"
+              >
+                <span class="text-[10px] text-slate-400 font-mono w-6 shrink-0 text-right pt-0.5">{{ i + 1 }}</span>
+                <p class="text-xs text-slate-600 leading-relaxed flex-1 line-clamp-2">{{ prompt }}</p>
+                <button
+                  class="p-0.5 rounded text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                  @click="removeBatchPrompt(i)"
+                >
+                  <UIcon name="i-lucide-x" class="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </UCard>
+
+          <!-- Batch progress -->
+          <div v-if="gen.generating.value && gen.batchProgress.value.total > 0" class="flex items-center gap-3 p-3 rounded-lg bg-violet-50 border border-violet-200">
+            <div class="w-4 h-4 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin shrink-0" />
+            <div class="text-xs text-violet-700">
+              Submitted {{ gen.batchProgress.value.current }} / {{ gen.batchProgress.value.total }} to API.
+              Waiting for results…
+            </div>
+          </div>
         </div>
       </template>
     </UTabs>

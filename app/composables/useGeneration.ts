@@ -225,6 +225,105 @@ export function useGeneration() {
     actionLoading.value[loadingKey] = false
   }
 
+  // ─── Batch generation (>16 images across multiple API calls) ────────
+
+  const batchProgress = ref({ current: 0, total: 0 })
+  const activeGenerationIds = ref<string[]>([])
+
+  async function generateBatch(opts: {
+    prompts: string[]
+    negativePrompt: string
+    steps: number
+    width: number
+    height: number
+  }) {
+    const allPrompts = opts.prompts
+    if (allPrompts.length === 0) return
+
+    generating.value = true
+    error.value = ''
+    results.value = []
+    stopPolling()
+    activeGenerationIds.value = []
+
+    const chunks: string[][] = []
+    for (let i = 0; i < allPrompts.length; i += MAX_IMAGES_PER_BATCH) {
+      chunks.push(allPrompts.slice(i, i + MAX_IMAGES_PER_BATCH))
+    }
+
+    batchProgress.value = { current: 0, total: allPrompts.length }
+
+    for (const chunk of chunks) {
+      try {
+        const result = await $fetch<GenerationResult>('/api/generate/image', {
+          method: 'POST',
+          body: {
+            prompt: chunk[0],
+            prompts: chunk,
+            negativePrompt: opts.negativePrompt,
+            count: chunk.length,
+            steps: opts.steps,
+            width: opts.width,
+            height: opts.height,
+            attributes: {},
+            endpoint: runpodEndpoint.value,
+          },
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+
+        if (result.generation.settings) {
+          try { lastSettings.value = JSON.parse(result.generation.settings) } catch {}
+        }
+
+        const newItems = result.items.filter(i => i.type === 'image')
+        results.value = [...results.value, ...newItems]
+        activeGenerationIds.value.push(result.generation.id)
+        batchProgress.value.current += chunk.length
+      } catch (e: any) {
+        error.value = e.data?.message || e.message || `Batch chunk failed`
+      }
+    }
+
+    startBatchPolling()
+  }
+
+  function startBatchPolling() {
+    stopPolling()
+    const startedAt = Date.now()
+    const maxPollMs = 10 * 60 * 1000
+
+    pollingTimer.value = setInterval(async () => {
+      if (Date.now() - startedAt > maxPollMs) {
+        stopPolling()
+        generating.value = false
+        for (const item of results.value) {
+          if (item.status === 'processing') (item as any).status = 'failed'
+        }
+        return
+      }
+
+      for (const genId of activeGenerationIds.value) {
+        try {
+          const result = await $fetch<GenerationResult>('/api/generate/generation-status', {
+            params: { id: genId },
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          })
+          for (const updated of result.items) {
+            const idx = results.value.findIndex(i => i.id === updated.id)
+            if (idx >= 0) results.value[idx] = updated
+          }
+        } catch { /* swallow */ }
+      }
+
+      const allDone = results.value.every(i => i.status === 'complete' || i.status === 'failed')
+      if (allDone) {
+        stopPolling()
+        generating.value = false
+        activeGenerationIds.value = []
+      }
+    }, 4000)
+  }
+
   // ─── Utilities ──────────────────────────────────────────────────────
 
   function clearResults() {
@@ -257,6 +356,8 @@ export function useGeneration() {
     totalPending,
     actionLoading,
     generate,
+    generateBatch,
+    batchProgress,
     makeVideo,
     makeAudio,
     clearResults,
