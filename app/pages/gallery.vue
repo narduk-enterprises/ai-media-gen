@@ -166,6 +166,21 @@ function recreateFromImage(img: GalleryMedia) {
   navigateTo({ path: '/create', query })
 }
 
+// ─── Video modal ────────────────────────────────────────────────────────
+const videoModalOpen = ref(false)
+const videoModalTarget = ref<string | null>(null)
+
+function openVideoModal(mediaItemId: string) {
+  videoModalTarget.value = mediaItemId
+  videoModalOpen.value = true
+}
+
+function handleVideoGenerate(settings: { numFrames: number; steps: number; cfg: number; width: number; height: number }) {
+  if (!videoModalTarget.value) return
+  makeVideoFromGallery(videoModalTarget.value, settings)
+  videoModalOpen.value = false
+}
+
 // ─── Video generation from gallery ──────────────────────────────────────
 const actionLoading = ref<Record<string, boolean>>({})
 const videoProcessingItems = ref<Array<{ id: string; mediaItemId: string; status: string }>>([])
@@ -182,9 +197,9 @@ async function makeVideoFromGallery(mediaItemId: string, settings?: Record<strin
       method: 'POST',
       body: {
         mediaItemId,
-        numFrames: 81,
+        numFrames: settings?.numFrames || 81,
         steps: settings?.steps || 20,
-        cfg: 3.5,
+        cfg: settings?.cfg || 3.5,
         width: settings?.width || 768,
         height: settings?.height || 768,
         endpoint: runpodEndpoint.value,
@@ -407,7 +422,7 @@ const gridClass = computed(() => {
                 class="p-1.5 rounded-lg bg-black/40 text-white/80 hover:text-white hover:bg-black/60 transition-all"
                 :class="{ 'opacity-50 pointer-events-none': actionLoading[`video-${item.id}`] }"
                 title="Create video"
-                @click.stop="makeVideoFromGallery(item.id, item.settings)"
+                @click.stop="openVideoModal(item.id)"
               >
                 <UIcon v-if="actionLoading[`video-${item.id}`]" name="i-heroicons-arrow-path" class="w-3.5 h-3.5 animate-spin" />
                 <UIcon v-else name="i-heroicons-film" class="w-3.5 h-3.5" />
@@ -523,7 +538,7 @@ const gridClass = computed(() => {
                     class="p-1 rounded bg-black/40 text-white/80 hover:text-white hover:bg-black/60 transition-all"
                     :class="{ 'opacity-50 pointer-events-none': actionLoading[`video-${item.id}`] }"
                     title="Create video"
-                    @click.stop="makeVideoFromGallery(item.id, parseSettings(gen.settings))"
+                    @click.stop="openVideoModal(item.id)"
                   >
                     <UIcon v-if="actionLoading[`video-${item.id}`]" name="i-heroicons-arrow-path" class="w-3 h-3 animate-spin" />
                     <UIcon v-else name="i-heroicons-film" class="w-3 h-3" />
@@ -634,7 +649,7 @@ const gridClass = computed(() => {
                 :class="actionLoading[`video-${currentItem.id}`]
                   ? 'opacity-50 pointer-events-none text-white/30'
                   : 'text-white/60 hover:text-white hover:bg-white/10'"
-                @click="makeVideoFromGallery(currentItem.id, currentItem.settings)"
+                @click="openVideoModal(currentItem.id)"
               >
                 <UIcon v-if="actionLoading[`video-${currentItem.id}`]" name="i-heroicons-arrow-path" class="w-3.5 h-3.5 animate-spin" />
                 <UIcon v-else name="i-heroicons-film" class="w-3.5 h-3.5" />
@@ -708,6 +723,14 @@ const gridClass = computed(() => {
         </div>
       </Transition>
     </Teleport>
+
+    <!-- Video Settings Modal -->
+    <VideoSettingsModal
+      :open="videoModalOpen"
+      :loading="videoModalTarget ? actionLoading[`video-${videoModalTarget}`] : false"
+      @close="videoModalOpen = false"
+      @generate="handleVideoGenerate"
+    />
   </div>
 </template>
 

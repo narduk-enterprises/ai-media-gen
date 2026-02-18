@@ -173,6 +173,22 @@ function totalForButton() {
   return mode.value === 'persona' ? personaTotal.value : freeCount.value
 }
 
+// ─── Video modal ────────────────────────────────────────────────────────
+const videoModalOpen = ref(false)
+const videoModalTarget = ref<string | null>(null)
+
+function openVideoModal(mediaItemId: string) {
+  videoModalTarget.value = mediaItemId
+  videoModalOpen.value = true
+}
+
+function handleVideoGenerate(settings: { numFrames: number; steps: number; cfg: number; width: number; height: number }) {
+  if (!videoModalTarget.value) return
+  gen.makeVideo(videoModalTarget.value, settings)
+  videoModalOpen.value = false
+  videoModalTarget.value = null
+}
+
 // ─── Lightbox ───────────────────────────────────────────────────────────
 const lightboxOpen = ref(false)
 const lightboxIndex = ref(0)
@@ -735,7 +751,7 @@ const gridClass = computed(() => {
                 icon="i-lucide-film"
                 class="flex-1 backdrop-blur-sm"
                 :loading="gen.actionLoading.value[`video-${item.id}`]"
-                @click.stop="gen.makeVideo(item.id, { steps: steps, width: imageWidth, height: imageHeight })"
+                @click.stop="openVideoModal(item.id)"
               >
                 Video
               </UButton>
@@ -881,7 +897,7 @@ const gridClass = computed(() => {
               icon="i-lucide-film"
               class="text-white/60 hover:text-white"
               :loading="gen.actionLoading.value[`video-${currentItem.id}`]"
-              @click="gen.makeVideo(currentItem.id, { steps, width: imageWidth, height: imageHeight })"
+              @click="openVideoModal(currentItem.id)"
             >
               Video
             </UButton>
@@ -900,6 +916,14 @@ const gridClass = computed(() => {
       </div>
     </Transition>
   </Teleport>
+
+  <!-- Video Settings Modal -->
+  <VideoSettingsModal
+    :open="videoModalOpen"
+    :loading="videoModalTarget ? gen.actionLoading.value[`video-${videoModalTarget}`] : false"
+    @close="videoModalOpen = false"
+    @generate="handleVideoGenerate"
+  />
 </template>
 
 <style scoped>
