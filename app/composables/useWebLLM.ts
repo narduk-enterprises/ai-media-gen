@@ -97,9 +97,13 @@ export function useWebLLM() {
     const removeFetchProxy = installFetchProxy()
 
     try {
-      const { CreateMLCEngine } = await import('@mlc-ai/web-llm')
+      const { CreateMLCEngine, prebuiltAppConfig } = await import('@mlc-ai/web-llm')
 
       engineInstance = await CreateMLCEngine(MODEL_ID, {
+        appConfig: {
+          ...prebuiltAppConfig,
+          useIndexedDBCache: true,
+        },
         initProgressCallback: (progress: { progress: number; text: string }) => {
           loadProgress.value = Math.round(progress.progress * 100)
         },

@@ -10,21 +10,21 @@
  */
 
 interface RunPodResponse {
-  id: string
-  status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'TIMED_OUT'
-  output?: Record<string, any>
-  error?: string
+  id: string;
+  status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'TIMED_OUT';
+  output?: Record<string, any>;
+  error?: string;
 }
 
 interface GenerateImagesResult {
-  images: { data: string; filename: string }[]  // base64 encoded
+  images: { data: string; filename: string }[]; // base64 encoded
 }
 
 interface GenerateVideoResult {
-  data?: string       // base64 encoded video
-  filename?: string
-  status: 'processing' | 'complete' | 'failed'
-  error?: string
+  data?: string; // base64 encoded video
+  filename?: string;
+  status: 'processing' | 'complete' | 'failed';
+  error?: string;
 }
 
 /**
@@ -34,52 +34,54 @@ interface GenerateVideoResult {
  * to polling /status/{id} until it completes.
  */
 export async function callRunPod(input: Record<string, any>): Promise<RunPodResponse> {
-  const config = useRuntimeConfig()
-  const apiKey = config.aiApiKey
-  const apiUrl = config.aiApiUrl
+  const config = useRuntimeConfig();
+  const apiKey = config.aiApiKey;
+  const apiUrl = config.aiApiUrl;
 
   if (!apiKey || !apiUrl) {
     throw createError({
       statusCode: 503,
       message: 'AI service not configured. Set AI_API_KEY and AI_API_URL.',
-    })
+    });
   }
 
-  let response: RunPodResponse
+  let response: RunPodResponse;
 
   try {
     response = await $fetch<RunPodResponse>(`${apiUrl}/runsync`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: { input },
       timeout: 180_000,
-    })
+    });
   } catch (fetchError: any) {
     if (fetchError.name === 'AbortError' || /timeout/i.test(fetchError.message ?? '')) {
-      console.warn('[AI] /runsync fetch timed out — falling back to async + polling')
-      const { jobId } = await callRunPodAsync(input)
-      return await pollRunPodJob(jobId)
+      console.warn('[AI] /runsync fetch timed out — falling back to async + polling');
+      const { jobId } = await callRunPodAsync(input);
+      return await pollRunPodJob(jobId);
     }
-    throw fetchError
+    throw fetchError;
   }
 
   if (response.status === 'FAILED' || response.error) {
     throw createError({
       statusCode: 502,
       message: `AI generation failed: ${response.error || 'Unknown error'}`,
-    })
+    });
   }
 
   // /runsync returns IN_QUEUE or IN_PROGRESS when the job outlives the sync window — poll to completion
   if (response.status === 'IN_QUEUE' || response.status === 'IN_PROGRESS') {
-    console.log(`[AI] /runsync returned ${response.status} for job ${response.id} — polling for completion`)
-    return await pollRunPodJob(response.id)
+    console.log(
+      `[AI] /runsync returned ${response.status} for job ${response.id} — polling for completion`
+    );
+    return await pollRunPodJob(response.id);
   }
 
-  return response
+  return response;
 }
 
 /**
@@ -87,56 +89,60 @@ export async function callRunPod(input: Record<string, any>): Promise<RunPodResp
  * Returns job ID for polling.
  */
 export async function callRunPodAsync(input: Record<string, any>): Promise<{ jobId: string }> {
-  const config = useRuntimeConfig()
-  const apiKey = config.aiApiKey
-  const apiUrl = config.aiApiUrl
+  const config = useRuntimeConfig();
+  const apiKey = config.aiApiKey;
+  const apiUrl = config.aiApiUrl;
 
   if (!apiKey || !apiUrl) {
     throw createError({
       statusCode: 503,
       message: 'AI service not configured. Set AI_API_KEY and AI_API_URL.',
-    })
+    });
   }
 
   const response = await $fetch<{ id: string; status: string }>(`${apiUrl}/run`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: { input },
-  })
+  });
 
-  return { jobId: response.id }
+  return { jobId: response.id };
 }
 
 /**
  * Poll RunPod job status until complete.
  */
 export async function pollRunPodJob(jobId: string, maxWaitMs = 300_000): Promise<RunPodResponse> {
-  const config = useRuntimeConfig()
-  const apiKey = config.aiApiKey
-  const apiUrl = config.aiApiUrl
+  const config = useRuntimeConfig();
+  const apiKey = config.aiApiKey;
+  const apiUrl = config.aiApiUrl;
 
-  const start = Date.now()
+  const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
     const response = await $fetch<RunPodResponse>(`${apiUrl}/status/${jobId}`, {
-      headers: { 'Authorization': `Bearer ${apiKey}` },
-    })
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
 
-    if (response.status === 'COMPLETED') return response
-    if (response.status === 'FAILED' || response.status === 'CANCELLED' || response.status === 'TIMED_OUT') {
+    if (response.status === 'COMPLETED') return response;
+    if (
+      response.status === 'FAILED' ||
+      response.status === 'CANCELLED' ||
+      response.status === 'TIMED_OUT'
+    ) {
       throw createError({
         statusCode: 502,
         message: `AI generation ${response.status.toLowerCase()}: ${response.error || 'Unknown error'}`,
-      })
+      });
     }
 
     // Still processing — wait before polling again
-    await new Promise(resolve => setTimeout(resolve, 3000))
+    await new Promise((resolve) => setTimeout(resolve, 3000));
   }
 
-  throw createError({ statusCode: 504, message: 'AI generation timed out' })
+  throw createError({ statusCode: 504, message: 'AI generation timed out' });
 }
 
 /**
@@ -144,24 +150,28 @@ export async function pollRunPodJob(jobId: string, maxWaitMs = 300_000): Promise
  * isn't finished yet — callers decide whether to wait or give up.
  */
 export async function checkRunPodJob(jobId: string): Promise<RunPodResponse | null> {
-  const config = useRuntimeConfig()
-  const apiKey = config.aiApiKey
-  const apiUrl = config.aiApiUrl
+  const config = useRuntimeConfig();
+  const apiKey = config.aiApiKey;
+  const apiUrl = config.aiApiUrl;
 
-  if (!apiKey || !apiUrl) return null
+  if (!apiKey || !apiUrl) return null;
 
   try {
     const response = await $fetch<RunPodResponse>(`${apiUrl}/status/${jobId}`, {
-      headers: { 'Authorization': `Bearer ${apiKey}` },
+      headers: { Authorization: `Bearer ${apiKey}` },
       timeout: 10_000,
-    })
-    if (response.status === 'COMPLETED' || response.status === 'FAILED' ||
-        response.status === 'CANCELLED' || response.status === 'TIMED_OUT') {
-      return response
+    });
+    if (
+      response.status === 'COMPLETED' ||
+      response.status === 'FAILED' ||
+      response.status === 'CANCELLED' ||
+      response.status === 'TIMED_OUT'
+    ) {
+      return response;
     }
-    return null // still running
+    return null; // still running
   } catch {
-    return null
+    return null;
   }
 }
 
@@ -171,7 +181,7 @@ export async function checkRunPodJob(jobId: string): Promise<RunPodResponse | nu
 export async function generateImages(
   prompt: string,
   count: number,
-  options?: { negativePrompt?: string; steps?: number; width?: number; height?: number },
+  options?: { negativePrompt?: string; steps?: number; width?: number; height?: number }
 ): Promise<GenerateImagesResult> {
   // Fire all requests in parallel — each hits a separate serverless worker
   const promises = Array.from({ length: count }, (_, i) =>
@@ -185,31 +195,36 @@ export async function generateImages(
     })
       .then((response): { data: string; filename: string } | null => {
         if (response.output?.output) {
-          const filename = response.output.output.filename || `image_${i}.png`
-          const dataLen = response.output.output.data?.length || 0
-          console.log(`[AI] Image ${i + 1}/${count} complete — filename: ${filename}, status: ${response.status}, data: ${dataLen} chars`)
+          const filename = response.output.output.filename || `image_${i}.png`;
+          const dataLen = response.output.output.data?.length || 0;
+          console.log(
+            `[AI] Image ${i + 1}/${count} complete — filename: ${filename}, status: ${response.status}, data: ${dataLen} chars`
+          );
           return {
             data: response.output.output.data,
             filename,
-          }
+          };
         }
-        console.warn(`[AI] Image ${i + 1}/${count} — no output in response:`, JSON.stringify(response).slice(0, 200))
-        return null
+        console.warn(
+          `[AI] Image ${i + 1}/${count} — no output in response:`,
+          JSON.stringify(response).slice(0, 200)
+        );
+        return null;
       })
       .catch((error: any) => {
-        console.error(`[AI] Image ${i + 1}/${count} failed:`, error.message)
-        return null
+        console.error(`[AI] Image ${i + 1}/${count} failed:`, error.message);
+        return null;
       })
-  )
+  );
 
-  const results = await Promise.all(promises)
-  const images = results.filter((img): img is { data: string; filename: string } => img !== null)
+  const results = await Promise.all(promises);
+  const images = results.filter((img): img is { data: string; filename: string } => img !== null);
 
   if (images.length === 0) {
-    throw createError({ statusCode: 502, message: 'All image generations failed' })
+    throw createError({ statusCode: 502, message: 'All image generations failed' });
   }
 
-  return { images }
+  return { images };
 }
 
 /**
@@ -219,13 +234,13 @@ export async function generateImages(
 export async function generateVideo(
   prompt: string,
   options?: {
-    imageBase64?: string
-    width?: number
-    height?: number
-    numFrames?: number
-    steps?: number
-    cfg?: number
-    negativePrompt?: string
+    imageBase64?: string;
+    width?: number;
+    height?: number;
+    numFrames?: number;
+    steps?: number;
+    cfg?: number;
+    negativePrompt?: string;
   }
 ): Promise<GenerateVideoResult> {
   const input: Record<string, any> = {
@@ -236,31 +251,33 @@ export async function generateVideo(
     num_frames: options?.numFrames || 81,
     steps: options?.steps || 20,
     cfg: options?.cfg || 3.5,
-  }
+  };
 
   if (options?.negativePrompt) {
-    input.negative_prompt = options.negativePrompt
+    input.negative_prompt = options.negativePrompt;
   }
 
   if (options?.imageBase64) {
-    input.image = options.imageBase64
+    input.image = options.imageBase64;
   }
 
-  console.log(`[AI] image2video — ${input.num_frames} frames, ${input.width}x${input.height}, ${input.steps} steps, cfg=${input.cfg}`)
+  console.log(
+    `[AI] image2video — ${input.num_frames} frames, ${input.width}x${input.height}, ${input.steps} steps, cfg=${input.cfg}`
+  );
 
   // Use async + polling for video (can take >120s)
-  const { jobId } = await callRunPodAsync(input)
-  const response = await pollRunPodJob(jobId)
+  const { jobId } = await callRunPodAsync(input);
+  const response = await pollRunPodJob(jobId);
 
   if (response.output?.output) {
     return {
       data: response.output.output.data,
       filename: response.output.output.filename || 'video.mp4',
       status: 'complete',
-    }
+    };
   }
 
-  return { status: 'failed', error: 'No output returned' }
+  return { status: 'failed', error: 'No output returned' };
 }
 
 /**
@@ -278,23 +295,25 @@ export async function generateText2Video(
     height: options?.height || 640,
     num_frames: options?.numFrames || 81,
     steps: options?.steps || 4,
-  }
+  };
 
-  console.log(`[AI] text2video — ${input.num_frames} frames, ${input.width}x${input.height}, ${input.steps} steps`)
+  console.log(
+    `[AI] text2video — ${input.num_frames} frames, ${input.width}x${input.height}, ${input.steps} steps`
+  );
 
-  const { jobId } = await callRunPodAsync(input)
-  const response = await pollRunPodJob(jobId)
+  const { jobId } = await callRunPodAsync(input);
+  const response = await pollRunPodJob(jobId);
 
   if (response.output?.output) {
-    console.log(`[AI] text2video complete — filename: ${response.output.output.filename}`)
+    console.log(`[AI] text2video complete — filename: ${response.output.output.filename}`);
     return {
       data: response.output.output.data,
       filename: response.output.output.filename || 'text2video.mp4',
       status: 'complete',
-    }
+    };
   }
 
-  return { status: 'failed', error: 'No output returned' }
+  return { status: 'failed', error: 'No output returned' };
 }
 
 /**
@@ -303,12 +322,12 @@ export async function generateText2Video(
 export async function generateVideoWithAudio(
   prompt: string,
   options?: {
-    imageBase64?: string
-    width?: number
-    height?: number
-    numFrames?: number
-    steps?: number
-    cfg?: number
+    imageBase64?: string;
+    width?: number;
+    height?: number;
+    numFrames?: number;
+    steps?: number;
+    cfg?: number;
   }
 ): Promise<GenerateVideoResult> {
   const input: Record<string, any> = {
@@ -319,24 +338,23 @@ export async function generateVideoWithAudio(
     num_frames: options?.numFrames || 81,
     steps: options?.steps || 20,
     cfg: options?.cfg || 3.5,
-  }
+  };
 
   if (options?.imageBase64) {
-    input.image = options.imageBase64
+    input.image = options.imageBase64;
   }
 
   // Use async + polling (video+audio can take >120s)
-  const { jobId } = await callRunPodAsync(input)
-  const response = await pollRunPodJob(jobId)
+  const { jobId } = await callRunPodAsync(input);
+  const response = await pollRunPodJob(jobId);
 
   if (response.output?.output) {
     return {
       data: response.output.output.data,
       filename: response.output.output.filename || 'video_audio.mp4',
       status: 'complete',
-    }
+    };
   }
 
-  return { status: 'failed', error: 'No output returned' }
+  return { status: 'failed', error: 'No output returned' };
 }
-
