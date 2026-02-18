@@ -13,6 +13,7 @@
     "deploy": "nuxt build && wrangler deploy"
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.81",
     "@nuxt/ui": "^4.3.0",
     "drizzle-orm": "^0.45.1",
     "nuxt": "^4.3.0",
@@ -25,7 +26,6 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250620.0",
     "@nuxt/fonts": "^0.11.4",
-    "@nuxt/test-utils": "^4.0.0",
     "@nuxtjs/robots": "^5.7.0",
     "@nuxtjs/sitemap": "^7.6.0",
     "@types/node": "^22.15.0",

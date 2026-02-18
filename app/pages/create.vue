@@ -39,6 +39,9 @@ const varyPerImage = ref(false)
 const { getPresets } = usePromptPresets()
 const attributes = reactive(createEmptyAttributes())
 
+// ─── In-browser LLM for prompt remix ───────────────────────────────────
+const { isSupported: webGpuSupported, loadProgress, loadingModel, remixPrompt } = useWebLLM()
+
 function randomizeAttribute(key: AttributeKey) {
   const presets = getPresets(key)
   attributes[key] = pickRandom(presets)
@@ -240,14 +243,10 @@ async function enhancePrompt() {
   if (!prompt.value.trim()) return
   enhancing.value = true
   try {
-    const result = await $fetch<{ prompt: string }>('/api/generate/enhance-prompt', {
-      method: 'POST',
-      body: { prompt: prompt.value },
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    prompt.value = result.prompt
+    const result = await remixPrompt(prompt.value)
+    prompt.value = result
   } catch (e: any) {
-    error.value = e.data?.message || 'Prompt enhancement failed'
+    error.value = e.message || 'Prompt remix failed'
   } finally {
     enhancing.value = false
   }
@@ -575,19 +574,24 @@ const gridClass = computed(() => {
         </div>
 
         <div class="flex items-center justify-between mt-3">
-          <UButton
-            size="xs"
-            variant="ghost"
-            color="neutral"
-            :loading="enhancing"
-            :disabled="!prompt.trim() || generating"
-            @click="enhancePrompt"
-          >
-            <template #leading>
-              <span>✨</span>
-            </template>
-            Remix Prompt
-          </UButton>
+          <div class="flex items-center gap-2">
+            <UButton
+              size="xs"
+              variant="ghost"
+              color="neutral"
+              :loading="enhancing || loadingModel"
+              :disabled="!prompt.trim() || generating || !webGpuSupported"
+              @click="enhancePrompt"
+            >
+              <template #leading>
+                <span>✨</span>
+              </template>
+              {{ loadingModel ? `Loading AI (${loadProgress}%)` : 'Remix Prompt' }}
+            </UButton>
+            <span v-if="!webGpuSupported" class="text-[10px] text-zinc-600" title="WebGPU is required for in-browser AI">
+              ⚠️ WebGPU not available
+            </span>
+          </div>
           <p class="text-[11px] text-zinc-600">
             Press ⌘+Enter to generate
           </p>

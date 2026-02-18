@@ -30,6 +30,9 @@ export default defineNuxtConfig({
     define: {
       __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
       __APP_VERSION__: JSON.stringify(pkg.version)
+    },
+    optimizeDeps: {
+      exclude: ['@mlc-ai/web-llm']
     }
   },
 
@@ -37,7 +40,6 @@ export default defineNuxtConfig({
     // AI generation API (RunPod / Replicate / Fal.ai)
     aiApiKey: process.env.AI_API_KEY || '',
     aiApiUrl: process.env.AI_API_URL || 'https://api.runpod.ai/v2/6f2qydxrgdmrym',
-    llmApiUrl: process.env.LLM_API_URL || 'https://api.runpod.ai/v2/t5q7bdhetbwi41',
 
     // Apple Sign-In
     appleTeamId: process.env.APPLE_TEAM_ID || '',
@@ -74,6 +76,7 @@ export default defineNuxtConfig({
       nodeCompat: true,
       wrangler: {
         name: 'ai-media-gen',
+        compatibility_flags: ['nodejs_compat_v2'],
         d1_databases: [
           {
             binding: 'DB',
