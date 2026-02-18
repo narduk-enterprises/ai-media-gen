@@ -12,7 +12,7 @@ const videoSchema = z.object({
   cfg: z.number().min(1).max(10).optional(),
   width: z.number().min(256).max(1280).optional(),
   height: z.number().min(256).max(1280).optional(),
-  endpoint: z.enum(['full', 'slim', 'eu']).optional(),
+  endpoint: z.string().optional(),
 })
 
 export default defineEventHandler(async (event) => {

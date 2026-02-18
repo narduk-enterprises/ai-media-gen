@@ -5,14 +5,17 @@ import { formatDate } from '~/composables/useGallery'
 definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Gallery' })
 
-const { generations, pending, error, refresh } = useGallery()
-const { runpodEndpoint } = useAppSettings()
+const { generations, total, pending, loadingMore, hasMore, error, refresh, loadMore } = useGallery()
+const { runpodEndpoint, customEndpoint } = useAppSettings()
+const effectiveEndpoint = computed(() => customEndpoint.value || runpodEndpoint.value)
 
 // ─── View modes ────────────────────────────────────────────────────────
-type ViewMode = 'grid' | 'grouped'
+type ViewMode = 'grid' | 'grouped' | 'wall'
 const viewMode = ref<ViewMode>('grouped')
 const searchQuery = ref('')
-const sortOrder = ref<'newest' | 'oldest'>('newest')
+const sortOrder = ref<'newest' | 'oldest' | 'best'>('newest')
+type TypeFilter = 'all' | 'image' | 'video'
+const typeFilter = ref<TypeFilter>('all')
 
 // ─── Flattened media across all generations ─────────────────────────────
 interface GalleryMedia {
@@ -25,6 +28,7 @@ interface GalleryMedia {
   imageCount: number
   type: string
   status: string
+  qualityScore: number | null
 }
 
 const allMedia = computed<GalleryMedia[]>(() => {
@@ -47,6 +51,7 @@ const allMedia = computed<GalleryMedia[]>(() => {
           imageCount: gen.imageCount,
           type: item.type,
           status: item.status,
+          qualityScore: item.qualityScore ?? null,
         })
       }
     }
@@ -57,12 +62,17 @@ const allMedia = computed<GalleryMedia[]>(() => {
 // ─── Filter & sort ─────────────────────────────────────────────────────
 const filteredMedia = computed(() => {
   let items = allMedia.value
+  if (typeFilter.value !== 'all') {
+    items = items.filter(i => i.type === typeFilter.value)
+  }
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase()
     items = items.filter(i => i.prompt.toLowerCase().includes(q))
   }
   if (sortOrder.value === 'oldest') {
     items = [...items].reverse()
+  } else if (sortOrder.value === 'best') {
+    items = [...items].sort((a, b) => (b.qualityScore ?? 0) - (a.qualityScore ?? 0))
   }
   return items
 })
@@ -72,6 +82,10 @@ const filteredGenerations = computed(() => {
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase()
     gens = gens.filter(g => g.prompt.toLowerCase().includes(q))
+  }
+  // Filter generations that have at least one matching media type
+  if (typeFilter.value !== 'all') {
+    gens = gens.filter(g => g.items.some(i => i.type === typeFilter.value && i.url && i.status === 'complete'))
   }
   if (sortOrder.value === 'oldest') {
     gens = [...gens].reverse()
@@ -150,7 +164,11 @@ function toggleGeneration(id: string) {
 }
 
 function generationMedia(gen: GenerationResult): MediaItemResult[] {
-  return gen.items.filter(i => (i.type === 'image' || i.type === 'video') && i.url && i.status === 'complete')
+  let items = gen.items.filter(i => (i.type === 'image' || i.type === 'video') && i.url && i.status === 'complete')
+  if (typeFilter.value !== 'all') {
+    items = items.filter(i => i.type === typeFilter.value)
+  }
+  return items
 }
 
 // ─── Stats ─────────────────────────────────────────────────────────────
@@ -202,7 +220,7 @@ async function makeVideoFromGallery(mediaItemId: string, settings?: Record<strin
         cfg: settings?.cfg || 3.5,
         width: settings?.width || 768,
         height: settings?.height || 768,
-        endpoint: runpodEndpoint.value,
+        endpoint: effectiveEndpoint.value,
       },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
@@ -271,7 +289,7 @@ const gridClass = computed(() => {
         <div class="flex items-center gap-2 text-xs text-slate-400">
           <span><span class="font-medium text-slate-600">{{ totalMedia }}</span> items</span>
           <span class="text-slate-300">·</span>
-          <span><span class="font-medium text-slate-600">{{ totalGenerations }}</span> generations</span>
+          <span><span class="font-medium text-slate-600">{{ totalGenerations }}</span> of {{ total }} generations</span>
         </div>
 
         <div class="flex-1" />
@@ -294,14 +312,47 @@ const gridClass = computed(() => {
         >
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
+          <option value="best">Best quality</option>
         </select>
+
+        <!-- Type filter -->
+        <div class="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+          <button
+            class="px-2 py-1 rounded text-[11px] font-medium transition-all"
+            :class="typeFilter === 'all' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'"
+            @click="typeFilter = 'all'"
+          >All</button>
+          <button
+            class="px-2 py-1 rounded text-[11px] font-medium transition-all flex items-center gap-1"
+            :class="typeFilter === 'image' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'"
+            @click="typeFilter = 'image'"
+          >
+            <UIcon name="i-heroicons-photo" class="w-3 h-3" /> Photos
+          </button>
+          <button
+            class="px-2 py-1 rounded text-[11px] font-medium transition-all flex items-center gap-1"
+            :class="typeFilter === 'video' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'"
+            @click="typeFilter = 'video'"
+          >
+            <UIcon name="i-heroicons-film" class="w-3 h-3" /> Videos
+          </button>
+        </div>
 
         <!-- View toggle -->
         <div class="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
           <button
             class="px-2.5 py-1 rounded text-xs font-medium transition-all"
+            :class="viewMode === 'wall' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'"
+            @click="viewMode = 'wall'"
+            title="Wall — media only"
+          >
+            <UIcon name="i-heroicons-squares-plus" class="w-3.5 h-3.5" />
+          </button>
+          <button
+            class="px-2.5 py-1 rounded text-xs font-medium transition-all"
             :class="viewMode === 'grid' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'"
             @click="viewMode = 'grid'"
+            title="Grid — with info overlay"
           >
             <UIcon name="i-heroicons-squares-2x2" class="w-3.5 h-3.5" />
           </button>
@@ -309,6 +360,7 @@ const gridClass = computed(() => {
             class="px-2.5 py-1 rounded text-xs font-medium transition-all"
             :class="viewMode === 'grouped' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'"
             @click="viewMode = 'grouped'"
+            title="Grouped — by generation"
           >
             <UIcon name="i-heroicons-list-bullet" class="w-3.5 h-3.5" />
           </button>
@@ -376,6 +428,51 @@ const gridClass = computed(() => {
         </div>
       </div>
 
+      <!-- ═══ Wall View — Minimal, media only ═══ -->
+      <div v-else-if="viewMode === 'wall'">
+        <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-0.5">
+          <div
+            v-for="(item, index) in filteredMedia"
+            :key="item.id"
+            class="relative aspect-square overflow-hidden cursor-pointer"
+            @click="openLightbox(index)"
+          >
+            <video
+              v-if="item.type === 'video'"
+              :src="item.url + '#t=0.1'"
+              muted
+              preload="metadata"
+              class="w-full h-full object-cover"
+            />
+            <NuxtImg
+              v-else
+              :src="item.url"
+              :alt="item.prompt"
+              width="300"
+              class="w-full h-full object-cover"
+              loading="lazy"
+            />
+            <!-- Tiny video badge -->
+            <div v-if="item.type === 'video'" class="absolute top-1 left-1 w-4 h-4 rounded-full bg-black/50 flex items-center justify-center backdrop-blur-sm">
+              <UIcon name="i-heroicons-play" class="w-2.5 h-2.5 text-white" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Load More (wall view) -->
+        <div v-if="hasMore" class="flex justify-center mt-6">
+          <UButton
+            :loading="loadingMore"
+            variant="soft"
+            size="sm"
+            icon="i-heroicons-arrow-down"
+            @click="loadMore()"
+          >
+            Load more ({{ generations.length }} of {{ total }})
+          </UButton>
+        </div>
+      </div>
+
       <!-- ═══ Grid View — Flat image grid ═══ -->
       <div v-else-if="viewMode === 'grid'">
         <div :class="['grid gap-2', gridClass]">
@@ -387,9 +484,8 @@ const gridClass = computed(() => {
           >
             <video
               v-if="item.type === 'video'"
-              :src="item.url"
+              :src="item.url + '#t=0.1'"
               muted
-              loop
               preload="metadata"
               class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               @mouseenter="($event.target as HTMLVideoElement).play()"
@@ -437,6 +533,19 @@ const gridClass = computed(() => {
             </div>
           </div>
         </div>
+
+        <!-- Load More (grid view) -->
+        <div v-if="hasMore" class="flex justify-center mt-6">
+          <UButton
+            :loading="loadingMore"
+            variant="soft"
+            size="sm"
+            icon="i-heroicons-arrow-down"
+            @click="loadMore()"
+          >
+            Load more ({{ generations.length }} of {{ total }})
+          </UButton>
+        </div>
       </div>
 
       <!-- ═══ Grouped View — By generation ═══ -->
@@ -451,7 +560,7 @@ const gridClass = computed(() => {
             <div class="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-200">
               <video
                 v-if="generationMedia(gen)[0]?.type === 'video' && generationMedia(gen)[0]?.url"
-                :src="generationMedia(gen)[0]!.url!"
+                :src="generationMedia(gen)[0]!.url! + '#t=0.1'"
                 muted
                 preload="metadata"
                 class="w-full h-full object-cover"
@@ -511,9 +620,8 @@ const gridClass = computed(() => {
               >
                 <video
                   v-if="item.type === 'video'"
-                  :src="item.url!"
+                  :src="item.url! + '#t=0.1'"
                   muted
-                  loop
                   preload="metadata"
                   class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   @mouseenter="($event.target as HTMLVideoElement).play()"
@@ -565,6 +673,19 @@ const gridClass = computed(() => {
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Load More (grouped view) -->
+      <div v-if="hasMore && viewMode === 'grouped'" class="flex justify-center mt-6">
+        <UButton
+          :loading="loadingMore"
+          variant="soft"
+          size="sm"
+          icon="i-heroicons-arrow-down"
+          @click="loadMore()"
+        >
+          Load more ({{ generations.length }} of {{ total }})
+        </UButton>
       </div>
     </div>
 

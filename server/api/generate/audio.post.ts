@@ -8,7 +8,7 @@ import { mediaItems, generations } from '../../database/schema'
 const audioSchema = z.object({
   mediaItemId: z.string().uuid('Invalid media item ID'),
   prompt: z.string().max(500).optional(),
-  endpoint: z.enum(['full', 'slim', 'eu']).optional(),
+  endpoint: z.string().optional(),
 })
 
 export default defineEventHandler(async (event) => {

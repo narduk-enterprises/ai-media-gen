@@ -1,18 +1,26 @@
 import type { GenerationResult, MediaItemResult } from '~/types/gallery'
 
+const PAGE_SIZE = 50
+
 export function useGallery() {
   const loading = ref(true)
+  const loadingMore = ref(false)
   const generations = ref<GenerationResult[]>([])
+  const total = ref(0)
   const error = ref<Error | null>(null)
+
+  const hasMore = computed(() => generations.value.length < total.value)
 
   async function fetchGenerations() {
     loading.value = true
     error.value = null
     try {
-      const result = await $fetch<{ generations: GenerationResult[] }>('/api/generations', {
+      const result = await $fetch<{ generations: GenerationResult[]; total: number }>('/api/generations', {
+        params: { limit: PAGE_SIZE, offset: 0 },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
       generations.value = result.generations ?? []
+      total.value = result.total ?? 0
     } catch (e: any) {
       error.value = e
     } finally {
@@ -20,11 +28,28 @@ export function useGallery() {
     }
   }
 
+  async function loadMore() {
+    if (loadingMore.value || !hasMore.value) return
+    loadingMore.value = true
+    try {
+      const result = await $fetch<{ generations: GenerationResult[]; total: number }>('/api/generations', {
+        params: { limit: PAGE_SIZE, offset: generations.value.length },
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+      generations.value = [...generations.value, ...(result.generations ?? [])]
+      total.value = result.total ?? total.value
+    } catch (e: any) {
+      error.value = e
+    } finally {
+      loadingMore.value = false
+    }
+  }
+
   if (import.meta.client) {
     fetchGenerations()
   }
 
-  return { generations, pending: loading, error, refresh: fetchGenerations }
+  return { generations, total, pending: loading, loadingMore, hasMore, error, refresh: fetchGenerations, loadMore }
 }
 
 /** Return up to 4 media thumbnails (images and videos) for a generation. */

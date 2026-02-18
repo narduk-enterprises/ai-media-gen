@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, count } from 'drizzle-orm'
 import { requireAuth } from '../utils/auth'
 import { generations, mediaItems } from '../database/schema'
 
@@ -6,8 +6,15 @@ export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
   const db = useDatabase()
   const query = getQuery(event)
-  const limit = Math.min(Number(query.limit) || 20, 50)
+  const limit = Math.min(Number(query.limit) || 50, 100)
   const offset = Math.max(Number(query.offset) || 0, 0)
+
+  // Get total count for pagination
+  const countResult = await db
+    .select({ total: count() })
+    .from(generations)
+    .where(eq(generations.userId, user.id))
+  const total = countResult[0]?.total ?? 0
 
   const gens = await db
     .select()
@@ -37,5 +44,5 @@ export default defineEventHandler(async (event) => {
     }),
   )
 
-  return { generations: results }
+  return { generations: results, total, limit, offset }
 })

@@ -4,6 +4,7 @@ export interface MediaItemResult {
   url: string | null
   status: string
   parentId: string | null
+  qualityScore: number | null
 }
 
 export interface GenerationResult {

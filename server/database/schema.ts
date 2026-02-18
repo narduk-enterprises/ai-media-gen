@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
 
 // ─── Users ──────────────────────────────────────────────────
 export const users = sqliteTable('users', {
@@ -44,6 +44,7 @@ export const mediaItems = sqliteTable('media_items', {
   metadata: text('metadata'), // JSON blob: { width, height, duration, etc. }
   runpodJobId: text('runpod_job_id'), // RunPod job ID for recovery of timed-out generations
   prompt: text('prompt'), // per-item prompt (may differ from generation prompt in "vary per image" mode)
+  qualityScore: real('quality_score'), // AI aesthetic score (1-10)
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 })
 

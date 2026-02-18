@@ -13,7 +13,7 @@ const {
   setNegativePrompt,
 } = usePromptPresets()
 
-const { runpodEndpoint } = useAppSettings()
+const { runpodEndpoint, customEndpoint } = useAppSettings()
 
 import { attributeLabels, attributeKeys, attributePresets, characterAttributeKeys, type AttributeKey } from '~/utils/promptBuilder'
 import type { Person, PersonAttributes } from '~/composables/usePersons'
@@ -288,6 +288,24 @@ const totalCustomPresets = computed(() =>
             <p class="text-[10px]" :class="runpodEndpoint === 'eu' ? 'text-violet-500' : 'text-slate-400'">EU region, lower latency for Europe</p>
           </div>
         </button>
+      </div>
+
+      <!-- Custom endpoint URL -->
+      <div class="mt-4">
+        <label class="text-xs font-medium text-slate-700 block mb-1.5">Custom Endpoint URL</label>
+        <p class="text-[10px] text-slate-400 mb-2">Override with a direct URL (e.g. a temporary RunPod pod). Leave empty to use the selected endpoint above.</p>
+        <input
+          :value="customEndpoint"
+          @input="(e: Event) => customEndpoint = (e.target as HTMLInputElement).value"
+          type="url"
+          placeholder="https://your-pod-id.proxy.runpod.net/"
+          class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-violet-500/30 font-mono"
+        />
+        <div v-if="customEndpoint" class="flex items-center gap-1.5 mt-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          <span class="text-[10px] text-emerald-600">Custom endpoint active</span>
+          <button class="text-[10px] text-slate-400 hover:text-red-500 ml-auto" @click="customEndpoint = ''">Clear</button>
+        </div>
       </div>
     </div>
 

@@ -28,7 +28,10 @@ interface GenerationResult {
 const MAX_IMAGES_PER_BATCH = 16
 
 export function useGeneration() {
-  const { runpodEndpoint } = useAppSettings()
+  const { runpodEndpoint, customEndpoint } = useAppSettings()
+
+  // If a custom endpoint URL is set, pass it directly; otherwise use the named endpoint
+  const effectiveEndpoint = computed(() => customEndpoint.value || runpodEndpoint.value)
 
   const generating = ref(false)
   const error = ref('')
@@ -73,7 +76,7 @@ export function useGeneration() {
           width: opts.width,
           height: opts.height,
           attributes: {},
-          endpoint: runpodEndpoint.value,
+          endpoint: effectiveEndpoint.value,
         },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
@@ -161,7 +164,7 @@ export function useGeneration() {
           cfg: opts.cfg ?? 3.5,
           width: opts.width ?? 1024,
           height: opts.height ?? 1024,
-          endpoint: runpodEndpoint.value,
+          endpoint: effectiveEndpoint.value,
         },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
@@ -188,7 +191,7 @@ export function useGeneration() {
         body: {
           mediaItemId,
           prompt: `ambient music for: ${promptHint || 'image'}`,
-          endpoint: runpodEndpoint.value,
+          endpoint: effectiveEndpoint.value,
         },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
@@ -263,7 +266,7 @@ export function useGeneration() {
             steps: opts.steps ?? 4,
             width: opts.width ?? 832,
             height: opts.height ?? 480,
-            endpoint: runpodEndpoint.value,
+            endpoint: effectiveEndpoint.value,
           },
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
         })
@@ -334,7 +337,7 @@ export function useGeneration() {
               steps: opts.steps ?? 4,
               width: opts.width ?? 832,
               height: opts.height ?? 480,
-              endpoint: runpodEndpoint.value,
+              endpoint: effectiveEndpoint.value,
             },
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
           })
@@ -405,7 +408,7 @@ export function useGeneration() {
             width: opts.width,
             height: opts.height,
             attributes: {},
-            endpoint: runpodEndpoint.value,
+            endpoint: effectiveEndpoint.value,
           },
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
         })

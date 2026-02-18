@@ -38,9 +38,14 @@ interface GenerateVideoResult {
 
 /**
  * Resolve the API URL for a given endpoint type.
+ * Accepts named types ('full', 'slim', 'eu') or a direct URL string.
  * Falls back to the full endpoint if slim isn't configured.
  */
 export function resolveApiUrl(endpointType?: EndpointType | string): string {
+  // If it looks like a URL, use it directly
+  if (endpointType && (endpointType.startsWith('http://') || endpointType.startsWith('https://'))) {
+    return endpointType.replace(/\/+$/, '')
+  }
   const config = useRuntimeConfig();
   if (endpointType === 'slim' && config.aiApiUrlSlim) {
     return config.aiApiUrlSlim;

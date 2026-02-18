@@ -2,12 +2,14 @@ type EndpointType = 'full' | 'slim' | 'eu'
 
 interface AppSettings {
   runpodEndpoint: EndpointType
+  customEndpoint: string
 }
 
 const STORAGE_KEY = 'app-settings'
 
 const defaults: AppSettings = {
   runpodEndpoint: 'full',
+  customEndpoint: '',
 }
 
 function load(): AppSettings {
@@ -37,7 +39,16 @@ export function useAppSettings() {
     },
   })
 
+  const customEndpoint = computed({
+    get: () => state.value.customEndpoint,
+    set: (val: string) => {
+      state.value = { ...state.value, customEndpoint: val }
+      save(state.value)
+    },
+  })
+
   return {
     runpodEndpoint,
+    customEndpoint,
   }
 }
