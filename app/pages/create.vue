@@ -267,7 +267,7 @@ async function generateBatch() {
 
 const t2vPrompt = ref('')
 const t2vNegativePrompt = ref('')
-const t2vNumFrames = ref(81)
+const t2vNumFrames = ref<number[]>([81])
 const t2vSteps = ref(4)
 const t2vResolutionIndex = ref(0)
 
@@ -291,6 +291,22 @@ const t2vResolutionPresets = [
 const t2vCurrentResolution = computed(() => t2vResolutionPresets[t2vResolutionIndex.value]!)
 const canGenerateT2V = computed(() => t2vPrompt.value.trim().length > 0)
 
+function toggleT2VDuration(value: number) {
+  if (t2vNumFrames.value.includes(value)) {
+    if (t2vNumFrames.value.length > 1) t2vNumFrames.value = t2vNumFrames.value.filter(v => v !== value)
+  } else {
+    t2vNumFrames.value = [...t2vNumFrames.value, value]
+  }
+}
+
+function toggleBVDuration(value: number) {
+  if (bvNumFrames.value.includes(value)) {
+    if (bvNumFrames.value.length > 1) bvNumFrames.value = bvNumFrames.value.filter(v => v !== value)
+  } else {
+    bvNumFrames.value = [...bvNumFrames.value, value]
+  }
+}
+
 async function generateText2Video() {
   if (!canGenerateT2V.value) return
   await gen.generateText2Video({
@@ -310,13 +326,13 @@ async function generateText2Video() {
 const bvPrompts = ref<string[]>([])
 const bvJsonInput = ref('')
 const bvFileError = ref('')
-const bvNumFrames = ref(81)
+const bvNumFrames = ref<number[]>([81])
 const bvSteps = ref(4)
 const bvResolutionIndex = ref(0)
 const bvNegativePrompt = ref('')
 
 const bvCurrentResolution = computed(() => t2vResolutionPresets[bvResolutionIndex.value]!)
-const bvTotal = computed(() => bvPrompts.value.length)
+const bvTotal = computed(() => bvPrompts.value.length * bvNumFrames.value.length)
 const canGenerateBV = computed(() => bvPrompts.value.length > 0)
 
 function handleBvFileUpload(event: Event) {
@@ -440,7 +456,7 @@ function handleGenerate(append = false) {
 function totalForButton() {
   if (mode.value === 'persona') return personaTotal.value
   if (mode.value === 'batch') return batchTotal.value
-  if (mode.value === 'text2video') return 1
+  if (mode.value === 'text2video') return t2vNumFrames.value.length
   if (mode.value === 'batchvideo') return bvTotal.value
   return freeCount.value
 }
@@ -543,10 +559,10 @@ function restoreForm() {
     if (s.negativePrompt != null) negativePrompt.value = s.negativePrompt
     if (s.t2vPrompt != null) t2vPrompt.value = s.t2vPrompt
     if (s.t2vNegativePrompt != null) t2vNegativePrompt.value = s.t2vNegativePrompt
-    if (s.t2vNumFrames != null) t2vNumFrames.value = s.t2vNumFrames
+    if (s.t2vNumFrames != null) t2vNumFrames.value = Array.isArray(s.t2vNumFrames) ? s.t2vNumFrames : [s.t2vNumFrames]
     if (s.t2vSteps != null) t2vSteps.value = s.t2vSteps
     if (s.t2vResolutionIndex != null) t2vResolutionIndex.value = s.t2vResolutionIndex
-    if (s.bvNumFrames != null) bvNumFrames.value = s.bvNumFrames
+    if (s.bvNumFrames != null) bvNumFrames.value = Array.isArray(s.bvNumFrames) ? s.bvNumFrames : [s.bvNumFrames]
     if (s.bvSteps != null) bvSteps.value = s.bvSteps
     if (s.bvResolutionIndex != null) bvResolutionIndex.value = s.bvResolutionIndex
     if (s.bvNegativePrompt != null) bvNegativePrompt.value = s.bvNegativePrompt
@@ -586,13 +602,13 @@ function resetForm() {
   showBasePrompt.value = false
   t2vPrompt.value = ''
   t2vNegativePrompt.value = ''
-  t2vNumFrames.value = 81
+  t2vNumFrames.value = [81]
   t2vSteps.value = 4
   t2vResolutionIndex.value = 0
   bvPrompts.value = []
   bvJsonInput.value = ''
   bvFileError.value = ''
-  bvNumFrames.value = 81
+  bvNumFrames.value = [81]
   bvSteps.value = 4
   bvResolutionIndex.value = 0
   bvNegativePrompt.value = ''
@@ -1125,24 +1141,24 @@ const gridClass = computed(() => {
             />
           </UFormField>
 
-          <!-- Duration -->
+          <!-- Duration (multi-select) -->
           <section>
-            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Duration</label>
+            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Duration <span class="text-slate-400 font-normal normal-case tracking-normal">(select one or more)</span></label>
             <div class="grid grid-cols-5 gap-1.5">
               <button
                 v-for="preset in t2vDurationPresets"
                 :key="preset.value"
                 class="py-2 px-1 rounded-lg text-center transition-all border"
-                :class="t2vNumFrames === preset.value
+                :class="t2vNumFrames.includes(preset.value)
                   ? 'bg-cyan-50 border-cyan-300 text-cyan-700 ring-1 ring-cyan-200'
                   : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'"
-                @click="t2vNumFrames = preset.value"
+                @click="toggleT2VDuration(preset.value)"
               >
                 <span class="block text-xs font-semibold">{{ preset.label }}</span>
                 <span class="block text-[9px] mt-0.5 opacity-60">{{ preset.description }}</span>
               </button>
             </div>
-            <p class="text-[10px] text-slate-400 mt-1.5">{{ t2vNumFrames }} frames at ~24fps</p>
+            <p class="text-[10px] text-slate-400 mt-1.5">{{ t2vNumFrames.length }} duration{{ t2vNumFrames.length !== 1 ? 's' : '' }} selected · {{ t2vNumFrames.length }} video{{ t2vNumFrames.length !== 1 ? 's' : '' }} per prompt</p>
           </section>
 
           <!-- Steps -->
@@ -1180,7 +1196,9 @@ const gridClass = computed(() => {
           <UCard v-if="t2vPrompt.trim()" variant="subtle">
             <div class="text-[10px] text-slate-500 uppercase tracking-wider font-medium mb-1">Video settings</div>
             <p class="text-xs text-slate-600">
-              {{ t2vNumFrames }} frames · {{ t2vSteps }} steps · {{ t2vCurrentResolution.w }}×{{ t2vCurrentResolution.h }}
+              {{ t2vNumFrames.length }} video{{ t2vNumFrames.length !== 1 ? 's' : '' }} ·
+              {{ t2vNumFrames.map(f => t2vDurationPresets.find(p => p.value === f)?.label ?? f + 'f').join(', ') }} ·
+              {{ t2vSteps }} steps · {{ t2vCurrentResolution.w }}×{{ t2vCurrentResolution.h }}
             </p>
           </UCard>
         </div>
@@ -1275,24 +1293,24 @@ const gridClass = computed(() => {
             />
           </UFormField>
 
-          <!-- Duration -->
+          <!-- Duration (multi-select) -->
           <section>
-            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Duration</label>
+            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Duration <span class="text-slate-400 font-normal normal-case tracking-normal">(select one or more)</span></label>
             <div class="grid grid-cols-5 gap-1.5">
               <button
                 v-for="preset in t2vDurationPresets"
                 :key="preset.value"
                 class="py-2 px-1 rounded-lg text-center transition-all border"
-                :class="bvNumFrames === preset.value
+                :class="bvNumFrames.includes(preset.value)
                   ? 'bg-cyan-50 border-cyan-300 text-cyan-700 ring-1 ring-cyan-200'
                   : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'"
-                @click="bvNumFrames = preset.value"
+                @click="toggleBVDuration(preset.value)"
               >
                 <span class="block text-xs font-semibold">{{ preset.label }}</span>
                 <span class="block text-[9px] mt-0.5 opacity-60">{{ preset.description }}</span>
               </button>
             </div>
-            <p class="text-[10px] text-slate-400 mt-1.5">{{ bvNumFrames }} frames at ~24fps</p>
+            <p class="text-[10px] text-slate-400 mt-1.5">{{ bvNumFrames.length }} duration{{ bvNumFrames.length !== 1 ? 's' : '' }} selected · {{ bvNumFrames.length }} video{{ bvNumFrames.length !== 1 ? 's' : '' }} per prompt</p>
           </section>
 
           <!-- Steps -->
@@ -1330,9 +1348,9 @@ const gridClass = computed(() => {
           <UCard v-if="bvPrompts.length > 0" variant="subtle">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-2">
-                <span class="text-[10px] text-slate-500 uppercase tracking-wider font-medium">{{ bvPrompts.length }} video{{ bvPrompts.length !== 1 ? 's' : '' }}</span>
+                <span class="text-[10px] text-slate-500 uppercase tracking-wider font-medium">{{ bvTotal }} video{{ bvTotal !== 1 ? 's' : '' }} ({{ bvPrompts.length }} prompt{{ bvPrompts.length !== 1 ? 's' : '' }} × {{ bvNumFrames.length }} duration{{ bvNumFrames.length !== 1 ? 's' : '' }})</span>
                 <UBadge size="xs" variant="subtle" color="info">
-                  {{ bvNumFrames }} frames · {{ bvSteps }} steps · {{ bvCurrentResolution.w }}×{{ bvCurrentResolution.h }}
+                  {{ bvNumFrames.map(f => t2vDurationPresets.find(p => p.value === f)?.label ?? f + 'f').join(', ') }} · {{ bvSteps }} steps · {{ bvCurrentResolution.w }}×{{ bvCurrentResolution.h }}
                 </UBadge>
               </div>
             </div>

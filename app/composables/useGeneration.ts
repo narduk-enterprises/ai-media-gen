@@ -230,7 +230,7 @@ export function useGeneration() {
   async function generateText2Video(opts: {
     prompt: string
     negativePrompt?: string
-    numFrames?: number
+    numFrames?: number | number[]
     steps?: number
     width?: number
     height?: number
@@ -238,46 +238,55 @@ export function useGeneration() {
   }) {
     if (!opts.prompt.trim()) return
 
+    const durations = Array.isArray(opts.numFrames)
+      ? opts.numFrames
+      : [opts.numFrames ?? 81]
+
     generating.value = true
     error.value = ''
     if (!opts.append) results.value = []
     stopPolling()
 
-    try {
-      const result = await $fetch<{
-        generation: { id: string; prompt: string; imageCount: number; status: string; createdAt: string }
-        item: MediaItemResult
-      }>('/api/generate/text2video', {
-        method: 'POST',
-        body: {
-          prompt: opts.prompt,
-          negativePrompt: opts.negativePrompt || '',
-          numFrames: opts.numFrames ?? 81,
-          steps: opts.steps ?? 4,
-          width: opts.width ?? 640,
-          height: opts.height ?? 640,
-          endpoint: runpodEndpoint.value,
-        },
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      })
+    const pollingPromises: Promise<void>[] = []
 
-      if (result.item) {
-        results.value = [...results.value, result.item]
-        activeGenerationId.value = result.generation.id
-        if (result.item.status === 'processing') {
-          const key = `t2v-${result.item.id}`
-          actionLoading.value[key] = true
-          pollItemStatus(result.item.id, key).finally(() => {
-            generating.value = false
-          })
-        } else {
-          generating.value = false
+    for (const nf of durations) {
+      try {
+        const result = await $fetch<{
+          generation: { id: string; prompt: string; imageCount: number; status: string; createdAt: string }
+          item: MediaItemResult
+        }>('/api/generate/text2video', {
+          method: 'POST',
+          body: {
+            prompt: opts.prompt,
+            negativePrompt: opts.negativePrompt || '',
+            numFrames: nf,
+            steps: opts.steps ?? 4,
+            width: opts.width ?? 832,
+            height: opts.height ?? 480,
+            endpoint: runpodEndpoint.value,
+          },
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+
+        if (result.item) {
+          results.value = [...results.value, result.item]
+          activeGenerationId.value = result.generation.id
+          if (result.item.status === 'processing') {
+            const key = `t2v-${result.item.id}`
+            actionLoading.value[key] = true
+            pollingPromises.push(pollItemStatus(result.item.id, key))
+          }
         }
-      } else {
-        generating.value = false
+      } catch (e: any) {
+        error.value = e.data?.message || e.message || 'Text-to-video generation failed'
       }
-    } catch (e: any) {
-      error.value = e.data?.message || e.message || 'Text-to-video generation failed'
+    }
+
+    if (pollingPromises.length > 0) {
+      Promise.all(pollingPromises).finally(() => {
+        generating.value = false
+      })
+    } else {
       generating.value = false
     }
   }
@@ -287,7 +296,7 @@ export function useGeneration() {
   async function generateBatchText2Video(opts: {
     prompts: string[]
     negativePrompt?: string
-    numFrames?: number
+    numFrames?: number | number[]
     steps?: number
     width?: number
     height?: number
@@ -295,45 +304,54 @@ export function useGeneration() {
     const allPrompts = opts.prompts
     if (allPrompts.length === 0) return
 
+    const durations = Array.isArray(opts.numFrames)
+      ? opts.numFrames
+      : [opts.numFrames ?? 81]
+
+    const totalJobs = allPrompts.length * durations.length
+
     generating.value = true
     error.value = ''
     results.value = []
     stopPolling()
-    batchProgress.value = { current: 0, total: allPrompts.length }
+    batchProgress.value = { current: 0, total: totalJobs }
 
     const pollingPromises: Promise<void>[] = []
+    let submitted = 0
 
     for (let i = 0; i < allPrompts.length; i++) {
-      try {
-        const result = await $fetch<{
-          generation: { id: string; prompt: string; imageCount: number; status: string; createdAt: string }
-          item: MediaItemResult
-        }>('/api/generate/text2video', {
-          method: 'POST',
-          body: {
-            prompt: allPrompts[i],
-            negativePrompt: opts.negativePrompt || '',
-            numFrames: opts.numFrames ?? 81,
-            steps: opts.steps ?? 4,
-            width: opts.width ?? 640,
-            height: opts.height ?? 640,
-            endpoint: runpodEndpoint.value,
-          },
-          headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        })
+      for (const nf of durations) {
+        try {
+          const result = await $fetch<{
+            generation: { id: string; prompt: string; imageCount: number; status: string; createdAt: string }
+            item: MediaItemResult
+          }>('/api/generate/text2video', {
+            method: 'POST',
+            body: {
+              prompt: allPrompts[i],
+              negativePrompt: opts.negativePrompt || '',
+              numFrames: nf,
+              steps: opts.steps ?? 4,
+              width: opts.width ?? 832,
+              height: opts.height ?? 480,
+              endpoint: runpodEndpoint.value,
+            },
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          })
 
-        if (result.item) {
-          results.value = [...results.value, result.item]
-          if (result.item.status === 'processing') {
-            const key = `t2v-batch-${result.item.id}`
-            actionLoading.value[key] = true
-            pollingPromises.push(pollItemStatus(result.item.id, key))
+          if (result.item) {
+            results.value = [...results.value, result.item]
+            if (result.item.status === 'processing') {
+              const key = `t2v-batch-${result.item.id}`
+              actionLoading.value[key] = true
+              pollingPromises.push(pollItemStatus(result.item.id, key))
+            }
           }
+        } catch (e: any) {
+          console.error(`[T2V Batch] ${submitted + 1}/${totalJobs} submit failed:`, e.message)
         }
-        batchProgress.value.current = i + 1
-      } catch (e: any) {
-        console.error(`[T2V Batch] ${i + 1}/${allPrompts.length} submit failed:`, e.message)
-        batchProgress.value.current = i + 1
+        submitted++
+        batchProgress.value.current = submitted
       }
     }
 

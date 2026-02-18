@@ -7,8 +7,8 @@ import { generations, mediaItems } from '../../database/schema'
 const text2videoSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
   negativePrompt: z.string().optional().default(''),
-  width: z.number().min(256).max(1280).optional().default(640),
-  height: z.number().min(256).max(1280).optional().default(640),
+  width: z.number().min(256).max(1280).optional().default(832),
+  height: z.number().min(256).max(1280).optional().default(480),
   numFrames: z.number().min(41).max(201).optional().default(81),
   steps: z.number().min(1).max(20).optional().default(4),
   endpoint: z.enum(['full', 'slim', 'eu']).optional(),
@@ -45,6 +45,7 @@ export default defineEventHandler(async (event) => {
     const result = await callRunPodAsync({
       action: 'text2video',
       prompt,
+      negative_prompt: negativePrompt,
       width,
       height,
       num_frames: numFrames,
