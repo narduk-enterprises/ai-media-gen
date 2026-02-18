@@ -18,9 +18,12 @@ function toggleCategory(key: AttributeKey) {
 }
 
 function handleAddPreset(key: AttributeKey) {
-  const value = newPresetInputs[key]?.trim()
-  if (!value) return
-  addPreset(key, value)
+  const raw = newPresetInputs[key] || ''
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean)
+  if (!lines.length) return
+  for (const line of lines) {
+    addPreset(key, line)
+  }
   newPresetInputs[key] = ''
 }
 
@@ -124,21 +127,24 @@ const totalCustomPresets = computed(() =>
 
           <!-- Expanded content -->
           <div v-if="expandedCategory === key" class="px-3 pb-3">
-            <!-- Add new preset -->
-            <div class="flex gap-2 mb-3">
-              <input
+            <!-- Add new presets (one per line) -->
+            <div class="mb-3">
+              <textarea
                 v-model="newPresetInputs[key]"
-                :placeholder="`Add custom ${attributeLabels[key].label.toLowerCase()}...`"
-                class="flex-1 bg-zinc-800/80 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/30"
-                @keyup.enter="handleAddPreset(key)"
+                :placeholder="`Add custom ${attributeLabels[key].label.toLowerCase()}...\nOne per line`"
+                rows="3"
+                class="w-full bg-zinc-800/80 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none"
               />
-              <UButton
-                size="xs"
-                :disabled="!newPresetInputs[key]?.trim()"
-                @click="handleAddPreset(key)"
-              >
-                Add
-              </UButton>
+              <div class="flex items-center justify-between mt-1.5">
+                <p class="text-[10px] text-zinc-600">One preset per line</p>
+                <UButton
+                  size="xs"
+                  :disabled="!newPresetInputs[key]?.trim()"
+                  @click="handleAddPreset(key)"
+                >
+                  Add All
+                </UButton>
+              </div>
             </div>
 
             <!-- Custom presets -->
