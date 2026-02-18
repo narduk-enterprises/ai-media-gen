@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { generateVideoWithAudio } from '../../utils/ai'
+import { callRunPodAsync } from '../../utils/ai'
+import { useMediaBucket, readBase64FromR2 } from '../../utils/r2'
 import { mediaItems, generations } from '../../database/schema'
 
 const audioSchema = z.object({
@@ -21,7 +22,6 @@ export default defineEventHandler(async (event) => {
   const { mediaItemId, prompt } = parsed.data
   const db = useDatabase()
 
-  // Verify source media belongs to user
   const source = await db
     .select()
     .from(mediaItems)
@@ -38,48 +38,66 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Source must be a completed image' })
   }
 
-  // Extract base64 data from data URI
+  // Read source image as base64 — supports both R2 paths and legacy data URIs
+  let imageBase64: string | null = null
   const base64Match = sourceItem.url.match(/^data:image\/\w+;base64,(.+)$/)
-  if (!base64Match) {
-    throw createError({ statusCode: 400, message: 'Image data is not in expected base64 format' })
+  if (base64Match) {
+    imageBase64 = base64Match[1]!
+  } else {
+    const bucket = useMediaBucket(event)
+    if (bucket) {
+      imageBase64 = await readBase64FromR2(bucket, mediaItemId)
+    }
   }
-  const imageBase64 = base64Match[1]
 
-  // Get the prompt from the parent generation (or use provided prompt)
+  if (!imageBase64) {
+    throw createError({ statusCode: 400, message: 'Could not read source image data' })
+  }
+
   const gen = source[0].generations
   const videoPrompt = prompt || gen.prompt || ''
+  const now = new Date().toISOString()
 
-  // Create video+audio media item
   const itemId = crypto.randomUUID()
+  let jobId: string | null = null
+
+  try {
+    const result = await callRunPodAsync({
+      action: 'image2video_audio',
+      prompt: videoPrompt,
+      image: imageBase64,
+      width: 768,
+      height: 768,
+      num_frames: 81,
+      steps: 20,
+      cfg: 3.5,
+    })
+    jobId = result.jobId
+    console.log(`[I2V+Audio] Submitted job ${jobId}`)
+  } catch (error: any) {
+    console.error(`[I2V+Audio] Submit failed:`, error.message)
+  }
+
   await db.insert(mediaItems).values({
     id: itemId,
     generationId: sourceItem.generationId,
     type: 'video',
     parentId: mediaItemId,
-    status: 'processing',
-    createdAt: new Date().toISOString(),
+    prompt: videoPrompt,
+    runpodJobId: jobId,
+    status: jobId ? 'processing' : 'failed',
+    error: jobId ? null : 'Failed to submit to RunPod',
+    createdAt: now,
   })
 
-  // Generate video with audio
-  try {
-    const result = await generateVideoWithAudio(videoPrompt, { imageBase64 })
-
-    if (result.status === 'complete' && result.data) {
-      const videoUrl = `data:video/mp4;base64,${result.data}`
-      await db.update(mediaItems)
-        .set({ url: videoUrl, status: 'complete' })
-        .where(eq(mediaItems.id, itemId))
-    } else {
-      await db.update(mediaItems)
-        .set({ status: 'failed', error: result.error || 'Generation failed' })
-        .where(eq(mediaItems.id, itemId))
-    }
-  } catch (error: any) {
-    await db.update(mediaItems)
-      .set({ status: 'failed', error: error.message })
-      .where(eq(mediaItems.id, itemId))
+  return {
+    item: {
+      id: itemId,
+      generationId: sourceItem.generationId,
+      type: 'video',
+      parentId: mediaItemId,
+      status: jobId ? 'processing' : 'failed',
+      url: null,
+    },
   }
-
-  const item = await db.select().from(mediaItems).where(eq(mediaItems.id, itemId)).limit(1)
-  return { item: item[0] }
 })

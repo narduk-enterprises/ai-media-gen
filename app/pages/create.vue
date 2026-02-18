@@ -490,12 +490,37 @@ async function makeVideo(mediaItemId: string) {
       },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
-    if (result.item) allImages.value.push(result.item)
+    if (result.item) {
+      allImages.value.push(result.item)
+      if (result.item.status === 'processing') {
+        pollItemStatus(result.item.id, `video-${mediaItemId}`)
+      } else {
+        actionLoading.value[`video-${mediaItemId}`] = false
+      }
+    }
   } catch (e: any) {
     error.value = e.data?.message || 'Video generation failed'
-  } finally {
     actionLoading.value[`video-${mediaItemId}`] = false
   }
+}
+
+async function pollItemStatus(itemId: string, loadingKey: string) {
+  const maxAttempts = 120
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 5000))
+    try {
+      const result = await $fetch<{ item: MediaItemResult }>(`/api/generate/status/${itemId}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+      const idx = allImages.value.findIndex(img => img.id === itemId)
+      if (idx >= 0) allImages.value[idx] = result.item
+      if (result.item.status === 'complete' || result.item.status === 'failed') {
+        actionLoading.value[loadingKey] = false
+        return
+      }
+    } catch { /* continue */ }
+  }
+  actionLoading.value[loadingKey] = false
 }
 
 async function addAudio(mediaItemId: string) {
@@ -506,10 +531,16 @@ async function addAudio(mediaItemId: string) {
       body: { mediaItemId, prompt: `ambient music for: ${prompt.value}` },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
-    if (result.item) allImages.value.push(result.item)
+    if (result.item) {
+      allImages.value.push(result.item)
+      if (result.item.status === 'processing') {
+        pollItemStatus(result.item.id, `audio-${mediaItemId}`)
+      } else {
+        actionLoading.value[`audio-${mediaItemId}`] = false
+      }
+    }
   } catch (e: any) {
     error.value = e.data?.message || 'Audio generation failed'
-  } finally {
     actionLoading.value[`audio-${mediaItemId}`] = false
   }
 }

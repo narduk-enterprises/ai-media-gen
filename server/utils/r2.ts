@@ -14,6 +14,21 @@ export function useMediaBucket(event: any): R2Bucket | null {
 }
 
 /**
+ * Read a media item from R2 and return raw base64 string.
+ */
+export async function readBase64FromR2(bucket: R2Bucket, key: string): Promise<string | null> {
+  const object = await bucket.get(key)
+  if (!object) return null
+  const arrayBuffer = await object.arrayBuffer()
+  const bytes = new Uint8Array(arrayBuffer)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]!)
+  }
+  return btoa(binary)
+}
+
+/**
  * Upload a base64 image to R2 and return the serving path.
  * @param bucket - R2 bucket instance
  * @param key - unique key (usually the media item ID)

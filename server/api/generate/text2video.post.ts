@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { generateText2Video } from '../../utils/ai'
+import { callRunPodAsync } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
 
 const text2videoSchema = z.object({
@@ -24,8 +24,8 @@ export default defineEventHandler(async (event) => {
 
   const { prompt, negativePrompt, width, height, numFrames, steps } = parsed.data
   const db = useDatabase()
+  const now = new Date().toISOString()
 
-  // Create generation record
   const genId = crypto.randomUUID()
   await db.insert(generations).values({
     id: genId,
@@ -33,53 +33,44 @@ export default defineEventHandler(async (event) => {
     prompt,
     imageCount: 1,
     status: 'processing',
-    createdAt: new Date().toISOString(),
+    createdAt: now,
   })
 
-  // Create video media item
   const videoId = crypto.randomUUID()
+  let jobId: string | null = null
+
+  try {
+    const result = await callRunPodAsync({
+      action: 'text2video',
+      prompt,
+      width,
+      height,
+      num_frames: numFrames,
+      steps,
+    })
+    jobId = result.jobId
+    console.log(`[T2V] Submitted job ${jobId}`)
+  } catch (error: any) {
+    console.error(`[T2V] Submit failed:`, error.message)
+  }
+
   await db.insert(mediaItems).values({
     id: videoId,
     generationId: genId,
     type: 'video',
-    status: 'processing',
-    createdAt: new Date().toISOString(),
+    prompt,
+    runpodJobId: jobId,
+    status: jobId ? 'processing' : 'failed',
+    error: jobId ? null : 'Failed to submit to RunPod',
+    createdAt: now,
   })
 
-  // Generate video in background — don't block the response
-  generateText2Video(prompt, { width, height, numFrames, steps })
-    .then(async (result) => {
-      const url = result.data ? `data:video/mp4;base64,${result.data}` : null
-      await db.update(mediaItems)
-        .set({ url, status: result.status })
-        .where(eq(mediaItems.id, videoId))
-      await db.update(generations)
-        .set({ status: 'complete' })
-        .where(eq(generations.id, genId))
-    })
-    .catch(async (error: any) => {
-      await db.update(mediaItems)
-        .set({ status: 'failed', error: error.message })
-        .where(eq(mediaItems.id, videoId))
-      await db.update(generations)
-        .set({ status: 'failed' })
-        .where(eq(generations.id, genId))
-    })
+  if (!jobId) {
+    await db.update(generations).set({ status: 'failed' }).where(eq(generations.id, genId))
+  }
 
   return {
-    generation: {
-      id: genId,
-      prompt,
-      imageCount: 1,
-      status: 'processing',
-      createdAt: new Date().toISOString(),
-    },
-    item: {
-      id: videoId,
-      generationId: genId,
-      type: 'video',
-      status: 'processing',
-      url: null,
-    },
+    generation: { id: genId, prompt, imageCount: 1, status: jobId ? 'processing' : 'failed', createdAt: now },
+    item: { id: videoId, generationId: genId, type: 'video', status: jobId ? 'processing' : 'failed', url: null },
   }
 })

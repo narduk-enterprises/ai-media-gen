@@ -12,7 +12,7 @@
  * We intercept fetch() calls to redirect HuggingFace URLs through the proxy.
  */
 
-const MODEL_ID = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC'
+const MODEL_ID = 'Hermes-3-Llama-3.2-3B-q4f16_1-MLC'
 
 const HF_ORIGIN = 'https://huggingface.co'
 
