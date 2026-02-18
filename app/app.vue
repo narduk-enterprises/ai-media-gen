@@ -6,6 +6,7 @@ const navItems = [
   { label: 'Create', to: '/create', icon: 'i-heroicons-sparkles' },
   { label: 'Personas & Scenes', to: '/personas', icon: 'i-heroicons-users' },
   { label: 'Gallery', to: '/gallery', icon: 'i-heroicons-photo' },
+  { label: 'Feed', to: '/feed', icon: 'i-heroicons-play' },
   { label: 'Settings', to: '/settings', icon: 'i-heroicons-cog-6-tooth' },
 ]
 
