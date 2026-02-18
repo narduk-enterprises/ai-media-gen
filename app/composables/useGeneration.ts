@@ -100,7 +100,7 @@ export function useGeneration() {
   function startPolling(generationId: string) {
     stopPolling()
     const startedAt = Date.now()
-    const maxPollMs = 5 * 60 * 1000
+    const maxPollMs = 15 * 60 * 1000
 
     pollingTimer.value = setInterval(async () => {
       if (Date.now() - startedAt > maxPollMs) {

@@ -90,7 +90,7 @@ export async function callRunPod(input: Record<string, any>, apiUrlOverride?: st
     if (fetchError.name === 'AbortError' || /timeout/i.test(fetchError.message ?? '')) {
       console.warn('[AI] /runsync fetch timed out — falling back to async + polling');
       const { jobId } = await callRunPodAsync(input, apiUrl);
-      return await pollRunPodJob(jobId, 300_000, apiUrl);
+      return await pollRunPodJob(jobId, 900_000, apiUrl);
     }
     throw fetchError;
   }
@@ -293,7 +293,7 @@ export async function generateVideo(
   );
 
   const { jobId, apiUrl } = await callRunPodAsync(input, options?.apiUrl);
-  const response = await pollRunPodJob(jobId, 300_000, apiUrl);
+  const response = await pollRunPodJob(jobId, 900_000, apiUrl);
 
   if (response.output?.output) {
     return {
@@ -328,7 +328,7 @@ export async function generateText2Video(
   );
 
   const { jobId, apiUrl } = await callRunPodAsync(input, options?.apiUrl);
-  const response = await pollRunPodJob(jobId, 300_000, apiUrl);
+  const response = await pollRunPodJob(jobId, 900_000, apiUrl);
 
   if (response.output?.output) {
     console.log(`[AI] text2video complete — filename: ${response.output.output.filename}`);
@@ -372,7 +372,7 @@ export async function generateVideoWithAudio(
   }
 
   const { jobId, apiUrl } = await callRunPodAsync(input, options?.apiUrl);
-  const response = await pollRunPodJob(jobId, 300_000, apiUrl);
+  const response = await pollRunPodJob(jobId, 900_000, apiUrl);
 
   if (response.output?.output) {
     return {
