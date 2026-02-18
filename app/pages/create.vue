@@ -57,11 +57,17 @@ const attributes = reactive(createEmptyAttributes())
 // ─── Persons ───────────────────────────────────────────────────────────
 const { persons, addPerson, deletePerson: _deletePerson } = usePersons()
 const activePersonId = ref<string | null>(null)
+const personDescription = ref('')
 const savingPerson = ref(false)
 const personName = ref('')
 
+const activePerson = computed(() =>
+  persons.value.find((p: any) => p.id === activePersonId.value) ?? null
+)
+
 function loadPerson(person: import('~/composables/usePersons').Person) {
   activePersonId.value = person.id
+  personDescription.value = (person as any).description || ''
   for (const key of characterAttributeKeys) {
     attributes[key] = person[key]
   }
@@ -69,13 +75,14 @@ function loadPerson(person: import('~/composables/usePersons').Person) {
 
 function clearPerson() {
   activePersonId.value = null
+  personDescription.value = ''
   for (const key of characterAttributeKeys) {
     attributes[key] = ''
   }
 }
 
 function saveAsPerson() {
-  const attrs: Record<string, string> = {}
+  const attrs: Record<string, string> = { description: personDescription.value }
   for (const key of characterAttributeKeys) {
     attrs[key] = attributes[key]
   }
