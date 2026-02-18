@@ -61,7 +61,6 @@ const nonImageItems = computed(() =>
                   :src="item.url!"
                   :alt="generation.prompt"
                   class="max-h-[70vh] w-auto rounded-lg object-contain"
-                  format="webp"
                 />
               </div>
             </template>
@@ -73,7 +72,6 @@ const nonImageItems = computed(() =>
               :src="images[0].url!"
               :alt="generation.prompt"
               class="max-h-[70vh] w-auto rounded-lg object-contain"
-              format="webp"
             />
           </div>
         </div>

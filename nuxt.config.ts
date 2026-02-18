@@ -24,8 +24,9 @@ export default defineNuxtConfig({
   },
 
   image: {
-    // No external provider needed — images served from our own /api/media/ endpoint
-    quality: 80,
+    // Use 'none' provider — serve images directly from /api/media/ without IPX proxy
+    // IPX doesn't run on Cloudflare Workers, so we skip server-side image optimization
+    provider: 'none',
   },
 
   colorMode: {

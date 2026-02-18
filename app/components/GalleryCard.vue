@@ -41,7 +41,6 @@ const emptySlots = computed(() =>
               width="400"
               class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
-              format="webp"
             />
           </div>
           <!-- Fill empty slots -->

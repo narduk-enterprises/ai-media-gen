@@ -39,7 +39,7 @@ const savingSetup = ref(false)
 const setupName = ref('')
 
 // ─── Prompt Builder (uses extracted composable + user presets) ─────────
-const { getPresets, config: presetConfig } = usePromptPresets()
+const { getPresets, config: presetConfig, projects, activeProject, switchProject } = usePromptPresets()
 const attributes = reactive(createEmptyAttributes())
 
 // ─── Saved Setups ──────────────────────────────────────────────────────
@@ -356,6 +356,22 @@ const gridClass = computed(() => {
     <!-- Prompt input -->
     <div class="max-w-2xl mx-auto mb-10">
       <div class="glass-card p-4 sm:p-6">
+        <!-- Project selector -->
+        <div v-if="projects.length > 0" class="mb-3 flex items-center gap-2 flex-wrap">
+          <label class="text-[11px] text-zinc-500 shrink-0">📁</label>
+          <button
+            v-for="proj in projects"
+            :key="proj.id"
+            class="px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border"
+            :class="activeProject?.id === proj.id
+              ? 'bg-violet-500/15 border-violet-500/30 text-violet-300'
+              : 'bg-zinc-900/50 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'"
+            @click="switchProject(proj.id)"
+          >
+            {{ proj.name }}
+          </button>
+        </div>
+
         <!-- Saved prompts quick-select -->
         <div v-if="presetConfig.basePrompts.length > 0" class="mb-3 flex items-center gap-2">
           <label class="text-[11px] text-zinc-500 shrink-0">📝 Saved:</label>
@@ -810,7 +826,6 @@ const gridClass = computed(() => {
               width="512"
               class="w-full h-full object-cover"
               loading="lazy"
-              format="webp"
             />
 
             <!-- Hover overlay -->

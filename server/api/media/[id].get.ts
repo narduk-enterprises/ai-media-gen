@@ -59,7 +59,7 @@ export default defineEventHandler(async (event) => {
       'Cache-Control': 'public, max-age=31536000, immutable',
     })
 
-    return bytes.buffer
+    return send(event, bytes)
   }
 
   // If it's already a URL path, redirect
