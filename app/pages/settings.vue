@@ -3,7 +3,7 @@ definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Settings' })
 
 const { user, logout } = useAuth()
-const { config, addPreset, removePreset, clearCustomPresets, clearAllCustomPresets, setMergeMode, getCustomCount } = usePromptPresets()
+const { config, addPreset, removePreset, clearCustomPresets, clearAllCustomPresets, setMergeMode, getCustomCount, addBasePrompt, removeBasePrompt, clearBasePrompts } = usePromptPresets()
 
 import { attributeLabels, attributeKeys, attributePresets, type AttributeKey } from '~/utils/promptBuilder'
 
@@ -34,9 +34,13 @@ function handleAddPreset(key: AttributeKey) {
         return
       }
       if (typeof parsed === 'object' && parsed !== null) {
-        // Object — add to each matching category
+        // Object — add to each matching category + basePrompt
         for (const [k, vals] of Object.entries(parsed)) {
-          if (attributeKeys.includes(k as AttributeKey) && Array.isArray(vals)) {
+          if (k === 'basePrompt' && Array.isArray(vals)) {
+            for (const v of vals) {
+              if (typeof v === 'string' && v.trim()) addBasePrompt(v.trim())
+            }
+          } else if (attributeKeys.includes(k as AttributeKey) && Array.isArray(vals)) {
             for (const v of vals) {
               if (typeof v === 'string' && v.trim()) addPreset(k as AttributeKey, v.trim())
             }
@@ -59,6 +63,7 @@ function handleAddPreset(key: AttributeKey) {
 const showJsonImport = ref(false)
 const jsonImportText = ref('')
 const jsonImportError = ref('')
+const newBasePrompt = ref('')
 
 function handleJsonImport() {
   jsonImportError.value = ''
@@ -73,7 +78,14 @@ function handleJsonImport() {
     }
     let count = 0
     for (const [k, vals] of Object.entries(parsed)) {
-      if (attributeKeys.includes(k as AttributeKey) && Array.isArray(vals)) {
+      if (k === 'basePrompt' && Array.isArray(vals)) {
+        for (const v of vals) {
+          if (typeof v === 'string' && v.trim()) {
+            addBasePrompt(v.trim())
+            count++
+          }
+        }
+      } else if (attributeKeys.includes(k as AttributeKey) && Array.isArray(vals)) {
         for (const v of vals) {
           if (typeof v === 'string' && v.trim()) {
             addPreset(k as AttributeKey, v.trim())
@@ -151,9 +163,10 @@ const totalCustomPresets = computed(() =>
           Paste a JSON object to import presets across multiple categories at once:
         </p>
         <pre class="text-[10px] text-zinc-600 mb-2 overflow-x-auto">{{ `{
+  "basePrompt": ["a beautiful woman", "a warrior"],
   "hair": ["long black hair", "short blonde bob"],
-  "eyes": ["piercing blue eyes", "warm hazel eyes"],
-  "clothing": ["leather jacket", "flowing dress"]
+  "eyes": ["piercing blue eyes"],
+  "clothing": ["leather jacket"]
 }` }}</pre>
         <textarea
           v-model="jsonImportText"
@@ -171,6 +184,48 @@ const totalCustomPresets = computed(() =>
             Import All
           </UButton>
         </div>
+      </div>
+
+      <!-- Saved Base Prompts -->
+      <div class="mb-4 p-3 rounded-lg bg-zinc-900/50 border border-zinc-800">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-xs font-medium text-zinc-300">📝 Saved Base Prompts</p>
+          <button
+            v-if="config.basePrompts.length > 0"
+            class="text-[10px] text-zinc-500 hover:text-red-400 transition-colors"
+            @click="clearBasePrompts"
+          >
+            Clear all
+          </button>
+        </div>
+        <p class="text-[10px] text-zinc-500 mb-2">Quick-select base prompts on the Create page. Add via JSON import or below.</p>
+        <div class="flex gap-2 mb-2">
+          <input
+            v-model="newBasePrompt"
+            placeholder="Add a base prompt..."
+            class="flex-1 bg-zinc-800/80 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/30"
+            @keyup.enter="() => { addBasePrompt(newBasePrompt); newBasePrompt = '' }"
+          />
+          <UButton size="xs" :disabled="!newBasePrompt.trim()" @click="() => { addBasePrompt(newBasePrompt); newBasePrompt = '' }">
+            Add
+          </UButton>
+        </div>
+        <div v-if="config.basePrompts.length > 0" class="flex flex-wrap gap-1.5">
+          <span
+            v-for="bp in config.basePrompts"
+            :key="bp"
+            class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] group"
+          >
+            {{ bp.length > 40 ? bp.slice(0, 40) + '...' : bp }}
+            <button
+              class="opacity-0 group-hover:opacity-100 text-emerald-400 hover:text-red-400 transition-all text-xs"
+              @click="removeBasePrompt(bp)"
+            >
+              ✕
+            </button>
+          </span>
+        </div>
+        <p v-else class="text-[10px] text-zinc-600 italic">No saved base prompts yet</p>
       </div>
 
       <!-- Merge mode toggle -->

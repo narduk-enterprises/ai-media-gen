@@ -17,15 +17,20 @@ export interface UserPresetConfig {
   custom: Partial<Record<AttributeKey, string[]>>
   /** Whether to merge custom presets with defaults or replace them. */
   mergeWithDefaults: boolean
+  /** Saved base prompt templates. */
+  basePrompts: string[]
 }
 
 function loadConfig(): UserPresetConfig {
-  if (import.meta.server) return { custom: {}, mergeWithDefaults: true }
+  if (import.meta.server) return { custom: {}, mergeWithDefaults: true, basePrompts: [] }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      return { basePrompts: [], ...parsed }
+    }
   } catch { /* ignore */ }
-  return { custom: {}, mergeWithDefaults: true }
+  return { custom: {}, mergeWithDefaults: true, basePrompts: [] }
 }
 
 function saveConfig(config: UserPresetConfig) {
@@ -48,7 +53,6 @@ export function usePromptPresets() {
       return defaultPresets[key]
     }
     if (config.value.mergeWithDefaults) {
-      // Custom first, then defaults (deduped)
       const combined = [...custom]
       for (const d of defaultPresets[key]) {
         if (!combined.includes(d)) combined.push(d)
@@ -112,6 +116,7 @@ export function usePromptPresets() {
    */
   function clearAllCustomPresets() {
     config.value.custom = {}
+    config.value.basePrompts = []
     saveConfig(config.value)
   }
 
@@ -130,6 +135,26 @@ export function usePromptPresets() {
     return config.value.custom[key]?.length ?? 0
   }
 
+  // ─── Base Prompt Presets ────────────────────────────────────────────
+  function addBasePrompt(prompt: string) {
+    const trimmed = prompt.trim()
+    if (!trimmed) return
+    if (!config.value.basePrompts.includes(trimmed)) {
+      config.value.basePrompts.push(trimmed)
+      saveConfig(config.value)
+    }
+  }
+
+  function removeBasePrompt(prompt: string) {
+    config.value.basePrompts = config.value.basePrompts.filter(p => p !== prompt)
+    saveConfig(config.value)
+  }
+
+  function clearBasePrompts() {
+    config.value.basePrompts = []
+    saveConfig(config.value)
+  }
+
   return {
     config: readonly(config),
     getPresets,
@@ -141,5 +166,8 @@ export function usePromptPresets() {
     clearAllCustomPresets,
     setMergeMode,
     getCustomCount,
+    addBasePrompt,
+    removeBasePrompt,
+    clearBasePrompts,
   }
 }

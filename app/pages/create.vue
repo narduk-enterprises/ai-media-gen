@@ -36,7 +36,7 @@ const showPromptBuilder = ref(false)
 const varyPerImage = ref(false)
 
 // ─── Prompt Builder (uses extracted composable + user presets) ─────────
-const { getPresets } = usePromptPresets()
+const { getPresets, config: presetConfig } = usePromptPresets()
 const attributes = reactive(createEmptyAttributes())
 
 // ─── In-browser LLM for prompt remix ───────────────────────────────────
@@ -318,6 +318,20 @@ const gridClass = computed(() => {
     <!-- Prompt input -->
     <div class="max-w-2xl mx-auto mb-10">
       <div class="glass-card p-4 sm:p-6">
+        <!-- Saved prompts quick-select -->
+        <div v-if="presetConfig.basePrompts.length > 0" class="mb-3 flex items-center gap-2">
+          <label class="text-[11px] text-zinc-500 shrink-0">📝 Saved:</label>
+          <select
+            class="flex-1 bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-2.5 py-1.5 text-xs text-zinc-400 focus:outline-none focus:ring-1 focus:ring-violet-500/30 cursor-pointer appearance-none"
+            @change="(e: Event) => { prompt = (e.target as HTMLSelectElement).value; (e.target as HTMLSelectElement).selectedIndex = 0 }"
+          >
+            <option value="" disabled selected>Choose a saved prompt...</option>
+            <option v-for="bp in presetConfig.basePrompts" :key="bp" :value="bp">
+              {{ bp.length > 60 ? bp.slice(0, 60) + '...' : bp }}
+            </option>
+          </select>
+        </div>
+
         <textarea
           v-model="prompt"
           placeholder="A cyberpunk city at sunset, neon lights reflecting in puddles, cinematic wide angle, 8k ultra detailed..."
