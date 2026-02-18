@@ -1,16 +1,30 @@
 import type { GenerationResult, MediaItemResult } from '~/types/gallery'
 
 export function useGallery() {
-  const { data, pending, error, refresh } = useFetch<{ generations: GenerationResult[] }>('/api/generations', {
-    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    default: () => ({ generations: [] }),
-    server: false,
-    lazy: true,
-  })
+  const loading = ref(true)
+  const generations = ref<GenerationResult[]>([])
+  const error = ref<Error | null>(null)
 
-  const generations = computed(() => data.value?.generations ?? [])
+  async function fetchGenerations() {
+    loading.value = true
+    error.value = null
+    try {
+      const result = await $fetch<{ generations: GenerationResult[] }>('/api/generations', {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+      generations.value = result.generations ?? []
+    } catch (e: any) {
+      error.value = e
+    } finally {
+      loading.value = false
+    }
+  }
 
-  return { generations, pending, error, refresh }
+  if (import.meta.client) {
+    fetchGenerations()
+  }
+
+  return { generations, pending: loading, error, refresh: fetchGenerations }
 }
 
 /** Return up to 4 media thumbnails (images and videos) for a generation. */
