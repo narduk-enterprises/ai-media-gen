@@ -31,7 +31,7 @@ interface GenerateVideoResult {
  * Call RunPod serverless endpoint (synchronous).
  * Uses /runsync for immediate results (up to 120s timeout).
  */
-async function callRunPod(input: Record<string, any>): Promise<RunPodResponse> {
+export async function callRunPod(input: Record<string, any>): Promise<RunPodResponse> {
   const config = useRuntimeConfig()
   const apiKey = config.aiApiKey
   const apiUrl = config.aiApiUrl

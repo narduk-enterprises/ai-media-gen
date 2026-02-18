@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { generateImages } from '../../utils/ai'
+import { callRunPod } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
 
 const generateSchema = z.object({
@@ -51,43 +51,65 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Generate images (mock or real API)
-  try {
-    const result = await generateImages(prompt, count, { negativePrompt, steps, width, height })
-
-    // Update media items with image data
-    for (let i = 0; i < result.images.length && i < itemIds.length; i++) {
-      const img = result.images[i]!
-      const url = `data:image/png;base64,${img.data}`
-      await db.update(mediaItems)
-        .set({ url, status: 'complete' })
-        .where(eq(mediaItems.id, itemIds[i]!))
-    }
-
-    // Mark generation complete
-    await db.update(generations)
-      .set({ status: 'complete' })
-      .where(eq(generations.id, generationId))
-
-  } catch (error: any) {
-    // Mark failed
-    await db.update(generations)
-      .set({ status: 'failed', error: error.message })
-      .where(eq(generations.id, generationId))
-
-    for (const itemId of itemIds) {
-      await db.update(mediaItems)
-        .set({ status: 'failed', error: error.message })
-        .where(eq(mediaItems.id, itemId))
-    }
+  // Fire off each image generation independently (no await — runs in background)
+  for (let i = 0; i < count; i++) {
+    const itemId = itemIds[i]!
+    // Each request runs independently and updates its own DB row when done
+    callRunPod({
+      action: 'text2image',
+      prompt,
+      negative_prompt: negativePrompt,
+      width,
+      height,
+      steps,
+    })
+      .then(async (response) => {
+        if (response.output?.output?.data) {
+          const url = `data:image/png;base64,${response.output.output.data}`
+          await db.update(mediaItems)
+            .set({ url, status: 'complete' })
+            .where(eq(mediaItems.id, itemId))
+          console.log(`[Image] ✅ Item ${i + 1}/${count} complete (${itemId.slice(0, 8)})`)
+        } else {
+          await db.update(mediaItems)
+            .set({ status: 'failed', error: 'No output data returned' })
+            .where(eq(mediaItems.id, itemId))
+          console.warn(`[Image] ⚠️ Item ${i + 1}/${count} — no output`)
+        }
+      })
+      .catch(async (error: any) => {
+        console.error(`[Image] ❌ Item ${i + 1}/${count} failed:`, error.message)
+        await db.update(mediaItems)
+          .set({ status: 'failed', error: error.message })
+          .where(eq(mediaItems.id, itemId))
+      })
+      .finally(async () => {
+        // Check if all items for this generation are done
+        const allItems = await db.select().from(mediaItems)
+          .where(eq(mediaItems.generationId, generationId))
+        const allDone = allItems.every(item => item.status === 'complete' || item.status === 'failed')
+        if (allDone) {
+          const anyFailed = allItems.some(item => item.status === 'failed')
+          const allFailed = allItems.every(item => item.status === 'failed')
+          await db.update(generations)
+            .set({ status: allFailed ? 'failed' : anyFailed ? 'partial' : 'complete' })
+            .where(eq(generations.id, generationId))
+          console.log(`[Image] Generation ${generationId.slice(0, 8)} finished — ${allFailed ? 'FAILED' : anyFailed ? 'PARTIAL' : 'COMPLETE'}`)
+        }
+      })
   }
 
-  // Return generation with items
-  const gen = await db.select().from(generations).where(eq(generations.id, generationId)).limit(1)
+  // Return immediately with placeholder items (all status: 'processing')
   const items = await db.select().from(mediaItems).where(eq(mediaItems.generationId, generationId))
 
   return {
-    generation: gen[0],
+    generation: {
+      id: generationId,
+      prompt,
+      imageCount: count,
+      status: 'processing',
+      createdAt: now,
+    },
     items,
   }
 })

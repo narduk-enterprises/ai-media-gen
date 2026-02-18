@@ -17,6 +17,7 @@ const genMode = ref<'image' | 'video'>('image')
 const videoDuration = ref(81) // frames: 81≈3s, 121≈5s, 161≈7s
 const videoItem = ref<MediaItemResult | null>(null)
 const videoPolling = ref(false)
+const pollingTimer = ref<ReturnType<typeof setInterval> | null>(null)
 
 const durationOptions = [
   { label: '3s', value: 81 },
@@ -59,6 +60,14 @@ const images = computed(() =>
   currentGeneration.value?.items.filter(i => i.type === 'image') ?? []
 )
 
+const completedCount = computed(() =>
+  images.value.filter(i => i.status === 'complete').length
+)
+
+const allDone = computed(() =>
+  images.value.length > 0 && images.value.every(i => i.status === 'complete' || i.status === 'failed')
+)
+
 const childMedia = computed(() => {
   const map: Record<string, MediaItemResult[]> = {}
   for (const item of currentGeneration.value?.items ?? []) {
@@ -76,20 +85,60 @@ async function generate() {
   generating.value = true
   error.value = ''
   currentGeneration.value = null
+  stopPolling()
 
   try {
+    // Fire-and-forget: returns immediately with placeholder items
     const result = await $fetch<GenerationResult>('/api/generate/image', {
       method: 'POST',
       body: { prompt: prompt.value, negativePrompt: negativePrompt.value, count: imageCount.value, steps: steps.value, width: imageWidth.value, height: imageHeight.value },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
     currentGeneration.value = result
+    // Start polling for progressive updates
+    startPolling(result.generation.id)
   } catch (e: any) {
     error.value = e.data?.message || e.message || 'Generation failed'
-  } finally {
     generating.value = false
   }
 }
+
+function startPolling(generationId: string) {
+  stopPolling()
+  pollingTimer.value = setInterval(async () => {
+    try {
+      const result = await $fetch<GenerationResult>('/api/generate/generation-status', {
+        params: { id: generationId },
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+
+      // Merge: update items in place so the grid reactively updates
+      if (currentGeneration.value) {
+        currentGeneration.value.generation = result.generation
+        currentGeneration.value.items = result.items
+      }
+
+      // Stop polling when all items are done
+      const items = result.items.filter(i => i.type === 'image')
+      const done = items.every(i => i.status === 'complete' || i.status === 'failed')
+      if (done) {
+        stopPolling()
+        generating.value = false
+      }
+    } catch {
+      // Swallow poll errors — will retry next tick
+    }
+  }, 3000)
+}
+
+function stopPolling() {
+  if (pollingTimer.value) {
+    clearInterval(pollingTimer.value)
+    pollingTimer.value = null
+  }
+}
+
+onUnmounted(() => stopPolling())
 
 async function generateT2V() {
   generating.value = true
@@ -395,21 +444,13 @@ const gridClass = computed(() => {
       </div>
     </div>
 
-    <!-- Loading state -->
-    <div v-if="generating" class="mb-10">
-      <!-- Image loading -->
-      <div v-if="genMode === 'image'" :class="['grid gap-4', gridClass]">
-        <div v-for="i in imageCount" :key="i" class="aspect-square rounded-xl shimmer" />
-      </div>
-      <!-- Video loading -->
-      <div v-else class="max-w-lg mx-auto">
+    <!-- Video loading -->
+    <div v-if="generating && genMode === 'video'" class="mb-10">
+      <div class="max-w-lg mx-auto">
         <div class="aspect-video rounded-xl shimmer" />
       </div>
       <p class="text-center text-sm text-zinc-500 mt-4 animate-pulse">
-        {{ genMode === 'image'
-          ? `Generating ${imageCount} image${imageCount > 1 ? 's' : ''}...`
-          : `Generating video (${durationOptions.find(d => d.value === videoDuration)?.label || '3s'})... This may take a few minutes`
-        }}
+        Generating video ({{ durationOptions.find(d => d.value === videoDuration)?.label || '3s' }})... This may take a few minutes
       </p>
     </div>
 
@@ -444,33 +485,42 @@ const gridClass = computed(() => {
       </div>
     </div>
 
-    <!-- Results -->
+    <!-- Progressive Image Grid (shows during generation AND after completion) -->
     <div v-else-if="currentGeneration && images.length > 0">
+      <!-- Progress indicator -->
+      <div v-if="generating" class="text-center mb-6">
+        <p class="text-sm text-zinc-400">
+          <span class="text-violet-400 font-medium">{{ completedCount }}</span>
+          <span class="text-zinc-600"> / </span>
+          <span>{{ images.length }}</span>
+          <span class="text-zinc-500 ml-1.5">images generated</span>
+        </p>
+        <div class="max-w-xs mx-auto mt-2 h-1 bg-zinc-800 rounded-full overflow-hidden">
+          <div
+            class="h-full bg-gradient-to-r from-violet-500 to-cyan-500 rounded-full transition-all duration-700 ease-out"
+            :style="{ width: `${images.length > 0 ? (completedCount / images.length) * 100 : 0}%` }"
+          />
+        </div>
+      </div>
+
       <div :class="['grid gap-4', gridClass]">
         <div
           v-for="(item, index) in images"
           :key="item.id"
-          class="group relative animate-reveal"
-          :style="{ animationDelay: `${index * 100}ms` }"
+          class="group relative"
         >
-          <!-- Image -->
+          <!-- Completed image -->
           <div
-            class="relative aspect-square rounded-xl overflow-hidden border border-zinc-800 hover:border-violet-500/30 transition-all cursor-pointer"
-            @click="item.url && item.status === 'complete' ? selectedImage = item : null"
+            v-if="item.url && item.status === 'complete'"
+            class="relative aspect-square rounded-xl overflow-hidden border border-zinc-800 hover:border-violet-500/30 transition-all cursor-pointer animate-reveal"
+            @click="selectedImage = item"
           >
             <img
-              v-if="item.url && item.status === 'complete'"
               :src="item.url"
               :alt="currentGeneration.generation.prompt"
               class="w-full h-full object-cover"
               loading="lazy"
             />
-            <div
-              v-else
-              class="w-full h-full flex items-center justify-center bg-zinc-900"
-            >
-              <UIcon name="i-heroicons-photo" class="w-8 h-8 text-zinc-700" />
-            </div>
 
             <!-- Hover overlay -->
             <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
@@ -480,7 +530,7 @@ const gridClass = computed(() => {
                   variant="solid"
                   color="primary"
                   :loading="actionLoading[`video-${item.id}`]"
-                  @click="makeVideo(item.id)"
+                  @click.stop="makeVideo(item.id)"
                   class="flex-1"
                 >
                   🎬 Video
@@ -490,11 +540,32 @@ const gridClass = computed(() => {
                   variant="outline"
                   color="neutral"
                   :loading="actionLoading[`audio-${item.id}`]"
-                  @click="addAudio(item.id)"
+                  @click.stop="addAudio(item.id)"
                   class="flex-1"
                 >
                   🔊 Video + Audio
                 </UButton>
+              </div>
+            </div>
+          </div>
+
+          <!-- Failed item -->
+          <div
+            v-else-if="item.status === 'failed'"
+            class="aspect-square rounded-xl border border-red-500/20 bg-red-500/5 flex items-center justify-center"
+          >
+            <div class="text-center px-4">
+              <UIcon name="i-heroicons-exclamation-triangle" class="w-6 h-6 text-red-400/60 mx-auto mb-1" />
+              <p class="text-[11px] text-red-400/60">Failed</p>
+            </div>
+          </div>
+
+          <!-- Still processing (shimmer) -->
+          <div v-else class="aspect-square rounded-xl shimmer relative overflow-hidden">
+            <div class="absolute inset-0 flex items-center justify-center">
+              <div class="text-center">
+                <div class="w-6 h-6 border-2 border-violet-500/30 border-t-violet-400 rounded-full animate-spin mx-auto mb-2" />
+                <p class="text-[11px] text-zinc-500">Generating...</p>
               </div>
             </div>
           </div>
@@ -537,7 +608,7 @@ const gridClass = computed(() => {
     </div>
 
     <!-- Empty state -->
-    <div v-else class="text-center py-20">
+    <div v-else-if="!generating" class="text-center py-20">
       <div class="w-20 h-20 mx-auto rounded-2xl bg-violet-500/5 border border-violet-500/10 flex items-center justify-center mb-4">
         <UIcon name="i-heroicons-sparkles" class="w-10 h-10 text-violet-500/30" />
       </div>
