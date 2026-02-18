@@ -312,6 +312,26 @@ const gridClass = computed(() => {
 
     <!-- ═══ Body ═══ -->
     <div class="max-w-[100rem] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <!-- Video generation progress -->
+      <div v-if="activeVideoCount > 0" class="mb-4 p-3 rounded-xl bg-cyan-50 border border-cyan-200 flex items-center gap-3">
+        <div class="w-5 h-5 border-2 border-cyan-300 border-t-cyan-600 rounded-full animate-spin shrink-0" />
+        <div class="flex-1">
+          <p class="text-sm text-cyan-800 font-medium">
+            Generating {{ activeVideoCount }} video{{ activeVideoCount !== 1 ? 's' : '' }}…
+          </p>
+          <p class="text-xs text-cyan-600">Videos will appear in the gallery when complete. This may take a few minutes.</p>
+        </div>
+      </div>
+
+      <!-- Video generation error -->
+      <div v-if="videoError" class="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm flex items-center gap-3">
+        <UIcon name="i-heroicons-exclamation-triangle" class="w-4 h-4 shrink-0" />
+        {{ videoError }}
+        <button class="ml-auto text-red-400 hover:text-red-600 text-xs" @click="videoError = ''">
+          <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
+        </button>
+      </div>
+
       <!-- Loading -->
       <GallerySkeletonGrid v-if="pending && !generations.length" />
 
@@ -497,10 +517,25 @@ const gridClass = computed(() => {
                   <UIcon name="i-heroicons-play" class="w-2.5 h-2.5" /> Video
                 </div>
                 <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none" />
-                <button
-                  class="absolute top-1.5 right-1.5 p-1 rounded bg-black/30 text-white/70 hover:text-white opacity-0 group-hover:opacity-100 transition-all text-xs"
-                  @click.stop="downloadMedia(item.url!, 0, item.type)"
-                >⬇</button>
+                <div class="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    v-if="item.type === 'image'"
+                    class="p-1 rounded bg-black/40 text-white/80 hover:text-white hover:bg-black/60 transition-all"
+                    :class="{ 'opacity-50 pointer-events-none': actionLoading[`video-${item.id}`] }"
+                    title="Create video"
+                    @click.stop="makeVideoFromGallery(item.id, parseSettings(gen.settings))"
+                  >
+                    <UIcon v-if="actionLoading[`video-${item.id}`]" name="i-heroicons-arrow-path" class="w-3 h-3 animate-spin" />
+                    <UIcon v-else name="i-heroicons-film" class="w-3 h-3" />
+                  </button>
+                  <button
+                    class="p-1 rounded bg-black/40 text-white/80 hover:text-white hover:bg-black/60 transition-all"
+                    title="Download"
+                    @click.stop="downloadMedia(item.url!, 0, item.type)"
+                  >
+                    <UIcon name="i-heroicons-arrow-down-tray" class="w-3 h-3" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -580,33 +615,43 @@ const gridClass = computed(() => {
           </div>
 
           <!-- Bottom toolbar -->
-          <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-5 py-2.5 rounded-full bg-white/10 backdrop-blur-md">
+          <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1.5 rounded-full bg-white/10 backdrop-blur-md">
             <button
-              class="text-white/60 hover:text-white transition-colors text-sm flex items-center gap-1"
+              class="px-3 py-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors flex items-center gap-1.5"
               @click="downloadMedia(currentItem.url, lightboxIndex, currentItem.type)"
             >
-              ⬇ Download
+              <UIcon name="i-heroicons-arrow-down-tray" class="w-3.5 h-3.5" /> Download
             </button>
-            <span class="text-white/20">|</span>
             <button
-              class="text-white/60 hover:text-white transition-colors text-sm flex items-center gap-1"
+              class="px-3 py-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors flex items-center gap-1.5"
               @click="copyPrompt(currentItem.prompt)"
             >
-              📋 Prompt
+              <UIcon name="i-heroicons-clipboard-document" class="w-3.5 h-3.5" /> Prompt
             </button>
-            <span class="text-white/20">|</span>
+            <template v-if="currentItem.type === 'image'">
+              <button
+                class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5"
+                :class="actionLoading[`video-${currentItem.id}`]
+                  ? 'opacity-50 pointer-events-none text-white/30'
+                  : 'text-white/60 hover:text-white hover:bg-white/10'"
+                @click="makeVideoFromGallery(currentItem.id, currentItem.settings)"
+              >
+                <UIcon v-if="actionLoading[`video-${currentItem.id}`]" name="i-heroicons-arrow-path" class="w-3.5 h-3.5 animate-spin" />
+                <UIcon v-else name="i-heroicons-film" class="w-3.5 h-3.5" />
+                Video
+              </button>
+            </template>
             <button
-              class="text-white/60 hover:text-white transition-colors text-sm flex items-center gap-1"
+              class="px-3 py-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors flex items-center gap-1.5"
               @click="showLightboxInfo = !showLightboxInfo"
             >
-              ℹ️ Info
+              <UIcon name="i-heroicons-information-circle" class="w-3.5 h-3.5" /> Info
             </button>
-            <span class="text-white/20">|</span>
             <button
-              class="text-white/60 hover:text-white transition-colors text-sm flex items-center gap-1"
+              class="px-3 py-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors flex items-center gap-1.5"
               @click="recreateFromImage(currentItem)"
             >
-              🔄 Recreate
+              <UIcon name="i-heroicons-arrow-path" class="w-3.5 h-3.5" /> Recreate
             </button>
           </div>
 
