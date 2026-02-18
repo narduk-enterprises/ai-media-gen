@@ -161,6 +161,34 @@ async function generateFree(append = false) {
   })
 }
 
+// ─── AI prompt remix ────────────────────────────────────────────────────
+const { isSupported: webGpuSupported, loadProgress, loadingModel, remixPrompt } = useWebLLM()
+const remixing = ref(false)
+
+async function remixBasePrompt() {
+  if (!basePrompt.value.trim()) return
+  remixing.value = true
+  try {
+    basePrompt.value = await remixPrompt(basePrompt.value)
+  } catch (e: any) {
+    gen.error.value = e.message || 'Prompt remix failed'
+  } finally {
+    remixing.value = false
+  }
+}
+
+async function remixFreePrompt() {
+  if (!freePrompt.value.trim()) return
+  remixing.value = true
+  try {
+    freePrompt.value = await remixPrompt(freePrompt.value)
+  } catch (e: any) {
+    gen.error.value = e.message || 'Prompt remix failed'
+  } finally {
+    remixing.value = false
+  }
+}
+
 // ─── Shared: can generate / generate ────────────────────────────────────
 const canGenerate = computed(() => mode.value === 'persona' ? canGeneratePersona.value : canGenerateFree.value)
 
@@ -512,17 +540,31 @@ const gridClass = computed(() => {
                 :disabled="gen.generating.value"
                 class="w-full"
               />
-              <div v-if="presetConfig.basePrompts.length > 0" class="flex flex-wrap gap-1.5">
+              <div class="flex items-center gap-2 flex-wrap">
                 <UButton
-                  v-for="bp in presetConfig.basePrompts.slice(0, 5)"
-                  :key="bp"
+                  v-if="webGpuSupported"
                   size="xs"
-                  variant="outline"
-                  color="neutral"
-                  @click="basePrompt = bp"
+                  :variant="remixing || loadingModel ? 'soft' : 'outline'"
+                  :color="remixing || loadingModel ? 'primary' : 'neutral'"
+                  icon="i-lucide-sparkles"
+                  :loading="remixing || loadingModel"
+                  :disabled="!basePrompt.trim() || gen.generating.value"
+                  @click="remixBasePrompt"
                 >
-                  {{ bp.length > 35 ? bp.slice(0, 35) + '…' : bp }}
+                  {{ loadingModel ? `AI (${loadProgress}%)` : 'AI Remix' }}
                 </UButton>
+                <template v-if="presetConfig.basePrompts.length > 0">
+                  <UButton
+                    v-for="bp in presetConfig.basePrompts.slice(0, 5)"
+                    :key="bp"
+                    size="xs"
+                    variant="outline"
+                    color="neutral"
+                    @click="basePrompt = bp"
+                  >
+                    {{ bp.length > 35 ? bp.slice(0, 35) + '…' : bp }}
+                  </UButton>
+                </template>
               </div>
             </div>
           </div>
@@ -553,6 +595,20 @@ const gridClass = computed(() => {
               :disabled="gen.generating.value"
               class="w-full"
             />
+            <template #hint>
+              <UButton
+                v-if="webGpuSupported"
+                size="xs"
+                :variant="remixing || loadingModel ? 'soft' : 'outline'"
+                :color="remixing || loadingModel ? 'primary' : 'neutral'"
+                icon="i-lucide-sparkles"
+                :loading="remixing || loadingModel"
+                :disabled="!freePrompt.trim() || gen.generating.value"
+                @click="remixFreePrompt"
+              >
+                {{ loadingModel ? `AI (${loadProgress}%)` : 'AI Remix' }}
+              </UButton>
+            </template>
           </UFormField>
 
           <!-- Attributes -->
