@@ -109,7 +109,7 @@ export function useGeneration() {
 
         for (const updated of result.items) {
           const idx = results.value.findIndex(i => i.id === updated.id)
-          if (idx >= 0) results.value[idx] = updated
+          if (idx >= 0) results.value.splice(idx, 1, updated)
         }
 
         // Stop polling only when the server says all items are resolved
@@ -206,7 +206,7 @@ export function useGeneration() {
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
         })
         const idx = results.value.findIndex(img => img.id === itemId)
-        if (idx >= 0) results.value[idx] = result.item
+        if (idx >= 0) results.value.splice(idx, 1, result.item)
         if (result.item.status === 'complete' || result.item.status === 'failed') {
           actionLoading.value[loadingKey] = false
           return
@@ -429,7 +429,7 @@ export function useGeneration() {
           })
           for (const updated of result.items) {
             const idx = results.value.findIndex(i => i.id === updated.id)
-            if (idx >= 0) results.value[idx] = updated
+            if (idx >= 0) results.value.splice(idx, 1, updated)
           }
         } catch { /* swallow */ }
       }
