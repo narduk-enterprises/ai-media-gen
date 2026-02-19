@@ -120,7 +120,7 @@ export function useGeneration() {
           activePolls.value--
         }
       } catch { /* swallow */ }
-    }, 3000)
+    }, 2000)
   }
 
   function stopAllPolling() {
@@ -198,7 +198,7 @@ export function useGeneration() {
   async function pollItemStatus(itemId: string, loadingKey: string) {
     const maxAttempts = 120
     for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(r => setTimeout(r, 5000))
+      await new Promise(r => setTimeout(r, 2000))
       try {
         const result = await $fetch<{ item: MediaItemResult }>(`/api/generate/status/${itemId}`, {
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -430,7 +430,7 @@ export function useGeneration() {
         activePolls.value--
         activeGenerationIds.value = []
       }
-    }, 4000)
+    }, 2000)
   }
 
   // ─── Utilities ──────────────────────────────────────────────────────

@@ -3,11 +3,11 @@ const route = useRoute()
 const { user, loggedIn, logout } = useAuth()
 
 const navItems = [
-  { label: 'Create', to: '/create', icon: 'i-heroicons-sparkles' },
-  { label: 'Personas & Scenes', to: '/personas', icon: 'i-heroicons-users' },
-  { label: 'Gallery', to: '/gallery', icon: 'i-heroicons-photo' },
-  { label: 'Feed', to: '/feed', icon: 'i-heroicons-play' },
-  { label: 'Settings', to: '/settings', icon: 'i-heroicons-cog-6-tooth' },
+  { label: 'Create', to: '/create', icon: 'i-lucide-sparkles' },
+  { label: 'Personas & Scenes', to: '/personas', icon: 'i-lucide-users' },
+  { label: 'Gallery', to: '/gallery', icon: 'i-lucide-image' },
+  { label: 'Feed', to: '/feed', icon: 'i-lucide-play' },
+  { label: 'Settings', to: '/settings', icon: 'i-lucide-settings' },
 ]
 
 const mobileMenuOpen = ref(false)
@@ -21,9 +21,6 @@ async function handleLogout() {
   navigateTo('/')
 }
 
-/**
- * Global SEO head tags.
- */
 const runtimeConfig = useRuntimeConfig()
 const siteUrl = runtimeConfig.public.appUrl || 'http://localhost:3000'
 
@@ -37,9 +34,7 @@ useSeoMeta({
 
 useHead({
   htmlAttrs: { lang: 'en' },
-  link: [
-    { rel: 'canonical', href: siteUrl },
-  ],
+  link: [{ rel: 'canonical', href: siteUrl }],
 })
 </script>
 
@@ -53,11 +48,7 @@ useHead({
             <!-- Brand -->
             <NuxtLink to="/create" class="flex items-center gap-2.5 group">
               <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-violet-500/20 group-hover:shadow-violet-500/40 transition-shadow">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                  <path d="M2 17l10 5 10-5" />
-                  <path d="M2 12l10 5 10-5" />
-                </svg>
+                <UIcon name="i-lucide-layers" class="w-[18px] h-[18px] text-white" />
               </div>
               <span class="font-display font-bold text-lg tracking-tight text-slate-800 hidden sm:block">AI Media Gen</span>
             </NuxtLink>
@@ -68,11 +59,12 @@ useHead({
                 v-for="item in navItems"
                 :key="item.to"
                 :to="item.to"
-                class="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
                 :class="route.path === item.to
                   ? 'bg-violet-50 text-violet-700'
                   : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'"
               >
+                <UIcon :name="item.icon" class="w-4 h-4" />
                 {{ item.label }}
               </NuxtLink>
             </nav>
@@ -81,29 +73,17 @@ useHead({
             <div class="flex items-center gap-3">
               <div v-if="user" class="flex items-center gap-2">
                 <span class="text-sm text-slate-500 hidden sm:block">{{ user.email }}</span>
-                <UButton
-                  color="neutral"
-                  variant="ghost"
-                  size="sm"
-                  icon="i-heroicons-arrow-right-start-on-rectangle"
-                  @click="handleLogout"
-                />
+                <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-log-out" @click="handleLogout" />
               </div>
 
               <!-- Mobile hamburger -->
-              <button class="md:hidden p-2 text-slate-500 hover:text-slate-800" @click="mobileMenuOpen = !mobileMenuOpen">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <template v-if="!mobileMenuOpen">
-                    <line x1="3" y1="6" x2="21" y2="6" />
-                    <line x1="3" y1="12" x2="21" y2="12" />
-                    <line x1="3" y1="18" x2="21" y2="18" />
-                  </template>
-                  <template v-else>
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </template>
-                </svg>
-              </button>
+              <UButton
+                class="md:hidden"
+                variant="ghost"
+                color="neutral"
+                :icon="mobileMenuOpen ? 'i-lucide-x' : 'i-lucide-menu'"
+                @click="mobileMenuOpen = !mobileMenuOpen"
+              />
             </div>
           </div>
 
@@ -114,11 +94,12 @@ useHead({
                 v-for="item in navItems"
                 :key="item.to"
                 :to="item.to"
-                class="px-4 py-3 rounded-lg text-sm font-medium"
+                class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3"
                 :class="route.path === item.to
                   ? 'bg-violet-50 text-violet-700'
                   : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'"
               >
+                <UIcon :name="item.icon" class="w-4 h-4" />
                 {{ item.label }}
               </NuxtLink>
             </nav>

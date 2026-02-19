@@ -236,24 +236,25 @@ const totalCustomPresets = computed(() =>
     <h1 class="font-display text-2xl sm:text-3xl font-bold text-slate-800 mb-8">Settings</h1>
 
     <!-- Account info -->
-    <div class="glass-card p-6 mb-6">
-      <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Account</h2>
-
+    <UCard class="mb-6" variant="outline">
+      <template #header>
+        <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Account</h2>
+      </template>
       <div class="space-y-4">
-        <div>
-          <label class="text-xs text-slate-500">Email</label>
+        <UFormField label="Email" size="sm">
           <p class="text-sm text-slate-800">{{ user?.email || '—' }}</p>
-        </div>
-        <div>
-          <label class="text-xs text-slate-500">Name</label>
+        </UFormField>
+        <UFormField label="Name" size="sm">
           <p class="text-sm text-slate-800">{{ user?.name || 'Not set' }}</p>
-        </div>
+        </UFormField>
       </div>
-    </div>
+    </UCard>
 
     <!-- ═══ AI Backend ═══ -->
-    <div class="glass-card p-6 mb-6">
-      <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">AI Backend</h2>
+    <UCard class="mb-6" variant="outline">
+      <template #header>
+        <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">AI Backend</h2>
+      </template>
 
       <p class="text-xs text-slate-500 mb-4">
         Choose which RunPod endpoint to use for generation. The <strong>full</strong> image has all models baked in
@@ -262,71 +263,30 @@ const totalCustomPresets = computed(() =>
       </p>
 
       <div class="flex gap-2">
-        <button
-          class="flex-1 flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all"
-          :class="runpodEndpoint === 'full'
-            ? 'bg-violet-50 border-violet-300 ring-1 ring-violet-300'
-            : 'bg-white border-slate-200 hover:border-slate-300'"
-          @click="runpodEndpoint = 'full'"
+        <UButton
+          v-for="ep in [{ key: 'full', label: 'Full', desc: '~40GB image, fast cold start' }, { key: 'slim', label: 'Slim', desc: '~2-3GB image, network volume models' }, { key: 'eu', label: 'EU', desc: 'EU region, lower latency for Europe' }]"
+          :key="ep.key"
+          class="flex-1 justify-start"
+          :variant="runpodEndpoint === ep.key ? 'soft' : 'outline'"
+          :color="runpodEndpoint === ep.key ? 'primary' : 'neutral'"
+          @click="runpodEndpoint = ep.key as any"
         >
-          <div
-            class="w-3 h-3 rounded-full border-2 shrink-0 transition-colors"
-            :class="runpodEndpoint === 'full' ? 'border-violet-500 bg-violet-500' : 'border-slate-300'"
-          />
-          <div>
-            <p class="text-xs font-medium" :class="runpodEndpoint === 'full' ? 'text-violet-700' : 'text-slate-700'">Full</p>
-            <p class="text-[10px]" :class="runpodEndpoint === 'full' ? 'text-violet-500' : 'text-slate-400'">~40GB image, fast cold start</p>
+          <div class="text-left">
+            <p class="text-xs font-medium">{{ ep.label }}</p>
+            <p class="text-[10px] opacity-60">{{ ep.desc }}</p>
           </div>
-        </button>
-        <button
-          class="flex-1 flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all"
-          :class="runpodEndpoint === 'slim'
-            ? 'bg-violet-50 border-violet-300 ring-1 ring-violet-300'
-            : 'bg-white border-slate-200 hover:border-slate-300'"
-          @click="runpodEndpoint = 'slim'"
-        >
-          <div
-            class="w-3 h-3 rounded-full border-2 shrink-0 transition-colors"
-            :class="runpodEndpoint === 'slim' ? 'border-violet-500 bg-violet-500' : 'border-slate-300'"
-          />
-          <div>
-            <p class="text-xs font-medium" :class="runpodEndpoint === 'slim' ? 'text-violet-700' : 'text-slate-700'">Slim</p>
-            <p class="text-[10px]" :class="runpodEndpoint === 'slim' ? 'text-violet-500' : 'text-slate-400'">~2-3GB image, network volume models</p>
-          </div>
-        </button>
-        <button
-          class="flex-1 flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all"
-          :class="runpodEndpoint === 'eu'
-            ? 'bg-violet-50 border-violet-300 ring-1 ring-violet-300'
-            : 'bg-white border-slate-200 hover:border-slate-300'"
-          @click="runpodEndpoint = 'eu'"
-        >
-          <div
-            class="w-3 h-3 rounded-full border-2 shrink-0 transition-colors"
-            :class="runpodEndpoint === 'eu' ? 'border-violet-500 bg-violet-500' : 'border-slate-300'"
-          />
-          <div>
-            <p class="text-xs font-medium" :class="runpodEndpoint === 'eu' ? 'text-violet-700' : 'text-slate-700'">EU</p>
-            <p class="text-[10px]" :class="runpodEndpoint === 'eu' ? 'text-violet-500' : 'text-slate-400'">EU region, lower latency for Europe</p>
-          </div>
-        </button>
+        </UButton>
       </div>
 
       <!-- Custom endpoint URL -->
       <div class="mt-4">
-        <label class="text-xs font-medium text-slate-700 block mb-1.5">Custom Endpoint URL</label>
-        <p class="text-[10px] text-slate-400 mb-2">Override with a direct URL (e.g. a temporary RunPod pod). Leave empty to use the selected endpoint above.</p>
-        <input
-          :value="customEndpoint"
-          @input="(e: Event) => customEndpoint = (e.target as HTMLInputElement).value"
-          type="url"
-          placeholder="https://your-pod-id.proxy.runpod.net/"
-          class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-violet-500/30 font-mono"
-        />
+        <UFormField label="Custom Endpoint URL" description="Override with a direct URL (e.g. a temporary RunPod pod). Leave empty to use the selected endpoint above." size="sm">
+          <UInput v-model="customEndpoint" type="url" placeholder="https://your-pod-id.proxy.runpod.net/" class="w-full font-mono" size="sm" />
+        </UFormField>
         <div v-if="customEndpoint" class="flex items-center gap-1.5 mt-1.5">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           <span class="text-[10px] text-emerald-600">Custom endpoint active</span>
-          <button class="text-[10px] text-slate-400 hover:text-red-500 ml-auto" @click="customEndpoint = ''">Clear</button>
+          <UButton variant="link" color="error" size="xs" @click="customEndpoint = ''">Clear</UButton>
         </div>
       </div>
 
@@ -337,17 +297,9 @@ const totalCustomPresets = computed(() =>
             <p class="text-xs font-medium text-slate-700">Recover Lost Generations</p>
             <p class="text-[10px] text-slate-400">Find and complete any generations that were interrupted (e.g. browser closed during processing)</p>
           </div>
-          <button
-            class="px-4 py-2 rounded-lg text-xs font-medium transition-all"
-            :class="recovering
-              ? 'bg-slate-100 text-slate-400 cursor-wait'
-              : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'"
-            :disabled="recovering"
-            @click="recoverGenerations"
-          >
-            <span v-if="recovering">Scanning...</span>
-            <span v-else>Recover</span>
-          </button>
+          <UButton size="sm" variant="soft" color="warning" :loading="recovering" @click="recoverGenerations">
+            {{ recovering ? 'Scanning...' : 'Recover' }}
+          </UButton>
         </div>
         <!-- Result -->
         <div v-if="recoverResult" class="mt-2 p-3 rounded-lg text-xs" :class="recoverResult.total === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'">
@@ -365,10 +317,10 @@ const totalCustomPresets = computed(() =>
           {{ recoverError }}
         </div>
       </div>
-    </div>
+    </UCard>
 
     <!-- ═══ Projects ═══ -->
-    <div class="glass-card p-6 mb-6">
+    <UCard class="mb-6" variant="outline">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">
           📁 Projects
@@ -415,14 +367,14 @@ const totalCustomPresets = computed(() =>
               title="Rename"
               @click.stop="startRename(proj.id, proj.name)"
             >
-              <UIcon name="i-heroicons-pencil-square" class="w-3 h-3" />
+              <UIcon name="i-lucide-pencil" class="w-3 h-3" />
             </button>
             <button
               class="p-0.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
               title="Delete"
               @click.stop="deleteProject(proj.id)"
             >
-              <UIcon name="i-heroicons-x-mark" class="w-3 h-3" />
+              <UIcon name="i-lucide-x" class="w-3 h-3" />
             </button>
           </div>
         </button>
@@ -441,7 +393,7 @@ const totalCustomPresets = computed(() =>
             :disabled="!newProjectName.trim()"
             @click="handleCreateProject"
           >
-            <UIcon name="i-heroicons-plus" class="w-3.5 h-3.5" />
+            <UIcon name="i-lucide-plus" class="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -607,7 +559,7 @@ const totalCustomPresets = computed(() =>
                 </span>
               </div>
               <UIcon
-                :name="expandedCategory === key ? 'i-heroicons-chevron-up' : 'i-heroicons-chevron-down'"
+                :name="expandedCategory === key ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
                 class="w-4 h-4 text-slate-400"
               />
             </button>
@@ -673,10 +625,10 @@ const totalCustomPresets = computed(() =>
           </div>
         </div>
       </template>
-    </div>
+    </UCard>
 
     <!-- ═══ Persons ═══ -->
-    <div class="glass-card p-6 mb-6">
+    <UCard class="mb-6" variant="outline">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">
           👤 Persons
@@ -781,28 +733,28 @@ or an array:
                 title="Edit"
                 @click="startEditPerson(person)"
               >
-                <UIcon name="i-heroicons-pencil-square" class="w-3.5 h-3.5" />
+                <UIcon name="i-lucide-pencil" class="w-3.5 h-3.5" />
               </button>
               <button
                 class="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                 title="Rename"
                 @click="startRenamePerson(person)"
               >
-                <UIcon name="i-heroicons-tag" class="w-3.5 h-3.5" />
+                <UIcon name="i-lucide-tag" class="w-3.5 h-3.5" />
               </button>
               <button
                 class="p-1 rounded text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
                 title="Duplicate"
                 @click="duplicatePerson(person.id)"
               >
-                <UIcon name="i-heroicons-document-duplicate" class="w-3.5 h-3.5" />
+                <UIcon name="i-lucide-copy" class="w-3.5 h-3.5" />
               </button>
               <button
                 class="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                 title="Delete"
                 @click="deletePersonFn(person.id)"
               >
-                <UIcon name="i-heroicons-x-mark" class="w-3.5 h-3.5" />
+                <UIcon name="i-lucide-x" class="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -832,10 +784,10 @@ or an array:
           </div>
         </div>
       </div>
-    </div>
+    </UCard>
 
     <!-- Danger zone -->
-    <div class="glass-card p-6 border-red-100">
+    <UCard class="border-red-100" variant="outline">
       <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Session</h2>
       <UButton
         color="error"
@@ -844,6 +796,6 @@ or an array:
       >
         Sign Out
       </UButton>
-    </div>
+    </UCard>
   </div>
 </template>

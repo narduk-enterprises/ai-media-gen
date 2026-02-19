@@ -1,15 +1,12 @@
 /**
- * useWebLLM — composable for in-browser LLM inference via WebLLM.
+ * useWebLLM — composable for prompt remixing.
  *
- * Uses WebGPU to run a tiny quantized model entirely in the browser.
- * The model is lazily loaded on first use and cached by the browser.
+ * Strategy: Server-side first (GPU pod with Qwen2.5-3B-Instruct), with
+ * optional in-browser WebLLM fallback via WebGPU.
  *
- * IMPORTANT: This composable must be client-only. The @mlc-ai/web-llm package
- * uses browser/WebGPU APIs that don't exist in Cloudflare Workers (SSR).
- *
- * Model files are fetched through /api/hf-proxy/ to bypass HuggingFace's
- * restrictive CORS policy (they only allow requests from huggingface.co).
- * We intercept fetch() calls to redirect HuggingFace URLs through the proxy.
+ * The server-side approach is faster (~2-5s), produces better results (3B model
+ * on a full GPU), and works in all browsers. The browser fallback is kept for
+ * offline use or when the server is unavailable.
  */
 
 const MODEL_ID = 'Hermes-3-Llama-3.2-3B-q4f16_1-MLC'
@@ -52,17 +49,18 @@ export function useWebLLM() {
   // On the server, return inert values — web-llm can only run in the browser
   if (import.meta.server) {
     return {
-      isSupported: computed(() => false),
-      loadProgress: readonly(ref(0)),
+      isSupported: computed(() => true), // server-side remix is always available
+      loadProgress: readonly(ref(100)),
       loadingModel: readonly(ref(false)),
       error: readonly(ref('')),
-      remixPrompt: async (_prompt: string) => {
-        throw new Error('WebLLM is only available in the browser')
+      remixPrompt: async (prompt: string) => {
+        // Shouldn't be called during SSR, but handle gracefully
+        throw new Error('Remix is only available on the client')
       },
     }
   }
 
-  const loadProgress = ref(0)
+  const loadProgress = ref(100) // Server remix needs no loading
   const loadingModel = ref(false)
   const error = ref('')
 
@@ -72,10 +70,28 @@ export function useWebLLM() {
     webGpuAvailable.value = typeof navigator !== 'undefined' && 'gpu' in navigator
   })
 
-  const isSupported = computed(() => webGpuAvailable.value)
+  // Server remix is always supported; WebGPU is a bonus
+  const isSupported = computed(() => true)
 
   /**
-   * Ensure the engine is loaded. Lazily initializes on first call.
+   * Remix via the server-side GPU LLM (fast, high quality).
+   */
+  async function remixPromptServer(prompt: string): Promise<string> {
+    const response = await $fetch<{ prompts: string[]; elapsed: number }>('/api/generate/remix', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'fetch' },
+      body: { prompt, count: 1 },
+    })
+
+    if (!response?.prompts?.[0]) {
+      throw new Error('No prompt returned from server remix')
+    }
+
+    return response.prompts[0]
+  }
+
+  /**
+   * Ensure the browser engine is loaded. Lazily initializes on first call.
    * Returns true if ready, false if failed.
    */
   async function ensureEngine(): Promise<boolean> {
@@ -124,10 +140,10 @@ export function useWebLLM() {
   }
 
   /**
-   * Generate a creative remix of the given prompt using the in-browser LLM.
+   * Remix via the in-browser WebLLM (fallback).
    */
-  async function remixPrompt(prompt: string): Promise<string> {
-    if (!isSupported.value) {
+  async function remixPromptBrowser(prompt: string): Promise<string> {
+    if (!webGpuAvailable.value) {
       throw new Error('WebGPU is not supported in this browser')
     }
 
@@ -151,6 +167,22 @@ export function useWebLLM() {
     }
 
     return result
+  }
+
+  /**
+   * Generate a creative remix of the given prompt.
+   * Tries server-side first (GPU LLM), falls back to in-browser WebLLM.
+   */
+  async function remixPrompt(prompt: string): Promise<string> {
+    // Try server-side first — faster and better quality
+    try {
+      return await remixPromptServer(prompt)
+    } catch (serverError: any) {
+      console.warn('[Remix] Server-side failed, falling back to browser:', serverError.message)
+    }
+
+    // Fall back to browser-based WebLLM
+    return await remixPromptBrowser(prompt)
   }
 
   return {

@@ -13,7 +13,6 @@ import {
   type AttributeKey,
 } from '~/utils/promptBuilder'
 import type { TabsItem } from '@nuxt/ui'
-import type { Scene } from '~/composables/useScenes'
 
 definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Create' })
@@ -151,9 +150,7 @@ function clearAllFreeAttrs() {
 async function generateFree(append = false) {
   if (!canGenerateFree.value) return
   const prompts: string[] = []
-  for (let i = 0; i < freeCount.value; i++) {
-    prompts.push(freePromptPreview.value)
-  }
+  for (let i = 0; i < freeCount.value; i++) prompts.push(freePromptPreview.value)
   await gen.generate({
     prompts,
     negativePrompt: negativePrompt.value,
@@ -165,13 +162,11 @@ async function generateFree(append = false) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// MODE 3: Batch (JSON upload)
+// MODE 3: Batch (JSON)
 // ═══════════════════════════════════════════════════════════════════════
 
 const batchPrompts = ref<string[]>([])
 const batchCountPerPrompt = ref(1)
-const batchFileError = ref('')
-const batchJsonInput = ref('')
 
 const batchExpandedPrompts = computed(() => {
   const out: string[] = []
@@ -183,72 +178,6 @@ const batchExpandedPrompts = computed(() => {
 
 const batchTotal = computed(() => batchExpandedPrompts.value.length)
 const canGenerateBatch = computed(() => batchPrompts.value.length > 0 && batchTotal.value > 0)
-
-function parseBatchJson(raw: string): string[] | null {
-  try {
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed)) {
-      const prompts: string[] = []
-      for (const item of parsed) {
-        if (typeof item === 'string' && item.trim()) {
-          prompts.push(item.trim())
-        } else if (typeof item === 'object' && item !== null && typeof item.prompt === 'string' && item.prompt.trim()) {
-          prompts.push(item.prompt.trim())
-        }
-      }
-      return prompts.length > 0 ? prompts : null
-    }
-    return null
-  } catch {
-    return null
-  }
-}
-
-function handleBatchFileUpload(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  batchFileError.value = ''
-
-  const reader = new FileReader()
-  reader.onload = () => {
-    const text = reader.result as string
-    const prompts = parseBatchJson(text)
-    if (prompts) {
-      batchPrompts.value = prompts
-      batchJsonInput.value = text
-      batchFileError.value = ''
-    } else {
-      batchFileError.value = 'Invalid JSON. Expected an array of strings or objects with a "prompt" field.'
-    }
-  }
-  reader.onerror = () => { batchFileError.value = 'Failed to read file' }
-  reader.readAsText(file)
-  input.value = ''
-}
-
-function handleBatchPaste() {
-  const raw = batchJsonInput.value.trim()
-  if (!raw) return
-  batchFileError.value = ''
-  const prompts = parseBatchJson(raw)
-  if (prompts) {
-    batchPrompts.value = prompts
-    batchFileError.value = ''
-  } else {
-    batchFileError.value = 'Invalid JSON. Expected an array of strings or objects with a "prompt" field.'
-  }
-}
-
-function clearBatch() {
-  batchPrompts.value = []
-  batchJsonInput.value = ''
-  batchFileError.value = ''
-}
-
-function removeBatchPrompt(index: number) {
-  batchPrompts.value = batchPrompts.value.filter((_, i) => i !== index)
-}
 
 async function generateBatch() {
   if (!canGenerateBatch.value) return
@@ -272,14 +201,6 @@ const t2vCount = ref(1)
 const t2vSteps = ref(4)
 const t2vResolutionIndex = ref(0)
 
-const t2vDurationPresets = [
-  { label: '~1.7s', value: 41, description: 'Quick' },
-  { label: '~3.4s', value: 81, description: 'Standard' },
-  { label: '~5s', value: 121, description: 'Long' },
-  { label: '~6.7s', value: 161, description: 'Extended' },
-  { label: '~8.4s', value: 201, description: 'Maximum' },
-]
-
 const t2vResolutionPresets = [
   { label: '640 × 640', w: 640, h: 640 },
   { label: '512 × 512', w: 512, h: 512 },
@@ -293,25 +214,16 @@ const t2vCurrentResolution = computed(() => t2vResolutionPresets[t2vResolutionIn
 const t2vTotal = computed(() => t2vNumFrames.value.length * t2vCount.value)
 const canGenerateT2V = computed(() => t2vPrompt.value.trim().length > 0)
 
-function toggleT2VDuration(value: number) {
-  if (t2vNumFrames.value.includes(value)) {
-    if (t2vNumFrames.value.length > 1) t2vNumFrames.value = t2vNumFrames.value.filter(v => v !== value)
-  } else {
-    t2vNumFrames.value = [...t2vNumFrames.value, value]
-  }
-}
-
-function toggleBVDuration(value: number) {
-  if (bvNumFrames.value.includes(value)) {
-    if (bvNumFrames.value.length > 1) bvNumFrames.value = bvNumFrames.value.filter(v => v !== value)
-  } else {
-    bvNumFrames.value = [...bvNumFrames.value, value]
-  }
-}
+const durationPresets = [
+  { label: '~1.7s', value: 41, description: 'Quick' },
+  { label: '~3.4s', value: 81, description: 'Standard' },
+  { label: '~5s', value: 121, description: 'Long' },
+  { label: '~6.7s', value: 161, description: 'Extended' },
+  { label: '~8.4s', value: 201, description: 'Maximum' },
+]
 
 async function generateText2Video() {
   if (!canGenerateT2V.value) return
-  // Expand durations by count: [81] with count=2 → [81, 81]
   const expandedFrames: number[] = []
   for (const nf of t2vNumFrames.value) {
     for (let i = 0; i < t2vCount.value; i++) expandedFrames.push(nf)
@@ -331,8 +243,6 @@ async function generateText2Video() {
 // ═══════════════════════════════════════════════════════════════════════
 
 const bvPrompts = ref<string[]>([])
-const bvJsonInput = ref('')
-const bvFileError = ref('')
 const bvNumFrames = ref<number[]>([81])
 const bvSteps = ref(4)
 const bvResolutionIndex = ref(0)
@@ -341,52 +251,6 @@ const bvNegativePrompt = ref('')
 const bvCurrentResolution = computed(() => t2vResolutionPresets[bvResolutionIndex.value]!)
 const bvTotal = computed(() => bvPrompts.value.length * bvNumFrames.value.length)
 const canGenerateBV = computed(() => bvPrompts.value.length > 0)
-
-function handleBvFileUpload(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  bvFileError.value = ''
-
-  const reader = new FileReader()
-  reader.onload = () => {
-    const text = reader.result as string
-    const prompts = parseBatchJson(text)
-    if (prompts) {
-      bvPrompts.value = prompts
-      bvJsonInput.value = text
-      bvFileError.value = ''
-    } else {
-      bvFileError.value = 'Invalid JSON. Expected an array of strings or objects with a "prompt" field.'
-    }
-  }
-  reader.onerror = () => { bvFileError.value = 'Failed to read file' }
-  reader.readAsText(file)
-  input.value = ''
-}
-
-function handleBvPaste() {
-  const raw = bvJsonInput.value.trim()
-  if (!raw) return
-  bvFileError.value = ''
-  const prompts = parseBatchJson(raw)
-  if (prompts) {
-    bvPrompts.value = prompts
-    bvFileError.value = ''
-  } else {
-    bvFileError.value = 'Invalid JSON. Expected an array of strings or objects with a "prompt" field.'
-  }
-}
-
-function clearBv() {
-  bvPrompts.value = []
-  bvJsonInput.value = ''
-  bvFileError.value = ''
-}
-
-function removeBvPrompt(index: number) {
-  bvPrompts.value = bvPrompts.value.filter((_, i) => i !== index)
-}
 
 async function generateBatchVideo() {
   if (!canGenerateBV.value) return
@@ -398,46 +262,6 @@ async function generateBatchVideo() {
     width: bvCurrentResolution.value.w,
     height: bvCurrentResolution.value.h,
   })
-}
-
-// ─── AI prompt remix ────────────────────────────────────────────────────
-const { isSupported: webGpuSupported, loadProgress, loadingModel, remixPrompt } = useWebLLM()
-const remixing = ref(false)
-
-async function remixBasePrompt() {
-  if (!basePrompt.value.trim()) return
-  remixing.value = true
-  try {
-    basePrompt.value = await remixPrompt(basePrompt.value)
-  } catch (e: any) {
-    gen.error.value = e.message || 'Prompt remix failed'
-  } finally {
-    remixing.value = false
-  }
-}
-
-async function remixFreePrompt() {
-  if (!freePrompt.value.trim()) return
-  remixing.value = true
-  try {
-    freePrompt.value = await remixPrompt(freePrompt.value)
-  } catch (e: any) {
-    gen.error.value = e.message || 'Prompt remix failed'
-  } finally {
-    remixing.value = false
-  }
-}
-
-async function remixT2VPrompt() {
-  if (!t2vPrompt.value.trim()) return
-  remixing.value = true
-  try {
-    t2vPrompt.value = await remixPrompt(t2vPrompt.value)
-  } catch (e: any) {
-    gen.error.value = e.message || 'Prompt remix failed'
-  } finally {
-    remixing.value = false
-  }
 }
 
 // ─── Shared: can generate / generate ────────────────────────────────────
@@ -493,26 +317,13 @@ function openLightbox(index: number) {
   lightboxOpen.value = true
 }
 
-function closeLightbox() { lightboxOpen.value = false }
-
-function lightboxNext() {
-  if (lightboxIndex.value < gen.completedMedia.value.length - 1) lightboxIndex.value++
-}
-function lightboxPrev() {
-  if (lightboxIndex.value > 0) lightboxIndex.value--
-}
-
-const currentItem = computed(() => gen.completedMedia.value[lightboxIndex.value] ?? null)
-
-function handleKeydown(e: KeyboardEvent) {
-  if (!lightboxOpen.value) return
-  if (e.key === 'ArrowRight') lightboxNext()
-  else if (e.key === 'ArrowLeft') lightboxPrev()
-  else if (e.key === 'Escape') closeLightbox()
-}
-
-onMounted(() => { if (import.meta.client) window.addEventListener('keydown', handleKeydown) })
-onUnmounted(() => { if (import.meta.client) window.removeEventListener('keydown', handleKeydown) })
+const lightboxItems = computed(() =>
+  gen.completedMedia.value.map(m => ({
+    id: m.id,
+    url: m.url!,
+    type: m.type,
+  }))
+)
 
 // ─── Persist form ───────────────────────────────────────────────────────
 const FORM_KEY = 'ai-media-gen:create-form'
@@ -599,8 +410,6 @@ function resetForm() {
   freeCount.value = 1
   batchPrompts.value = []
   batchCountPerPrompt.value = 1
-  batchJsonInput.value = ''
-  batchFileError.value = ''
   steps.value = 20
   imageWidth.value = 1024
   imageHeight.value = 1024
@@ -613,8 +422,6 @@ function resetForm() {
   t2vSteps.value = 4
   t2vResolutionIndex.value = 0
   bvPrompts.value = []
-  bvJsonInput.value = ''
-  bvFileError.value = ''
   bvNumFrames.value = [81]
   bvSteps.value = 4
   bvResolutionIndex.value = 0
@@ -633,7 +440,7 @@ function personSummary(person: { name: string; description?: string; [key: strin
   return parts.join(' · ') || 'No details yet'
 }
 
-function sceneSummary(scene: Scene): string {
+function sceneSummary(scene: any): string {
   const parts: string[] = []
   for (const key of sceneAttributeKeys) {
     if (scene[key]?.trim()) {
@@ -663,13 +470,7 @@ const gridClass = computed(() => {
         </h1>
         <p class="text-sm text-slate-500">{{ isVideoMode ? (mode === 'batchvideo' ? 'Generate multiple videos from a batch of prompts.' : 'Create videos from text prompts.') : 'Build prompts and generate images in batches.' }}</p>
       </div>
-      <UButton
-        variant="outline"
-        color="neutral"
-        size="xs"
-        icon="i-lucide-rotate-ccw"
-        @click="resetForm"
-      >
+      <UButton variant="outline" color="neutral" size="xs" icon="i-lucide-rotate-ccw" @click="resetForm">
         Start Over
       </UButton>
     </div>
@@ -710,17 +511,13 @@ const gridClass = computed(() => {
           <section>
             <div class="flex items-center justify-between mb-3">
               <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Persona</h2>
-              <UButton to="/personas" variant="link" size="xs" trailing-icon="i-lucide-arrow-right">
-                Manage
-              </UButton>
+              <UButton to="/personas" variant="link" size="xs" trailing-icon="i-lucide-arrow-right">Manage</UButton>
             </div>
             <div class="overflow-x-auto pb-2">
               <div class="inline-flex gap-3">
                 <button
                   class="shrink-0 w-44 p-3 rounded-xl border-2 text-left transition-all"
-                  :class="activePersonId === null
-                    ? 'ring-2 ring-violet-400 border-violet-200 bg-violet-50/70'
-                    : 'border-slate-200 bg-white hover:border-slate-300'"
+                  :class="activePersonId === null ? 'ring-2 ring-violet-400 border-violet-200 bg-violet-50/70' : 'border-slate-200 bg-white hover:border-slate-300'"
                   @click="activePersonId = null"
                 >
                   <div class="flex items-center gap-2">
@@ -733,18 +530,13 @@ const gridClass = computed(() => {
                   v-for="person in persons"
                   :key="person.id"
                   class="shrink-0 w-52 p-3 rounded-xl border-2 text-left transition-all"
-                  :class="activePersonId === person.id
-                    ? 'ring-2 ring-violet-400 border-violet-200 bg-violet-50/70'
-                    : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'"
+                  :class="activePersonId === person.id ? 'ring-2 ring-violet-400 border-violet-200 bg-violet-50/70' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'"
                   @click="activePersonId = person.id"
                 >
                   <div class="flex items-center gap-2.5 mb-1.5">
-                    <div
-                      class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
                       :class="activePersonId === person.id ? 'bg-violet-200 text-violet-700' : 'bg-slate-100 text-slate-500'"
-                    >
-                      {{ person.name.charAt(0).toUpperCase() }}
-                    </div>
+                    >{{ person.name.charAt(0).toUpperCase() }}</div>
                     <span class="font-medium text-sm text-slate-700 truncate">{{ person.name }}</span>
                   </div>
                   <p class="text-[10px] text-slate-400 line-clamp-2 pl-[42px]">{{ personSummary(person) }}</p>
@@ -760,20 +552,11 @@ const gridClass = computed(() => {
                 <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   Scenes <span class="text-slate-400 font-normal normal-case tracking-normal">(select one or more)</span>
                 </h2>
-                <UButton
-                  v-if="selectedSceneIds.length > 0"
-                  variant="ghost"
-                  color="error"
-                  size="xs"
-                  icon="i-lucide-x"
-                  @click="selectedSceneIds = []"
-                >
+                <UButton v-if="selectedSceneIds.length > 0" variant="ghost" color="error" size="xs" icon="i-lucide-x" @click="selectedSceneIds = []">
                   Clear {{ selectedSceneIds.length }}
                 </UButton>
               </div>
-              <UButton to="/personas" variant="link" size="xs" trailing-icon="i-lucide-arrow-right">
-                Manage
-              </UButton>
+              <UButton to="/personas" variant="link" size="xs" trailing-icon="i-lucide-arrow-right">Manage</UButton>
             </div>
             <div class="overflow-x-auto pb-2">
               <div class="inline-flex gap-3">
@@ -781,18 +564,13 @@ const gridClass = computed(() => {
                   v-for="scene in scenes"
                   :key="scene.id"
                   class="shrink-0 w-52 p-3 rounded-xl border-2 text-left transition-all"
-                  :class="selectedSceneIds.includes(scene.id)
-                    ? 'ring-2 ring-cyan-400 border-cyan-200 bg-cyan-50/70'
-                    : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'"
+                  :class="selectedSceneIds.includes(scene.id) ? 'ring-2 ring-cyan-400 border-cyan-200 bg-cyan-50/70' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'"
                   @click="toggleScene(scene.id)"
                 >
                   <div class="flex items-center gap-2.5 mb-1.5">
-                    <div
-                      class="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0"
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0"
                       :class="selectedSceneIds.includes(scene.id) ? 'bg-cyan-200 text-cyan-700' : 'bg-slate-100 text-slate-500'"
-                    >
-                      {{ attributeLabels.scene.emoji }}
-                    </div>
+                    >{{ attributeLabels.scene.emoji }}</div>
                     <span class="font-medium text-sm text-slate-700 truncate">{{ scene.name }}</span>
                   </div>
                   <p class="text-[10px] text-slate-400 line-clamp-2 pl-[42px]">{{ sceneSummary(scene) }}</p>
@@ -809,23 +587,12 @@ const gridClass = computed(() => {
           </section>
 
           <!-- Per-scene count -->
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-slate-500 font-medium">Per scene</span>
-            <UButton
-              v-for="n in [1, 2, 4]"
-              :key="n"
-              size="xs"
-              :variant="countPerScene === n ? 'soft' : 'outline'"
-              :color="countPerScene === n ? 'primary' : 'neutral'"
-              @click="countPerScene = n"
-            >
-              {{ n }}
-            </UButton>
+          <CountSelector v-model="countPerScene" label="Per scene" :options="[1, 2, 4]">
             <p v-if="scenePayloads.length > 0" class="text-xs text-slate-500 ml-auto">
               {{ scenePayloads.length }} scene(s) × {{ countPerScene }} =
               <strong>{{ personaTotal }} image{{ personaTotal !== 1 ? 's' : '' }}</strong>
             </p>
-          </div>
+          </CountSelector>
 
           <!-- Base prompt override -->
           <div>
@@ -833,40 +600,22 @@ const gridClass = computed(() => {
               {{ showBasePrompt ? 'Hide' : 'Show' }} base prompt
             </UButton>
             <div v-if="showBasePrompt" class="mt-2 space-y-2">
-              <UTextarea
-                v-model="basePrompt"
-                placeholder="e.g. beautiful high-quality photograph of"
-                :rows="2"
-                autoresize
-                :disabled="gen.generating.value"
-                class="w-full"
-              />
-              <div class="flex items-center gap-2 flex-wrap">
-                <UButton
-                  v-if="webGpuSupported"
-                  size="xs"
-                  :variant="remixing || loadingModel ? 'soft' : 'outline'"
-                  :color="remixing || loadingModel ? 'primary' : 'neutral'"
-                  icon="i-lucide-sparkles"
-                  :loading="remixing || loadingModel"
-                  :disabled="!basePrompt.trim() || gen.generating.value"
-                  @click="remixBasePrompt"
-                >
-                  {{ loadingModel ? `AI (${loadProgress}%)` : 'AI Remix' }}
-                </UButton>
-                <template v-if="presetConfig.basePrompts.length > 0">
-                  <UButton
-                    v-for="bp in presetConfig.basePrompts.slice(0, 5)"
-                    :key="bp"
-                    size="xs"
-                    variant="outline"
-                    color="neutral"
-                    @click="basePrompt = bp"
-                  >
-                    {{ bp.length > 35 ? bp.slice(0, 35) + '…' : bp }}
-                  </UButton>
+              <PromptInput v-model="basePrompt" label="Base Prompt" placeholder="e.g. beautiful high-quality photograph of" :disabled="gen.generating.value">
+                <template #actions>
+                  <template v-if="presetConfig.basePrompts.length > 0">
+                    <UButton
+                      v-for="bp in presetConfig.basePrompts.slice(0, 5)"
+                      :key="bp"
+                      size="xs"
+                      variant="outline"
+                      color="neutral"
+                      @click="basePrompt = bp"
+                    >
+                      {{ bp.length > 35 ? bp.slice(0, 35) + '…' : bp }}
+                    </UButton>
+                  </template>
                 </template>
-              </div>
+              </PromptInput>
             </div>
           </div>
 
@@ -886,85 +635,30 @@ const gridClass = computed(() => {
       <!-- Free Build mode -->
       <template #free>
         <div class="space-y-6 pt-4">
-          <!-- Prompt -->
-          <UFormField label="Prompt" size="lg">
-            <UTextarea
-              v-model="freePrompt"
-              placeholder="Describe what you want to generate..."
-              :rows="3"
-              autoresize
-              :disabled="gen.generating.value"
-              class="w-full"
-            />
-            <template #hint>
-              <UButton
-                v-if="webGpuSupported"
-                size="xs"
-                :variant="remixing || loadingModel ? 'soft' : 'outline'"
-                :color="remixing || loadingModel ? 'primary' : 'neutral'"
-                icon="i-lucide-sparkles"
-                :loading="remixing || loadingModel"
-                :disabled="!freePrompt.trim() || gen.generating.value"
-                @click="remixFreePrompt"
-              >
-                {{ loadingModel ? `AI (${loadProgress}%)` : 'AI Remix' }}
-              </UButton>
-            </template>
-          </UFormField>
+          <PromptInput v-model="freePrompt" :disabled="gen.generating.value" />
 
           <!-- Attributes -->
           <section>
             <div class="flex items-center justify-between mb-3">
               <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Attributes</h2>
               <div class="flex gap-2">
-                <UButton size="xs" variant="ghost" color="primary" icon="i-lucide-shuffle" @click="randomizeAllFreeAttrs">
-                  Randomize All
-                </UButton>
-                <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="clearAllFreeAttrs">
-                  Clear
-                </UButton>
+                <UButton size="xs" variant="ghost" color="primary" icon="i-lucide-shuffle" @click="randomizeAllFreeAttrs">Randomize All</UButton>
+                <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="clearAllFreeAttrs">Clear</UButton>
               </div>
             </div>
-
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div v-for="key in attributeKeys" :key="key" class="flex items-center gap-2">
                 <label class="text-[11px] text-slate-500 font-medium w-20 shrink-0 flex items-center gap-1">
                   <span>{{ attributeLabels[key].emoji }}</span>
                   <span>{{ attributeLabels[key].label }}</span>
                 </label>
-                <UInput
-                  v-model="freeAttributes[key]"
-                  :placeholder="attributePresets[key][0]"
-                  size="sm"
-                  class="flex-1"
-                  :disabled="gen.generating.value"
-                />
-                <UButton
-                  size="xs"
-                  variant="outline"
-                  color="neutral"
-                  icon="i-lucide-shuffle"
-                  square
-                  @click="randomizeFreeAttr(key)"
-                />
+                <UInput v-model="freeAttributes[key]" :placeholder="attributePresets[key][0]" size="sm" class="flex-1" :disabled="gen.generating.value" />
+                <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-shuffle" square @click="randomizeFreeAttr(key)" />
               </div>
             </div>
           </section>
 
-          <!-- Count -->
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-slate-500 font-medium">Images</span>
-            <UButton
-              v-for="n in [1, 2, 4, 8]"
-              :key="n"
-              size="xs"
-              :variant="freeCount === n ? 'soft' : 'outline'"
-              :color="freeCount === n ? 'primary' : 'neutral'"
-              @click="freeCount = n"
-            >
-              {{ n }}
-            </UButton>
-          </div>
+          <CountSelector v-model="freeCount" label="Images" :options="[1, 2, 4, 8]" />
 
           <!-- Preview -->
           <UCard v-if="freePromptPreview" variant="subtle">
@@ -977,130 +671,22 @@ const gridClass = computed(() => {
       <!-- Batch mode -->
       <template #batch>
         <div class="space-y-6 pt-4">
-          <!-- Upload / Paste -->
-          <section>
-            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Upload Prompts JSON</h2>
-            <div class="space-y-3">
-              <div class="flex items-center gap-3">
-                <label
-                  class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-slate-200 hover:border-violet-300 hover:bg-violet-50/30 cursor-pointer transition-all"
-                >
-                  <UIcon name="i-lucide-upload" class="w-4 h-4 text-slate-400" />
-                  <span class="text-sm text-slate-600 font-medium">Choose JSON file</span>
-                  <input
-                    type="file"
-                    accept=".json,application/json"
-                    class="hidden"
-                    @change="handleBatchFileUpload"
-                  />
-                </label>
-                <span class="text-xs text-slate-400">or paste below</span>
-              </div>
+          <BatchJsonInput v-model:prompts="batchPrompts">
+            <template #badges>
+              <UBadge size="xs" variant="subtle" color="primary">{{ batchTotal }} total image{{ batchTotal !== 1 ? 's' : '' }}</UBadge>
+              <UBadge v-if="batchTotal > gen.MAX_IMAGES_PER_BATCH" size="xs" variant="subtle" color="warning">
+                {{ Math.ceil(batchTotal / gen.MAX_IMAGES_PER_BATCH) }} batches
+              </UBadge>
+            </template>
+          </BatchJsonInput>
 
-              <UTextarea
-                v-model="batchJsonInput"
-                placeholder='["a cat in a spacesuit", "a dog surfing", "sunset over mountains"]'
-                :rows="4"
-                autoresize
-                class="w-full font-mono"
-                size="sm"
-              />
-
-              <div class="flex items-center gap-2">
-                <UButton
-                  size="xs"
-                  variant="soft"
-                  icon="i-lucide-check"
-                  :disabled="!batchJsonInput.trim()"
-                  @click="handleBatchPaste"
-                >
-                  Parse JSON
-                </UButton>
-                <UButton
-                  v-if="batchPrompts.length > 0"
-                  size="xs"
-                  variant="ghost"
-                  color="error"
-                  icon="i-lucide-trash-2"
-                  @click="clearBatch"
-                >
-                  Clear All
-                </UButton>
-              </div>
-
-              <UAlert
-                v-if="batchFileError"
-                color="error"
-                variant="subtle"
-                icon="i-lucide-triangle-alert"
-                :title="batchFileError"
-                :close="true"
-                @update:open="batchFileError = ''"
-              />
-
-              <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
-                <p class="text-[10px] text-slate-500 leading-relaxed">
-                  Accepts an array of strings: <code class="bg-slate-200 px-1 rounded text-[10px]">["prompt 1", "prompt 2"]</code>
-                  <br />
-                  Or objects: <code class="bg-slate-200 px-1 rounded text-[10px]">[{"prompt": "prompt 1"}, {"prompt": "prompt 2"}]</code>
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <!-- Count per prompt -->
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-slate-500 font-medium">Images per prompt</span>
-            <UButton
-              v-for="n in [1, 2, 4]"
-              :key="n"
-              size="xs"
-              :variant="batchCountPerPrompt === n ? 'soft' : 'outline'"
-              :color="batchCountPerPrompt === n ? 'primary' : 'neutral'"
-              @click="batchCountPerPrompt = n"
-            >
-              {{ n }}
-            </UButton>
-          </div>
-
-          <!-- Parsed prompts preview -->
-          <UCard v-if="batchPrompts.length > 0" variant="subtle">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2">
-                <span class="text-[10px] text-slate-500 uppercase tracking-wider font-medium">{{ batchPrompts.length }} prompt{{ batchPrompts.length !== 1 ? 's' : '' }}</span>
-                <UBadge size="xs" variant="subtle" color="primary">
-                  {{ batchTotal }} total image{{ batchTotal !== 1 ? 's' : '' }}
-                </UBadge>
-                <UBadge v-if="batchTotal > gen.MAX_IMAGES_PER_BATCH" size="xs" variant="subtle" color="warning">
-                  {{ Math.ceil(batchTotal / gen.MAX_IMAGES_PER_BATCH) }} batches
-                </UBadge>
-              </div>
-            </div>
-
-            <div class="space-y-1.5 max-h-64 overflow-y-auto">
-              <div
-                v-for="(prompt, i) in batchPrompts"
-                :key="i"
-                class="flex items-start gap-2 group"
-              >
-                <span class="text-[10px] text-slate-400 font-mono w-6 shrink-0 text-right pt-0.5">{{ i + 1 }}</span>
-                <p class="text-xs text-slate-600 leading-relaxed flex-1 line-clamp-2">{{ prompt }}</p>
-                <button
-                  class="p-0.5 rounded text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-                  @click="removeBatchPrompt(i)"
-                >
-                  <UIcon name="i-lucide-x" class="w-3 h-3" />
-                </button>
-              </div>
-            </div>
-          </UCard>
+          <CountSelector v-model="batchCountPerPrompt" label="Images per prompt" :options="[1, 2, 4]" />
 
           <!-- Batch progress -->
           <div v-if="gen.generating.value && gen.batchProgress.value.total > 0" class="flex items-center gap-3 p-3 rounded-lg bg-violet-50 border border-violet-200">
             <div class="w-4 h-4 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin shrink-0" />
             <div class="text-xs text-violet-700">
-              Submitted {{ gen.batchProgress.value.current }} / {{ gen.batchProgress.value.total }} to API.
-              Waiting for results…
+              Submitted {{ gen.batchProgress.value.current }} / {{ gen.batchProgress.value.total }} to API. Waiting for results…
             </div>
           </div>
         </div>
@@ -1109,117 +695,23 @@ const gridClass = computed(() => {
       <!-- Text to Video mode -->
       <template #text2video>
         <div class="space-y-6 pt-4">
-          <!-- Prompt -->
-          <UFormField label="Prompt" size="lg">
-            <UTextarea
-              v-model="t2vPrompt"
-              placeholder="Describe the video you want to generate..."
-              :rows="3"
-              autoresize
-              :disabled="gen.generating.value"
-              class="w-full"
-            />
-            <template #hint>
-              <UButton
-                v-if="webGpuSupported"
-                size="xs"
-                :variant="remixing || loadingModel ? 'soft' : 'outline'"
-                :color="remixing || loadingModel ? 'primary' : 'neutral'"
-                icon="i-lucide-sparkles"
-                :loading="remixing || loadingModel"
-                :disabled="!t2vPrompt.trim() || gen.generating.value"
-                @click="remixT2VPrompt"
-              >
-                {{ loadingModel ? `AI (${loadProgress}%)` : 'AI Remix' }}
-              </UButton>
-            </template>
-          </UFormField>
+          <PromptInput v-model="t2vPrompt" placeholder="Describe the video you want to generate..." :disabled="gen.generating.value" />
 
-          <!-- Negative prompt -->
           <UFormField label="Negative prompt" size="sm">
-            <UTextarea
-              v-model="t2vNegativePrompt"
-              placeholder="Things to avoid (optional)..."
-              :rows="2"
-              autoresize
-              :disabled="gen.generating.value"
-              class="w-full"
-              size="sm"
-            />
+            <UTextarea v-model="t2vNegativePrompt" placeholder="Things to avoid (optional)..." :rows="2" autoresize :disabled="gen.generating.value" class="w-full" size="sm" />
           </UFormField>
 
-          <!-- Duration (multi-select) -->
-          <section>
-            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Duration <span class="text-slate-400 font-normal normal-case tracking-normal">(select one or more)</span></label>
-            <div class="grid grid-cols-5 gap-1.5">
-              <button
-                v-for="preset in t2vDurationPresets"
-                :key="preset.value"
-                class="py-2 px-1 rounded-lg text-center transition-all border"
-                :class="t2vNumFrames.includes(preset.value)
-                  ? 'bg-cyan-50 border-cyan-300 text-cyan-700 ring-1 ring-cyan-200'
-                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'"
-                @click="toggleT2VDuration(preset.value)"
-              >
-                <span class="block text-xs font-semibold">{{ preset.label }}</span>
-                <span class="block text-[9px] mt-0.5 opacity-60">{{ preset.description }}</span>
-              </button>
-            </div>
-            <p class="text-[10px] text-slate-400 mt-1.5">{{ t2vNumFrames.length }} duration{{ t2vNumFrames.length !== 1 ? 's' : '' }} selected</p>
-          </section>
-
-          <!-- Count -->
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-slate-500 font-medium">Videos per duration</span>
-            <UButton
-              v-for="n in [1, 2, 4]"
-              :key="n"
-              size="xs"
-              :variant="t2vCount === n ? 'soft' : 'outline'"
-              :color="t2vCount === n ? 'primary' : 'neutral'"
-              @click="t2vCount = n"
-            >
-              {{ n }}
-            </UButton>
-          </div>
-
-          <!-- Steps -->
-          <section>
-            <div class="flex items-center justify-between mb-2">
-              <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Quality (Steps)</label>
-              <span class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{{ t2vSteps }}</span>
-            </div>
-            <USlider v-model="t2vSteps" :min="1" :max="20" class="w-full" size="xs" />
-            <div class="flex justify-between text-[9px] text-slate-400 mt-1">
-              <span>Faster</span>
-              <span>Higher quality</span>
-            </div>
-          </section>
-
-          <!-- Resolution -->
-          <section>
-            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Resolution</label>
-            <div class="grid grid-cols-3 gap-1.5">
-              <button
-                v-for="(preset, i) in t2vResolutionPresets"
-                :key="i"
-                class="py-1.5 px-2 rounded-lg text-[11px] font-medium text-center transition-all border"
-                :class="t2vResolutionIndex === i
-                  ? 'bg-cyan-50 border-cyan-300 text-cyan-700 ring-1 ring-cyan-200'
-                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'"
-                @click="t2vResolutionIndex = i"
-              >
-                {{ preset.label }}
-              </button>
-            </div>
-          </section>
+          <DurationPicker v-model="t2vNumFrames" :presets="durationPresets" />
+          <CountSelector v-model="t2vCount" label="Videos per duration" :options="[1, 2, 4]" />
+          <StepsSlider v-model="t2vSteps" />
+          <ResolutionPicker v-model="t2vResolutionIndex" :presets="t2vResolutionPresets" />
 
           <!-- Summary -->
           <UCard v-if="t2vPrompt.trim()" variant="subtle">
             <div class="text-[10px] text-slate-500 uppercase tracking-wider font-medium mb-1">Video settings</div>
             <p class="text-xs text-slate-600">
               {{ t2vTotal }} video{{ t2vTotal !== 1 ? 's' : '' }} ({{ t2vNumFrames.length }} duration{{ t2vNumFrames.length !== 1 ? 's' : '' }} × {{ t2vCount }}) ·
-              {{ t2vNumFrames.map(f => t2vDurationPresets.find(p => p.value === f)?.label ?? f + 'f').join(', ') }} ·
+              {{ t2vNumFrames.map(f => durationPresets.find(p => p.value === f)?.label ?? f + 'f').join(', ') }} ·
               {{ t2vSteps }} steps · {{ t2vCurrentResolution.w }}×{{ t2vCurrentResolution.h }}
             </p>
           </UCard>
@@ -1229,178 +721,34 @@ const gridClass = computed(() => {
       <!-- Batch Video mode -->
       <template #batchvideo>
         <div class="space-y-6 pt-4">
-          <!-- Upload / Paste -->
-          <section>
-            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Upload Video Prompts JSON</h2>
-            <div class="space-y-3">
-              <div class="flex items-center gap-3">
-                <label
-                  class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-slate-200 hover:border-cyan-300 hover:bg-cyan-50/30 cursor-pointer transition-all"
-                >
-                  <UIcon name="i-lucide-upload" class="w-4 h-4 text-slate-400" />
-                  <span class="text-sm text-slate-600 font-medium">Choose JSON file</span>
-                  <input
-                    type="file"
-                    accept=".json,application/json"
-                    class="hidden"
-                    @change="handleBvFileUpload"
-                  />
-                </label>
-                <span class="text-xs text-slate-400">or paste below</span>
-              </div>
+          <BatchJsonInput
+            v-model:prompts="bvPrompts"
+            label="Upload Video Prompts JSON"
+            placeholder='["a cat walking through a garden", "ocean waves crashing"]'
+          >
+            <template #hint>
+              <br />Each prompt generates one video. Videos are submitted sequentially and polled in parallel.
+            </template>
+            <template #badges>
+              <UBadge size="xs" variant="subtle" color="info">
+                {{ bvNumFrames.map(f => durationPresets.find(p => p.value === f)?.label ?? f + 'f').join(', ') }} · {{ bvSteps }} steps · {{ bvCurrentResolution.w }}×{{ bvCurrentResolution.h }}
+              </UBadge>
+            </template>
+          </BatchJsonInput>
 
-              <UTextarea
-                v-model="bvJsonInput"
-                placeholder='["a cat walking through a garden", "ocean waves crashing on rocks", "timelapse of a city at night"]'
-                :rows="4"
-                autoresize
-                class="w-full font-mono"
-                size="sm"
-              />
-
-              <div class="flex items-center gap-2">
-                <UButton
-                  size="xs"
-                  variant="soft"
-                  icon="i-lucide-check"
-                  :disabled="!bvJsonInput.trim()"
-                  @click="handleBvPaste"
-                >
-                  Parse JSON
-                </UButton>
-                <UButton
-                  v-if="bvPrompts.length > 0"
-                  size="xs"
-                  variant="ghost"
-                  color="error"
-                  icon="i-lucide-trash-2"
-                  @click="clearBv"
-                >
-                  Clear All
-                </UButton>
-              </div>
-
-              <UAlert
-                v-if="bvFileError"
-                color="error"
-                variant="subtle"
-                icon="i-lucide-triangle-alert"
-                :title="bvFileError"
-                :close="true"
-                @update:open="bvFileError = ''"
-              />
-
-              <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
-                <p class="text-[10px] text-slate-500 leading-relaxed">
-                  Accepts an array of strings: <code class="bg-slate-200 px-1 rounded text-[10px]">["prompt 1", "prompt 2"]</code>
-                  <br />
-                  Or objects: <code class="bg-slate-200 px-1 rounded text-[10px]">[{"prompt": "prompt 1"}, {"prompt": "prompt 2"}]</code>
-                  <br />
-                  Each prompt generates one video. Videos are submitted sequentially and polled in parallel.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <!-- Negative prompt -->
           <UFormField label="Negative prompt" size="sm">
-            <UTextarea
-              v-model="bvNegativePrompt"
-              placeholder="Things to avoid (optional)..."
-              :rows="2"
-              autoresize
-              :disabled="gen.generating.value"
-              class="w-full"
-              size="sm"
-            />
+            <UTextarea v-model="bvNegativePrompt" placeholder="Things to avoid (optional)..." :rows="2" autoresize :disabled="gen.generating.value" class="w-full" size="sm" />
           </UFormField>
 
-          <!-- Duration (multi-select) -->
-          <section>
-            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Duration <span class="text-slate-400 font-normal normal-case tracking-normal">(select one or more)</span></label>
-            <div class="grid grid-cols-5 gap-1.5">
-              <button
-                v-for="preset in t2vDurationPresets"
-                :key="preset.value"
-                class="py-2 px-1 rounded-lg text-center transition-all border"
-                :class="bvNumFrames.includes(preset.value)
-                  ? 'bg-cyan-50 border-cyan-300 text-cyan-700 ring-1 ring-cyan-200'
-                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'"
-                @click="toggleBVDuration(preset.value)"
-              >
-                <span class="block text-xs font-semibold">{{ preset.label }}</span>
-                <span class="block text-[9px] mt-0.5 opacity-60">{{ preset.description }}</span>
-              </button>
-            </div>
-            <p class="text-[10px] text-slate-400 mt-1.5">{{ bvNumFrames.length }} duration{{ bvNumFrames.length !== 1 ? 's' : '' }} selected · {{ bvNumFrames.length }} video{{ bvNumFrames.length !== 1 ? 's' : '' }} per prompt</p>
-          </section>
-
-          <!-- Steps -->
-          <section>
-            <div class="flex items-center justify-between mb-2">
-              <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Quality (Steps)</label>
-              <span class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{{ bvSteps }}</span>
-            </div>
-            <USlider v-model="bvSteps" :min="1" :max="20" class="w-full" size="xs" />
-            <div class="flex justify-between text-[9px] text-slate-400 mt-1">
-              <span>Faster</span>
-              <span>Higher quality</span>
-            </div>
-          </section>
-
-          <!-- Resolution -->
-          <section>
-            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Resolution</label>
-            <div class="grid grid-cols-3 gap-1.5">
-              <button
-                v-for="(preset, i) in t2vResolutionPresets"
-                :key="i"
-                class="py-1.5 px-2 rounded-lg text-[11px] font-medium text-center transition-all border"
-                :class="bvResolutionIndex === i
-                  ? 'bg-cyan-50 border-cyan-300 text-cyan-700 ring-1 ring-cyan-200'
-                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'"
-                @click="bvResolutionIndex = i"
-              >
-                {{ preset.label }}
-              </button>
-            </div>
-          </section>
-
-          <!-- Parsed prompts preview -->
-          <UCard v-if="bvPrompts.length > 0" variant="subtle">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2">
-                <span class="text-[10px] text-slate-500 uppercase tracking-wider font-medium">{{ bvTotal }} video{{ bvTotal !== 1 ? 's' : '' }} ({{ bvPrompts.length }} prompt{{ bvPrompts.length !== 1 ? 's' : '' }} × {{ bvNumFrames.length }} duration{{ bvNumFrames.length !== 1 ? 's' : '' }})</span>
-                <UBadge size="xs" variant="subtle" color="info">
-                  {{ bvNumFrames.map(f => t2vDurationPresets.find(p => p.value === f)?.label ?? f + 'f').join(', ') }} · {{ bvSteps }} steps · {{ bvCurrentResolution.w }}×{{ bvCurrentResolution.h }}
-                </UBadge>
-              </div>
-            </div>
-
-            <div class="space-y-1.5 max-h-64 overflow-y-auto">
-              <div
-                v-for="(prompt, i) in bvPrompts"
-                :key="i"
-                class="flex items-start gap-2 group"
-              >
-                <span class="text-[10px] text-slate-400 font-mono w-6 shrink-0 text-right pt-0.5">{{ i + 1 }}</span>
-                <p class="text-xs text-slate-600 leading-relaxed flex-1 line-clamp-2">{{ prompt }}</p>
-                <button
-                  class="p-0.5 rounded text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-                  @click="removeBvPrompt(i)"
-                >
-                  <UIcon name="i-lucide-x" class="w-3 h-3" />
-                </button>
-              </div>
-            </div>
-          </UCard>
+          <DurationPicker v-model="bvNumFrames" :presets="durationPresets" />
+          <StepsSlider v-model="bvSteps" />
+          <ResolutionPicker v-model="bvResolutionIndex" :presets="t2vResolutionPresets" />
 
           <!-- Batch progress -->
           <div v-if="gen.generating.value && gen.batchProgress.value.total > 0" class="flex items-center gap-3 p-3 rounded-lg bg-cyan-50 border border-cyan-200">
             <div class="w-4 h-4 border-2 border-cyan-300 border-t-cyan-600 rounded-full animate-spin shrink-0" />
             <div class="text-xs text-cyan-700">
-              Submitted {{ gen.batchProgress.value.current }} / {{ gen.batchProgress.value.total }} videos to API.
-              Waiting for results…
+              Submitted {{ gen.batchProgress.value.current }} / {{ gen.batchProgress.value.total }} videos to API. Waiting for results…
             </div>
           </div>
         </div>
@@ -1431,15 +779,7 @@ const gridClass = computed(() => {
       </div>
 
       <div v-if="showAdvanced" class="mt-3 pt-3 border-t border-slate-100">
-        <UTextarea
-          v-model="negativePrompt"
-          placeholder="Things to avoid..."
-          :rows="2"
-          autoresize
-          size="sm"
-          :disabled="gen.generating.value"
-          class="w-full"
-        />
+        <UTextarea v-model="negativePrompt" placeholder="Things to avoid..." :rows="2" autoresize size="sm" :disabled="gen.generating.value" class="w-full" />
       </div>
     </UCard>
 
@@ -1447,28 +787,17 @@ const gridClass = computed(() => {
     <div class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 py-3 px-4 z-10">
       <div class="max-w-4xl mx-auto flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
-          <UButton variant="outline" color="neutral" size="sm" icon="i-lucide-rotate-ccw" @click="resetForm">
-            Start Over
-          </UButton>
-          <UButton
-            v-if="gen.results.value.length > 0"
-            variant="ghost"
-            color="error"
-            size="sm"
-            icon="i-lucide-trash-2"
-            @click="gen.clearResults()"
-          >
-            Clear Results
-          </UButton>
+          <UButton variant="outline" color="neutral" size="sm" icon="i-lucide-rotate-ccw" @click="resetForm">Start Over</UButton>
+          <UButton v-if="gen.results.value.length > 0" variant="ghost" color="error" size="sm" icon="i-lucide-trash-2" @click="gen.clearResults()">Clear Results</UButton>
         </div>
         <UButton
-          :loading="gen.submitting.value"
-          :disabled="!canGenerate || gen.submitting.value"
+          :loading="gen.generating.value"
+          :disabled="!canGenerate"
           size="lg"
           :icon="isVideoMode ? 'i-lucide-film' : 'i-lucide-sparkles'"
           @click="handleGenerate(false)"
         >
-          {{ canGenerate ? (isVideoMode ? `Generate ${totalForButton()} Video${totalForButton() !== 1 ? 's' : ''}` : `Generate ${totalForButton()} Image${totalForButton() !== 1 ? 's' : ''}`) : 'Configure above' }}
+          {{ gen.generating.value ? 'Generating…' : (canGenerate ? (isVideoMode ? `Generate ${totalForButton()} Video${totalForButton() !== 1 ? 's' : ''}` : `Generate ${totalForButton()} Image${totalForButton() !== 1 ? 's' : ''}`) : 'Configure above') }}
         </UButton>
       </div>
     </div>
@@ -1494,18 +823,8 @@ const gridClass = computed(() => {
           </div>
         </div>
         <div class="flex gap-2">
-          <UButton
-            v-if="!gen.generating.value && canGenerate"
-            variant="soft"
-            size="xs"
-            icon="i-lucide-plus"
-            @click="handleGenerate(true)"
-          >
-            More
-          </UButton>
-          <UButton variant="ghost" color="neutral" size="xs" icon="i-lucide-x" @click="gen.clearResults()">
-            Clear
-          </UButton>
+          <UButton v-if="!gen.generating.value && canGenerate" variant="soft" size="xs" icon="i-lucide-plus" @click="handleGenerate(true)">More</UButton>
+          <UButton variant="ghost" color="neutral" size="xs" icon="i-lucide-x" @click="gen.clearResults()">Clear</UButton>
         </div>
       </div>
 
@@ -1519,79 +838,16 @@ const gridClass = computed(() => {
 
       <!-- Grid -->
       <div :class="['grid gap-3', gridClass]">
-        <div
+        <MediaResultCard
           v-for="(item, index) in gen.results.value"
           :key="item.id"
-          class="group relative"
-        >
-          <!-- Completed image -->
-          <div
-            v-if="item.url && item.status === 'complete' && item.type === 'image'"
-            class="relative aspect-square rounded-xl overflow-hidden border border-slate-200 hover:border-violet-300 transition-all cursor-pointer shadow-sm hover:shadow-md"
-            @click="openLightbox(gen.completedMedia.value.findIndex(i => i.id === item.id))"
-          >
-            <NuxtImg :src="item.url" alt="Generated" width="512" class="w-full h-full object-cover" loading="lazy" />
-            <div class="absolute inset-0 bg-linear-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
-            <div class="absolute bottom-0 left-0 right-0 p-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              <UButton
-                size="xs"
-                variant="soft"
-                color="neutral"
-                icon="i-lucide-film"
-                class="flex-1 backdrop-blur-sm"
-                :loading="gen.actionLoading.value[`video-${item.id}`]"
-                @click.stop="openVideoModal(item.id)"
-              >
-                Video
-              </UButton>
-              <UButton
-                size="xs"
-                variant="soft"
-                color="neutral"
-                icon="i-lucide-music"
-                class="flex-1 backdrop-blur-sm"
-                :loading="gen.actionLoading.value[`audio-${item.id}`]"
-                @click.stop="gen.makeAudio(item.id, freePrompt || basePrompt)"
-              >
-                Audio
-              </UButton>
-            </div>
-            <UBadge size="xs" variant="subtle" color="neutral" class="absolute top-2 left-2">
-              {{ index + 1 }}
-            </UBadge>
-          </div>
-
-          <!-- Completed video -->
-          <div
-            v-else-if="item.url && item.status === 'complete' && item.type === 'video'"
-            class="relative aspect-square rounded-xl overflow-hidden border border-cyan-200 hover:border-cyan-400 transition-all cursor-pointer shadow-sm hover:shadow-md bg-slate-900"
-            @click="openLightbox(gen.completedMedia.value.findIndex(i => i.id === item.id))"
-          >
-            <video
-              :src="item.url"
-              class="w-full h-full object-cover"
-              muted loop playsinline
-              @mouseenter="($event.target as HTMLVideoElement).play()"
-              @mouseleave="($event.target as HTMLVideoElement).pause()"
-            />
-            <div class="absolute top-2 left-2 flex items-center gap-1.5">
-              <UBadge size="xs" variant="subtle" color="neutral">{{ index + 1 }}</UBadge>
-              <UBadge size="xs" variant="soft" color="info" icon="i-lucide-film">Video</UBadge>
-            </div>
-          </div>
-
-          <!-- Failed -->
-          <div v-else-if="item.status === 'failed'" class="aspect-square rounded-xl border border-red-200 bg-red-50/50 flex flex-col items-center justify-center gap-2">
-            <UIcon name="i-lucide-circle-x" class="w-6 h-6 text-red-300" />
-            <p class="text-[10px] text-red-400 font-medium">Failed</p>
-          </div>
-
-          <!-- Loading -->
-          <div v-else class="aspect-square rounded-xl border border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-2">
-            <div class="w-6 h-6 border-2 border-violet-200 border-t-violet-500 rounded-full animate-spin" />
-            <p class="text-[10px] text-slate-400">{{ item.type === 'video' ? 'Generating video…' : 'Generating…' }}</p>
-          </div>
-        </div>
+          :item="item"
+          :index="index"
+          :action-loading="gen.actionLoading.value"
+          @click="openLightbox(gen.completedMedia.value.findIndex(i => i.id === item.id))"
+          @video="openVideoModal"
+          @audio="gen.makeAudio($event, freePrompt || basePrompt)"
+        />
       </div>
 
       <div v-if="!gen.generating.value && gen.totalDone.value > 0 && canGenerate" class="mt-6 text-center">
@@ -1613,98 +869,20 @@ const gridClass = computed(() => {
   </div>
 
   <!-- ═══ Lightbox ═══ -->
-  <Teleport to="body">
-    <Transition name="fade">
-      <div
-        v-if="lightboxOpen && currentItem"
-        class="fixed inset-0 z-100 flex items-center justify-center bg-black/95 backdrop-blur-md"
-        @click.self="closeLightbox"
-      >
-        <UButton
-          variant="ghost"
-          color="neutral"
-          icon="i-lucide-x"
-          size="lg"
-          class="absolute top-4 right-4 text-white/50 hover:text-white z-10"
-          @click="closeLightbox"
-        />
-
-        <UBadge variant="subtle" color="neutral" class="absolute top-4 left-4">
-          {{ lightboxIndex + 1 }} / {{ gen.completedMedia.value.length }}
-        </UBadge>
-
-        <UButton
-          v-if="lightboxIndex > 0"
-          variant="ghost"
-          color="neutral"
-          icon="i-lucide-chevron-left"
-          size="xl"
-          class="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
-          @click="lightboxPrev"
-        />
-        <UButton
-          v-if="lightboxIndex < gen.completedMedia.value.length - 1"
-          variant="ghost"
-          color="neutral"
-          icon="i-lucide-chevron-right"
-          size="xl"
-          class="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
-          @click="lightboxNext"
-        />
-
-        <div class="max-w-[90vw] max-h-[85vh] relative">
-          <video
-            v-if="currentItem.type === 'video'"
-            :src="currentItem.url!"
-            :key="currentItem.id"
-            class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
-            controls autoplay loop
-          />
-          <img
-            v-else
-            :src="currentItem.url!"
-            :key="currentItem.id"
-            alt="Generated"
-            class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
-          />
-        </div>
-
-        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1.5 rounded-full bg-white/10 backdrop-blur-md">
-          <UButton
-            variant="ghost"
-            size="xs"
-            icon="i-lucide-download"
-            class="text-white/60 hover:text-white"
-            @click="gen.downloadMedia(currentItem.url!, lightboxIndex, currentItem.type)"
-          >
-            Download
-          </UButton>
-          <template v-if="currentItem.type === 'image'">
-            <UButton
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-film"
-              class="text-white/60 hover:text-white"
-              :loading="gen.actionLoading.value[`video-${currentItem.id}`]"
-              @click="openVideoModal(currentItem.id)"
-            >
-              Video
-            </UButton>
-            <UButton
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-music"
-              class="text-white/60 hover:text-white"
-              :loading="gen.actionLoading.value[`audio-${currentItem.id}`]"
-              @click="gen.makeAudio(currentItem.id, freePrompt || basePrompt)"
-            >
-              Audio
-            </UButton>
-          </template>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  <AppLightbox v-model:open="lightboxOpen" v-model:index="lightboxIndex" :items="lightboxItems">
+    <template #toolbar="{ item }">
+      <template v-if="item.type === 'image'">
+        <UButton variant="ghost" size="xs" icon="i-lucide-film" class="text-white/60 hover:text-white"
+          :loading="gen.actionLoading.value[`video-${item.id}`]" @click="openVideoModal(item.id)">
+          Video
+        </UButton>
+        <UButton variant="ghost" size="xs" icon="i-lucide-music" class="text-white/60 hover:text-white"
+          :loading="gen.actionLoading.value[`audio-${item.id}`]" @click="gen.makeAudio(item.id, freePrompt || basePrompt)">
+          Audio
+        </UButton>
+      </template>
+    </template>
+  </AppLightbox>
 
   <!-- Video Settings Modal -->
   <VideoSettingsModal
@@ -1714,14 +892,3 @@ const gridClass = computed(() => {
     @generate="handleVideoGenerate"
   />
 </template>
-
-<style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>
