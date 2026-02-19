@@ -1,6 +1,7 @@
 import { z } from 'zod'
+import { eq } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { resolveApiUrl } from '../../utils/ai'
+import { resolveApiUrl, callRunPodAsync } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
 
 const text2videoSchema = z.object({
@@ -62,6 +63,25 @@ export default defineEventHandler(async (event) => {
   })
 
   console.log(`[T2V] Item queued: ${videoId.slice(0, 8)}`)
+
+  // Immediately submit to RunPod (fire-and-forget — cron is safety net)
+  let submittedJobId: string | null = null
+  try {
+    const meta = { apiUrl, runpodInput: { action: 'text2video', prompt, negative_prompt: negativePrompt, width, height, num_frames: numFrames, steps } }
+    const result = await callRunPodAsync(meta.runpodInput, apiUrl)
+    await db.update(mediaItems)
+      .set({
+        status: 'processing',
+        runpodJobId: result.jobId,
+        submittedAt: new Date().toISOString(),
+        metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl }),
+      })
+      .where(eq(mediaItems.id, videoId))
+    submittedJobId = result.jobId
+    console.log(`[T2V] ✅ Immediately submitted ${videoId.slice(0, 8)} → job ${result.jobId}`)
+  } catch (e: any) {
+    console.warn(`[T2V] ⚠️ Immediate submit failed for ${videoId.slice(0, 8)}, cron will retry:`, e.message)
+  }
 
   return {
     generation: { id: genId, prompt, imageCount: 1, status: 'processing', createdAt: now },

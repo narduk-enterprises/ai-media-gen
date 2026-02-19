@@ -1,6 +1,7 @@
 import { z } from 'zod'
+import { eq } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { resolveApiUrl } from '../../utils/ai'
+import { resolveApiUrl, callRunPodAsync } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
 
 const generateSchema = z.object({
@@ -80,6 +81,25 @@ export default defineEventHandler(async (event) => {
   }
 
   console.log(`[Image] ${count} items queued for generation ${generationId.slice(0, 8)}`)
+
+  // Immediately submit to RunPod (fire-and-forget — cron is safety net)
+  for (const item of items) {
+    try {
+      const meta = JSON.parse(item.metadata!)
+      const result = await callRunPodAsync(meta.runpodInput, meta.apiUrl)
+      await db.update(mediaItems)
+        .set({
+          status: 'processing',
+          runpodJobId: result.jobId,
+          submittedAt: new Date().toISOString(),
+          metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl }),
+        })
+        .where(eq(mediaItems.id, item.id))
+      console.log(`[Image] ✅ Immediately submitted ${item.id.slice(0, 8)} → job ${result.jobId}`)
+    } catch (e: any) {
+      console.warn(`[Image] ⚠️ Immediate submit failed for ${item.id.slice(0, 8)}, cron will retry:`, e.message)
+    }
+  }
 
   return {
     generation: {
