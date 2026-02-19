@@ -14,6 +14,7 @@ const generateSchema = z.object({
   height: z.number().int().min(512).max(2048).default(1024),
   loraStrength: z.number().min(0).max(2).default(1.0),
   model: z.enum(['wan22', 'z_image_turbo']).default('wan22'),
+  seed: z.number().int().default(-1),
   attributes: z.record(z.string()).optional(),
   endpoint: z.string().optional(),
 })
@@ -27,7 +28,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, prompts, negativePrompt, count, steps, width, height, loraStrength, model, attributes, endpoint } = parsed.data
+  const { prompt, prompts, negativePrompt, count, steps, width, height, loraStrength, model, seed, attributes, endpoint } = parsed.data
   const apiUrl = resolveApiUrl(endpoint)
 
   const settings = JSON.stringify({
@@ -35,6 +36,8 @@ export default defineEventHandler(async (event) => {
     steps,
     width,
     height,
+    seed,
+    model,
     attributes: attributes || {},
   })
   const db = useDatabase()
@@ -55,6 +58,8 @@ export default defineEventHandler(async (event) => {
   const items = Array.from({ length: count }, (_, i) => {
     const itemId = crypto.randomUUID()
     const imagePrompt = prompts?.[i] || prompt
+    // Generate unique random seed per image when seed is -1
+    const itemSeed = seed < 0 ? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER) : seed
 
     return {
       id: itemId,
@@ -64,6 +69,7 @@ export default defineEventHandler(async (event) => {
       status: 'queued' as const,
       metadata: JSON.stringify({
         apiUrl,
+        seed: itemSeed,
         runpodInput: {
           action: 'text2image',
           prompt: imagePrompt,
@@ -73,6 +79,7 @@ export default defineEventHandler(async (event) => {
           steps,
           lora_strength: loraStrength,
           model,
+          seed: itemSeed,
         },
       }),
       createdAt: now,

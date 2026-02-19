@@ -42,6 +42,7 @@ const imageWidth = ref(1024)
 const imageHeight = ref(1024)
 const negativePrompt = ref(DEFAULT_NEG)
 const loraStrength = ref(1.0)
+const imageSeed = ref(-1)
 const showAdvanced = ref(false)
 
 const sizeItems = [512, 768, 1024, 1536, 2048].map(v => ({ label: `${v}`, value: v }))
@@ -143,6 +144,7 @@ async function generatePersona(append = false) {
       height: imageHeight.value,
       loraStrength: loraStrength.value,
       model,
+      seed: imageSeed.value,
       append: append || selectedModels.value.indexOf(model) > 0,
     })
   }
@@ -191,6 +193,7 @@ async function generateFree(append = false) {
       height: imageHeight.value,
       loraStrength: loraStrength.value,
       model,
+      seed: imageSeed.value,
       append: append || selectedModels.value.indexOf(model) > 0,
     })
   }
@@ -224,6 +227,7 @@ async function generateBatch() {
     height: imageHeight.value,
     loraStrength: loraStrength.value,
     model: selectedModels.value[0] ?? 'wan22',
+    seed: imageSeed.value,
   })
 }
 
@@ -454,6 +458,7 @@ function persistForm() {
       bvNegativePrompt: bvNegativePrompt.value,
       loraStrength: loraStrength.value,
       selectedModels: selectedModels.value,
+      imageSeed: imageSeed.value,
     }))
   } catch {}
 }
@@ -487,6 +492,7 @@ function restoreForm() {
     if (s.bvNegativePrompt != null) bvNegativePrompt.value = s.bvNegativePrompt
     if (s.loraStrength != null) loraStrength.value = s.loraStrength
     if (Array.isArray(s.selectedModels) && s.selectedModels.length > 0) selectedModels.value = s.selectedModels
+    if (s.imageSeed != null) imageSeed.value = s.imageSeed
   } catch {}
 }
 
@@ -498,7 +504,7 @@ onMounted(() => {
 })
 
 watch(
-  [mode, activePersonId, selectedSceneIds, basePrompt, countPerScene, freePrompt, freeAttributes, freeCount, steps, imageWidth, imageHeight, negativePrompt, loraStrength, selectedModels, t2vPrompt, t2vNegativePrompt, t2vNumFrames, t2vSteps, t2vResolutionIndex, bvNumFrames, bvSteps, bvResolutionIndex, bvNegativePrompt],
+  [mode, activePersonId, selectedSceneIds, basePrompt, countPerScene, freePrompt, freeAttributes, freeCount, steps, imageWidth, imageHeight, negativePrompt, loraStrength, selectedModels, imageSeed, t2vPrompt, t2vNegativePrompt, t2vNumFrames, t2vSteps, t2vResolutionIndex, bvNumFrames, bvSteps, bvResolutionIndex, bvNegativePrompt],
   () => persistForm(),
   { deep: true },
 )
@@ -530,6 +536,7 @@ function resetForm() {
   bvResolutionIndex.value = 0
   bvNegativePrompt.value = ''
   selectedModels.value = ['wan22']
+  imageSeed.value = -1
   gen.clearResults()
   persistForm()
 }
@@ -983,6 +990,13 @@ const gridClass = computed(() => {
           <div class="flex items-center gap-2">
             <USlider v-model="loraStrength" :min="0" :max="2" :step="0.05" class="w-28" size="xs" />
             <span class="text-xs text-slate-600 font-mono w-8 text-right">{{ loraStrength.toFixed(2) }}</span>
+          </div>
+        </UFormField>
+
+        <UFormField label="Seed" size="sm" :description="imageSeed < 0 ? 'Random' : 'Fixed'">
+          <div class="flex items-center gap-2">
+            <UInput v-model.number="imageSeed" type="number" size="sm" class="w-28" :placeholder="imageSeed < 0 ? 'Random' : ''" />
+            <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-shuffle" square @click="imageSeed = -1" title="Random seed" />
           </div>
         </UFormField>
 
