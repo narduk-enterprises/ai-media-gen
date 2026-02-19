@@ -142,6 +142,5 @@ export default defineNuxtConfig({
         { name: 'theme-color', content: '#ffffff' },
       ],
     },
-    pageTransition: { name: 'page', mode: 'out-in' }
   }
 })

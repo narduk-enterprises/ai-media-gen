@@ -1,10 +1,12 @@
 <script setup lang="ts">
 const { loggedIn } = useAuth()
 
-// If logged in, go straight to /create
-if (loggedIn.value) {
-  await navigateTo('/create', { replace: true })
-}
+// Redirect logged-in users via middleware-style check (non-blocking)
+onMounted(() => {
+  if (loggedIn.value) {
+    navigateTo('/create', { replace: true })
+  }
+})
 
 useSeoMeta({
   title: 'AI Media Gen — Generate Images, Videos & Audio with AI',
