@@ -10,6 +10,27 @@ const { generations, total, pending, loadingMore, hasMore, error, refresh, loadM
 const { runpodEndpoint, customEndpoint } = useAppSettings()
 const effectiveEndpoint = computed(() => customEndpoint.value || runpodEndpoint.value)
 
+// ─── Infinite scroll ──────────────────────────────────────────────────
+const sentinelRef = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | null = null
+
+onMounted(() => {
+  observer = new IntersectionObserver((entries) => {
+    if (entries[0]?.isIntersecting && hasMore.value && !loadingMore.value && !pending.value) {
+      loadMore()
+    }
+  }, { rootMargin: '400px' })
+})
+
+onUnmounted(() => {
+  observer?.disconnect()
+})
+
+watch(sentinelRef, (el) => {
+  observer?.disconnect()
+  if (el) observer?.observe(el)
+})
+
 // ─── View modes ────────────────────────────────────────────────────────
 type ViewMode = 'grid' | 'grouped' | 'wall'
 const viewMode = ref<ViewMode>('grouped')
@@ -308,7 +329,7 @@ function recreateFromImage(img: GalleryMedia) {
       <div v-else-if="viewMode === 'wall'">
         <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-0.5">
           <div v-for="(item, index) in filteredMedia" :key="item.id" class="relative aspect-square overflow-hidden cursor-pointer" @click="openLightbox(index)">
-            <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="metadata" class="w-full h-full object-cover" />
+            <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="none" class="w-full h-full object-cover" />
             <NuxtImg v-else :src="item.url" :alt="item.prompt" width="300" class="w-full h-full object-cover" loading="lazy" />
             <div v-if="item.type === 'video'" class="absolute top-1 left-1 w-4 h-4 rounded-full bg-black/50 flex items-center justify-center backdrop-blur-sm">
               <UIcon name="i-lucide-play" class="w-2.5 h-2.5 text-white" />
@@ -324,7 +345,7 @@ function recreateFromImage(img: GalleryMedia) {
             class="group relative aspect-square rounded-lg overflow-hidden cursor-pointer border border-slate-200 hover:border-violet-300 transition-all shadow-sm hover:shadow-md"
             @click="openLightbox(index)"
           >
-            <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="metadata"
+            <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="none"
               class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               @mouseenter="($event.target as HTMLVideoElement).play()" @mouseleave="($event.target as HTMLVideoElement).pause()" />
             <NuxtImg v-else :src="item.url" :alt="item.prompt" width="400"
@@ -352,7 +373,7 @@ function recreateFromImage(img: GalleryMedia) {
         <div v-for="gen in filteredGenerations" :key="gen.id" class="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <button class="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 transition-colors" @click="toggleGeneration(gen.id)">
             <div class="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-200">
-              <video v-if="generationMedia(gen)[0]?.type === 'video' && generationMedia(gen)[0]?.url" :src="generationMedia(gen)[0]!.url! + '#t=0.1'" muted preload="metadata" class="w-full h-full object-cover" />
+              <video v-if="generationMedia(gen)[0]?.type === 'video' && generationMedia(gen)[0]?.url" :src="generationMedia(gen)[0]!.url! + '#t=0.1'" muted preload="none" class="w-full h-full object-cover" />
               <NuxtImg v-else-if="generationMedia(gen)[0]?.url" :src="generationMedia(gen)[0]!.url!" alt="" width="80" class="w-full h-full object-cover" />
               <div v-else class="w-full h-full bg-slate-100" />
             </div>
@@ -386,7 +407,7 @@ function recreateFromImage(img: GalleryMedia) {
                 class="group relative aspect-square rounded-lg overflow-hidden cursor-pointer border border-slate-200 hover:border-violet-300 transition-all"
                 @click="openLightbox(filteredMedia.findIndex(i => i.id === item.id))"
               >
-                <video v-if="item.type === 'video'" :src="item.url! + '#t=0.1'" muted preload="metadata"
+                <video v-if="item.type === 'video'" :src="item.url! + '#t=0.1'" muted preload="none"
                   class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   @mouseenter="($event.target as HTMLVideoElement).play()" @mouseleave="($event.target as HTMLVideoElement).pause()" />
                 <NuxtImg v-else :src="item.url!" alt="" width="300"
@@ -411,11 +432,22 @@ function recreateFromImage(img: GalleryMedia) {
         </div>
       </div>
 
-      <!-- Load More -->
-      <div v-if="hasMore" class="flex justify-center mt-6">
-        <UButton :loading="loadingMore" variant="soft" size="sm" icon="i-lucide-arrow-down" @click="loadMore()">
-          Load more ({{ generations.length }} of {{ total }})
-        </UButton>
+      <!-- Infinite scroll sentinel -->
+      <div ref="sentinelRef" class="flex justify-center mt-6 py-4">
+        <template v-if="loadingMore">
+          <div class="flex items-center gap-2 text-sm text-slate-400">
+            <UIcon name="i-lucide-loader-2" class="w-4 h-4 animate-spin" />
+            Loading more…
+          </div>
+        </template>
+        <template v-else-if="hasMore">
+          <UButton variant="ghost" size="xs" color="neutral" @click="loadMore()">
+            {{ generations.length }} of {{ total }} loaded
+          </UButton>
+        </template>
+        <template v-else-if="generations.length > 0">
+          <span class="text-xs text-slate-300">All {{ total }} generations loaded</span>
+        </template>
       </div>
     </div>
 

@@ -13,16 +13,19 @@ const modelValue = defineModel<string>({ default: '' })
 
 const { isSupported, loadProgress, loadingModel } = useWebLLM()
 const remixing = ref(false)
+const remixError = ref('')
 
 async function handleRemix() {
   if (!modelValue.value.trim()) return
   remixing.value = true
+  remixError.value = ''
   try {
     const { remixPrompt } = useWebLLM()
     modelValue.value = await remixPrompt(modelValue.value)
     emit('remix')
-  } catch {
-    // Error handled by parent
+  } catch (e: any) {
+    remixError.value = e?.message || 'Remix failed'
+    console.error('[Remix] Error:', e)
   } finally {
     remixing.value = false
   }
@@ -96,6 +99,7 @@ defineExpose({ remixing })
         {{ loadingModel ? `AI (${loadProgress}%)` : 'AI Remix' }}
       </UButton>
       <slot name="actions" />
+      <span v-if="remixError" class="text-xs text-red-500">{{ remixError }}</span>
     </template>
   </UFormField>
 </template>
