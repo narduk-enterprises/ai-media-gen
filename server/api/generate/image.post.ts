@@ -1,8 +1,7 @@
 import { z } from 'zod'
 import { requireAuth } from '../../utils/auth'
-import { callRunPodAsync, resolveApiUrl } from '../../utils/ai'
+import { resolveApiUrl } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
-import { backgroundComplete } from '../../utils/backgroundComplete'
 
 const generateSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
@@ -49,48 +48,38 @@ export default defineEventHandler(async (event) => {
     createdAt: now,
   })
 
-  // Submit all jobs to RunPod and store job IDs
-  const itemIds: string[] = []
-  const items = await Promise.all(
-    Array.from({ length: count }, async (_, i) => {
-      const itemId = crypto.randomUUID()
-      itemIds.push(itemId)
-      const imagePrompt = prompts?.[i] || prompt
-      let jobId: string | null = null
+  // Insert all items as 'queued' — the cron will submit them to RunPod
+  const items = Array.from({ length: count }, (_, i) => {
+    const itemId = crypto.randomUUID()
+    const imagePrompt = prompts?.[i] || prompt
 
-      try {
-        const result = await callRunPodAsync({
+    return {
+      id: itemId,
+      generationId,
+      type: 'image' as const,
+      prompt: imagePrompt,
+      status: 'queued' as const,
+      metadata: JSON.stringify({
+        apiUrl,
+        runpodInput: {
           action: 'text2image',
           prompt: imagePrompt,
           negative_prompt: negativePrompt,
           width,
           height,
           steps,
-        }, apiUrl)
-        jobId = result.jobId
-        console.log(`[Image] ${i + 1}/${count} submitted — job ${jobId}`)
-      } catch (error: any) {
-        console.error(`[Image] ${i + 1}/${count} submit failed:`, error.message)
-      }
+        },
+      }),
+      createdAt: now,
+    }
+  })
 
-      await db.insert(mediaItems).values({
-        id: itemId,
-        generationId,
-        type: 'image',
-        prompt: imagePrompt,
-        runpodJobId: jobId,
-        status: jobId ? 'processing' : 'failed',
-        error: jobId ? null : 'Failed to submit to RunPod',
-        metadata: JSON.stringify({ apiUrl }),
-        createdAt: now,
-      })
+  // Batch insert
+  for (const item of items) {
+    await db.insert(mediaItems).values(item)
+  }
 
-      return { id: itemId, generationId, type: 'image', prompt: imagePrompt, runpodJobId: jobId, parentId: null, url: null, status: jobId ? 'processing' : 'failed', error: jobId ? null : 'Failed to submit to RunPod', metadata: null, createdAt: now }
-    })
-  )
-
-  // Background completion — server keeps polling even if frontend disconnects
-  backgroundComplete(event, itemIds)
+  console.log(`[Image] ${count} items queued for generation ${generationId.slice(0, 8)}`)
 
   return {
     generation: {
@@ -101,6 +90,18 @@ export default defineEventHandler(async (event) => {
       settings,
       createdAt: now,
     },
-    items,
+    items: items.map(item => ({
+      id: item.id,
+      generationId,
+      type: 'image',
+      prompt: item.prompt,
+      runpodJobId: null,
+      parentId: null,
+      url: null,
+      status: 'queued',
+      error: null,
+      metadata: null,
+      createdAt: now,
+    })),
   }
 })

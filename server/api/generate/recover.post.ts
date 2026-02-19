@@ -1,16 +1,12 @@
 import { requireAuth } from '../../utils/auth'
-import { recoverOrphanedItems } from '../../utils/backgroundComplete'
+import { processQueue } from '../../utils/queueProcessor'
 import { useMediaBucket } from '../../utils/r2'
 
 /**
  * POST /api/generate/recover
  *
- * Finds all media items stuck in 'processing' status and tries to
- * complete them by checking their RunPod job. This recovers any
- * generations that were lost because the browser was closed before
- * the result came back.
- *
- * Returns a summary of what was recovered.
+ * Manually triggers a queue processing cycle (same as the cron does).
+ * Submits queued items, polls processing items, cleans up stale ones.
  */
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
@@ -18,9 +14,9 @@ export default defineEventHandler(async (event) => {
   const db = useDatabase()
   const mediaBucket = useMediaBucket(event)
 
-  console.log('[Recovery] Starting recovery scan...')
-  const result = await recoverOrphanedItems(db, mediaBucket)
-  console.log(`[Recovery] Done — recovered: ${result.recovered}, failed: ${result.failed}, still processing: ${result.stillProcessing}`)
+  console.log('[Recovery] Manual queue processing triggered...')
+  const result = await processQueue(db, mediaBucket)
+  console.log(`[Recovery] Done — submitted: ${result.submitted}, completed: ${result.completed}, failed: ${result.failed}`)
 
   return result
 })

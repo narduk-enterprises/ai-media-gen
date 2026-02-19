@@ -1,11 +1,12 @@
 import { eq } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { checkRunPodJob } from '../../utils/ai'
-import { useMediaBucket, uploadImageToR2 } from '../../utils/r2'
 import { generations, mediaItems } from '../../database/schema'
 
-const GIVE_UP_MS = 10 * 60 * 1000 // 10 min — mark items without a job ID as failed
-
+/**
+ * Read-only generation status endpoint.
+ * Returns current DB state for a generation and all its items.
+ * No RunPod calls — the cron queue processor handles all state transitions.
+ */
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
   const query = getQuery(event)
@@ -23,68 +24,6 @@ export default defineEventHandler(async (event) => {
   }
 
   const items = await db.select().from(mediaItems).where(eq(mediaItems.generationId, generationId))
-  const pending = items.filter(i => i.status === 'processing')
-
-  if (pending.length > 0) {
-    const mediaBucket = useMediaBucket(event)
-    const now = Date.now()
-
-    // Check RunPod for every processing item — this is the sole driver of
-    // completion. No background work exists; each frontend poll advances state.
-    for (const item of pending) {
-      if (item.runpodJobId) {
-        const itemApiUrl = item.metadata ? JSON.parse(item.metadata).apiUrl : undefined
-        try {
-          const result = await checkRunPodJob(item.runpodJobId, itemApiUrl)
-          if (!result) continue // still running on RunPod
-
-          if (result.status === 'COMPLETED' && result.output?.output?.data) {
-            let url: string
-            if (mediaBucket) {
-              url = await uploadImageToR2(mediaBucket, item.id, result.output.output.data)
-            } else {
-              url = `data:image/png;base64,${result.output.output.data}`
-            }
-            await db.update(mediaItems)
-              .set({ url, status: 'complete' })
-              .where(eq(mediaItems.id, item.id))
-            item.url = url
-            item.status = 'complete'
-            console.log(`[Status] ✅ ${item.id.slice(0, 8)} complete`)
-          } else {
-            const error = result.error || `RunPod job ${result.status.toLowerCase()}`
-            await db.update(mediaItems)
-              .set({ status: 'failed', error })
-              .where(eq(mediaItems.id, item.id))
-            item.status = 'failed'
-            item.error = error
-          }
-        } catch {
-          // RunPod API hiccup — leave as processing, next poll will retry
-        }
-      } else if (item.createdAt && now - new Date(item.createdAt).getTime() > GIVE_UP_MS) {
-        await db.update(mediaItems)
-          .set({ status: 'failed', error: 'Generation timed out — no job ID' })
-          .where(eq(mediaItems.id, item.id))
-        item.status = 'failed'
-        item.error = 'Generation timed out — no job ID'
-      }
-    }
-
-    // Update generation status when all items are resolved
-    if (gen[0].status === 'processing') {
-      const allResolved = items.every(i => i.status === 'complete' || i.status === 'failed')
-      if (allResolved) {
-        const allFailed = items.every(i => i.status === 'failed')
-        const anyFailed = items.some(i => i.status === 'failed')
-        const status = allFailed ? 'failed' : anyFailed ? 'partial' : 'complete'
-        await db.update(generations)
-          .set({ status })
-          .where(eq(generations.id, generationId))
-        gen[0].status = status
-      }
-    }
-  }
 
   const transformedItems = items.map((item) => ({
     ...item,

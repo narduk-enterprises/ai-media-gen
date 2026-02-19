@@ -1,0 +1,230 @@
+/**
+ * Server-Side Job Queue Processor.
+ *
+ * The cron trigger (every 2 min) calls `processQueue()` which:
+ *   1. SUBMIT — picks up `queued` items and submits them to RunPod (up to MAX_CONCURRENT)
+ *   2. POLL   — checks all `processing` items against RunPod, saves completed ones
+ *   3. CLEAN  — marks items stuck processing for >30 min as failed
+ *
+ * This is the SOLE authority for advancing job state. Status endpoints are read-only.
+ */
+import { eq, and, isNull, or, asc, sql } from 'drizzle-orm'
+import { mediaItems, generations } from '../database/schema'
+import { callRunPodAsync, checkRunPodJob } from './ai'
+import { uploadImageToR2 } from './r2'
+import type { DrizzleD1Database } from 'drizzle-orm/d1'
+
+type DB = DrizzleD1Database<any>
+
+const MAX_CONCURRENT = 3           // max RunPod jobs in-flight at once
+const STALE_THRESHOLD_MS = 30 * 60 * 1000 // 30 min — mark as failed if no RunPod response
+const POLL_TIMEOUT_MS = 10_000     // 10s per item during poll phase (single check, not long-poll)
+
+/**
+ * Main entry point — called by the cron task.
+ */
+export async function processQueue(db: DB, mediaBucket: R2Bucket | null) {
+  const submitResult = await submitPhase(db)
+  const pollResult = await pollPhase(db, mediaBucket)
+  const cleanResult = await cleanupPhase(db)
+
+  return {
+    submitted: submitResult.submitted,
+    completed: pollResult.completed,
+    failed: pollResult.failed + cleanResult.staleMarked,
+    stillProcessing: pollResult.stillProcessing,
+    queuedRemaining: submitResult.queuedRemaining,
+  }
+}
+
+// ─── Phase 1: Submit queued items to RunPod ─────────────────
+
+async function submitPhase(db: DB) {
+  // Count currently processing items
+  const processing = await db.select({ id: mediaItems.id })
+    .from(mediaItems)
+    .where(eq(mediaItems.status, 'processing'))
+
+  const slotsAvailable = Math.max(0, MAX_CONCURRENT - processing.length)
+
+  if (slotsAvailable === 0) {
+    const queued = await db.select({ id: mediaItems.id })
+      .from(mediaItems)
+      .where(eq(mediaItems.status, 'queued'))
+    console.log(`[Queue] No slots available (${processing.length}/${MAX_CONCURRENT} processing, ${queued.length} queued)`)
+    return { submitted: 0, queuedRemaining: queued.length }
+  }
+
+  // Pick oldest queued items
+  const queued = await db.select().from(mediaItems)
+    .where(eq(mediaItems.status, 'queued'))
+    .orderBy(asc(mediaItems.createdAt))
+    .limit(slotsAvailable)
+
+  let submitted = 0
+
+  for (const item of queued) {
+    try {
+      const meta = item.metadata ? JSON.parse(item.metadata) : {}
+      const { runpodInput, apiUrl } = meta
+
+      if (!runpodInput) {
+        console.error(`[Queue] ${item.id.slice(0, 8)} has no runpodInput in metadata — marking failed`)
+        await db.update(mediaItems)
+          .set({ status: 'failed', error: 'No RunPod input payload — corrupt queue entry' })
+          .where(eq(mediaItems.id, item.id))
+        await updateGenerationStatus(db, item.generationId)
+        continue
+      }
+
+      const result = await callRunPodAsync(runpodInput, apiUrl)
+
+      await db.update(mediaItems)
+        .set({
+          status: 'processing',
+          runpodJobId: result.jobId,
+          submittedAt: new Date().toISOString(),
+          metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl }),
+        })
+        .where(eq(mediaItems.id, item.id))
+
+      console.log(`[Queue] ✅ Submitted ${item.id.slice(0, 8)} → job ${result.jobId}`)
+      submitted++
+    } catch (e: any) {
+      console.error(`[Queue] ❌ Failed to submit ${item.id.slice(0, 8)}:`, e.message)
+      await db.update(mediaItems)
+        .set({ status: 'failed', error: `RunPod submit failed: ${e.message}` })
+        .where(eq(mediaItems.id, item.id))
+      await updateGenerationStatus(db, item.generationId)
+    }
+  }
+
+  // Count remaining
+  const remaining = await db.select({ id: mediaItems.id })
+    .from(mediaItems)
+    .where(eq(mediaItems.status, 'queued'))
+
+  console.log(`[Queue] Submit phase: ${submitted} submitted, ${remaining.length} still queued`)
+  return { submitted, queuedRemaining: remaining.length }
+}
+
+// ─── Phase 2: Poll processing items for completion ──────────
+
+async function pollPhase(db: DB, mediaBucket: R2Bucket | null) {
+  const processing = await db.select().from(mediaItems)
+    .where(and(
+      eq(mediaItems.status, 'processing'),
+      sql`${mediaItems.runpodJobId} IS NOT NULL`
+    ))
+
+  if (!processing.length) {
+    return { completed: 0, failed: 0, stillProcessing: 0 }
+  }
+
+  console.log(`[Queue] Polling ${processing.length} processing items...`)
+
+  let completed = 0
+  let failed = 0
+  let stillProcessing = 0
+
+  for (const item of processing) {
+    try {
+      const apiUrl = item.metadata ? (() => { try { return JSON.parse(item.metadata!).apiUrl } catch { return undefined } })() : undefined
+      const result = await checkRunPodJob(item.runpodJobId!, apiUrl)
+
+      if (!result) {
+        // Still running
+        stillProcessing++
+        continue
+      }
+
+      if (result.status === 'COMPLETED' && result.output?.output?.data) {
+        const base64Data = result.output.output.data
+        const isVideo = item.type === 'video'
+
+        let url: string
+        if (mediaBucket) {
+          url = await uploadImageToR2(mediaBucket, item.id, base64Data, isVideo ? 'video/mp4' : 'image/png')
+        } else {
+          const mime = isVideo ? 'video/mp4' : 'image/png'
+          url = `data:${mime};base64,${base64Data}`
+        }
+
+        await db.update(mediaItems)
+          .set({ url, status: 'complete' })
+          .where(eq(mediaItems.id, item.id))
+
+        console.log(`[Queue] ✅ ${item.id.slice(0, 8)} complete (${item.type})`)
+        completed++
+      } else if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(result.status)) {
+        const error = result.error || `RunPod job ${result.status.toLowerCase()}`
+        await db.update(mediaItems)
+          .set({ status: 'failed', error })
+          .where(eq(mediaItems.id, item.id))
+        console.log(`[Queue] ❌ ${item.id.slice(0, 8)} ${result.status}`)
+        failed++
+      } else {
+        stillProcessing++
+      }
+
+      // Update parent generation status
+      await updateGenerationStatus(db, item.generationId)
+    } catch (e: any) {
+      console.warn(`[Queue] ⚠️ ${item.id.slice(0, 8)} check error:`, e.message)
+      stillProcessing++
+    }
+  }
+
+  return { completed, failed, stillProcessing }
+}
+
+// ─── Phase 3: Cleanup stale items ───────────────────────────
+
+async function cleanupPhase(db: DB) {
+  const processing = await db.select().from(mediaItems)
+    .where(eq(mediaItems.status, 'processing'))
+
+  const now = Date.now()
+  let staleMarked = 0
+
+  for (const item of processing) {
+    const submittedTime = item.submittedAt
+      ? new Date(item.submittedAt).getTime()
+      : new Date(item.createdAt).getTime()
+
+    if (now - submittedTime > STALE_THRESHOLD_MS) {
+      await db.update(mediaItems)
+        .set({ status: 'failed', error: `Stale — no RunPod response after ${STALE_THRESHOLD_MS / 60000} min` })
+        .where(eq(mediaItems.id, item.id))
+      console.log(`[Queue] 🕐 ${item.id.slice(0, 8)} stale after ${Math.round((now - submittedTime) / 60000)}min`)
+      await updateGenerationStatus(db, item.generationId)
+      staleMarked++
+    }
+  }
+
+  return { staleMarked }
+}
+
+// ─── Shared: update generation status ───────────────────────
+
+async function updateGenerationStatus(db: DB, generationId: string) {
+  const items = await db.select().from(mediaItems)
+    .where(eq(mediaItems.generationId, generationId))
+
+  const allResolved = items.every(i =>
+    i.status === 'complete' || i.status === 'failed' || i.status === 'cancelled'
+  )
+  if (!allResolved) return
+
+  const allFailed = items.every(i => i.status === 'failed' || i.status === 'cancelled')
+  const anyFailed = items.some(i => i.status === 'failed' || i.status === 'cancelled')
+  const status = allFailed ? 'failed' : anyFailed ? 'partial' : 'complete'
+
+  await db.update(generations)
+    .set({ status })
+    .where(eq(generations.id, generationId))
+
+  console.log(`[Queue] Generation ${generationId.slice(0, 8)} → ${status}`)
+}
+
+export { updateGenerationStatus }

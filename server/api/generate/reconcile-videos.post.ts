@@ -76,7 +76,7 @@ export default defineEventHandler(async (event) => {
       uniqueVideos: uniqueKeys.length,
       alreadyTracked: uniqueKeys.length - unlinkedKeys.length,
       toProcess: unlinkedKeys.length,
-      sample: unlinkedKeys.slice(0, 5),
+      sample: unlinkedKeys.map(({ key }) => key),
     }
   }
 

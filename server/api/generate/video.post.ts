@@ -1,10 +1,9 @@
 import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { callRunPodAsync, resolveApiUrl } from '../../utils/ai'
+import { resolveApiUrl } from '../../utils/ai'
 import { useMediaBucket, readBase64FromR2 } from '../../utils/r2'
 import { mediaItems, generations } from '../../database/schema'
-import { backgroundComplete } from '../../utils/backgroundComplete'
 
 const videoSchema = z.object({
   mediaItemId: z.string().uuid('Invalid media item ID'),
@@ -66,42 +65,33 @@ export default defineEventHandler(async (event) => {
   const now = new Date().toISOString()
 
   const videoId = crypto.randomUUID()
-  let jobId: string | null = null
 
-  try {
-    const result = await callRunPodAsync({
-      action: 'image2video',
-      prompt,
-      image: imageBase64,
-      width: width || 768,
-      height: height || 768,
-      num_frames: numFrames || 81,
-      steps: steps || 20,
-      cfg: cfg || 3.5,
-    }, apiUrl)
-    jobId = result.jobId
-    console.log(`[I2V] Submitted job ${jobId}`)
-  } catch (error: any) {
-    console.error(`[I2V] Submit failed:`, error.message)
-  }
-
+  // Insert as 'queued' — the cron will submit to RunPod
+  // We store the image base64 in the RunPod input so the cron can submit it
   await db.insert(mediaItems).values({
     id: videoId,
     generationId: sourceItem.generationId,
     type: 'video',
     parentId: mediaItemId,
     prompt,
-    runpodJobId: jobId,
-    status: jobId ? 'processing' : 'failed',
-    error: jobId ? null : 'Failed to submit to RunPod',
-    metadata: JSON.stringify({ apiUrl }),
+    status: 'queued',
+    metadata: JSON.stringify({
+      apiUrl,
+      runpodInput: {
+        action: 'image2video',
+        prompt,
+        image: imageBase64,
+        width: width || 768,
+        height: height || 768,
+        num_frames: numFrames || 81,
+        steps: steps || 20,
+        cfg: cfg || 3.5,
+      },
+    }),
     createdAt: now,
   })
 
-  // Background completion — server keeps polling even if frontend disconnects
-  if (jobId) {
-    backgroundComplete(event, [videoId])
-  }
+  console.log(`[I2V] Item queued: ${videoId.slice(0, 8)}`)
 
   return {
     item: {
@@ -109,8 +99,8 @@ export default defineEventHandler(async (event) => {
       generationId: sourceItem.generationId,
       type: 'video',
       parentId: mediaItemId,
-      runpodJobId: jobId,
-      status: jobId ? 'processing' : 'failed',
+      runpodJobId: null,
+      status: 'queued',
       url: null,
     },
   }

@@ -1,10 +1,7 @@
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { callRunPodAsync, resolveApiUrl } from '../../utils/ai'
+import { resolveApiUrl } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
-import { backgroundComplete } from '../../utils/backgroundComplete'
-import { useMediaBucket } from '../../utils/r2'
 
 const text2videoSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
@@ -41,47 +38,33 @@ export default defineEventHandler(async (event) => {
   })
 
   const videoId = crypto.randomUUID()
-  let jobId: string | null = null
 
-  try {
-    const result = await callRunPodAsync({
-      action: 'text2video',
-      prompt,
-      negative_prompt: negativePrompt,
-      width,
-      height,
-      num_frames: numFrames,
-      steps,
-    }, apiUrl)
-    jobId = result.jobId
-    console.log(`[T2V] Submitted job ${jobId}`)
-  } catch (error: any) {
-    console.error(`[T2V] Submit failed:`, error.message)
-  }
-
+  // Insert as 'queued' — the cron will submit to RunPod
   await db.insert(mediaItems).values({
     id: videoId,
     generationId: genId,
     type: 'video',
     prompt,
-    runpodJobId: jobId,
-    status: jobId ? 'processing' : 'failed',
-    error: jobId ? null : 'Failed to submit to RunPod',
-    metadata: JSON.stringify({ apiUrl }),
+    status: 'queued',
+    metadata: JSON.stringify({
+      apiUrl,
+      runpodInput: {
+        action: 'text2video',
+        prompt,
+        negative_prompt: negativePrompt,
+        width,
+        height,
+        num_frames: numFrames,
+        steps,
+      },
+    }),
     createdAt: now,
   })
 
-  if (!jobId) {
-    await db.update(generations).set({ status: 'failed' }).where(eq(generations.id, genId))
-  }
-
-  // Background completion — server keeps polling even if frontend disconnects
-  if (jobId) {
-    backgroundComplete(event, [videoId])
-  }
+  console.log(`[T2V] Item queued: ${videoId.slice(0, 8)}`)
 
   return {
-    generation: { id: genId, prompt, imageCount: 1, status: jobId ? 'processing' : 'failed', createdAt: now },
-    item: { id: videoId, generationId: genId, type: 'video', status: jobId ? 'processing' : 'failed', url: null },
+    generation: { id: genId, prompt, imageCount: 1, status: 'processing', createdAt: now },
+    item: { id: videoId, generationId: genId, type: 'video', status: 'queued', url: null },
   }
 })

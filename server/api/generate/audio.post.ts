@@ -1,10 +1,9 @@
 import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { callRunPodAsync, resolveApiUrl } from '../../utils/ai'
+import { resolveApiUrl } from '../../utils/ai'
 import { useMediaBucket, readBase64FromR2 } from '../../utils/r2'
 import { mediaItems, generations } from '../../database/schema'
-import { backgroundComplete } from '../../utils/backgroundComplete'
 
 const audioSchema = z.object({
   mediaItemId: z.string().uuid('Invalid media item ID'),
@@ -62,42 +61,32 @@ export default defineEventHandler(async (event) => {
   const now = new Date().toISOString()
 
   const itemId = crypto.randomUUID()
-  let jobId: string | null = null
 
-  try {
-    const result = await callRunPodAsync({
-      action: 'image2video_audio',
-      prompt: videoPrompt,
-      image: imageBase64,
-      width: 768,
-      height: 768,
-      num_frames: 81,
-      steps: 20,
-      cfg: 3.5,
-    }, apiUrl)
-    jobId = result.jobId
-    console.log(`[I2V+Audio] Submitted job ${jobId}`)
-  } catch (error: any) {
-    console.error(`[I2V+Audio] Submit failed:`, error.message)
-  }
-
+  // Insert as 'queued' — the cron will submit to RunPod
   await db.insert(mediaItems).values({
     id: itemId,
     generationId: sourceItem.generationId,
     type: 'video',
     parentId: mediaItemId,
     prompt: videoPrompt,
-    runpodJobId: jobId,
-    status: jobId ? 'processing' : 'failed',
-    error: jobId ? null : 'Failed to submit to RunPod',
-    metadata: JSON.stringify({ apiUrl }),
+    status: 'queued',
+    metadata: JSON.stringify({
+      apiUrl,
+      runpodInput: {
+        action: 'image2video_audio',
+        prompt: videoPrompt,
+        image: imageBase64,
+        width: 768,
+        height: 768,
+        num_frames: 81,
+        steps: 20,
+        cfg: 3.5,
+      },
+    }),
     createdAt: now,
   })
 
-  // Background completion — server keeps polling even if frontend disconnects
-  if (jobId) {
-    backgroundComplete(event, [itemId])
-  }
+  console.log(`[I2V+Audio] Item queued: ${itemId.slice(0, 8)}`)
 
   return {
     item: {
@@ -105,7 +94,7 @@ export default defineEventHandler(async (event) => {
       generationId: sourceItem.generationId,
       type: 'video',
       parentId: mediaItemId,
-      status: jobId ? 'processing' : 'failed',
+      status: 'queued',
       url: null,
     },
   }

@@ -99,21 +99,8 @@ export function useGeneration() {
 
   function startPolling(generationId: string) {
     stopPolling()
-    const startedAt = Date.now()
-    const maxPollMs = 15 * 60 * 1000
 
     pollingTimer.value = setInterval(async () => {
-      if (Date.now() - startedAt > maxPollMs) {
-        stopPolling()
-        generating.value = false
-        for (const item of results.value) {
-          if (item.status === 'processing') {
-            ;(item as any).status = 'failed'
-          }
-        }
-        return
-      }
-
       try {
         const result = await $fetch<GenerationResult>('/api/generate/generation-status', {
           params: { id: generationId },
@@ -125,8 +112,9 @@ export function useGeneration() {
           if (idx >= 0) results.value[idx] = updated
         }
 
+        // Stop polling only when the server says all items are resolved
         const genItems = result.items.filter(i => i.type === 'image')
-        if (genItems.every(i => i.status === 'complete' || i.status === 'failed')) {
+        if (genItems.every(i => i.status === 'complete' || i.status === 'failed' || i.status === 'cancelled')) {
           stopPolling()
           generating.value = false
         }
@@ -170,7 +158,7 @@ export function useGeneration() {
       })
       if (result.item) {
         results.value.push(result.item)
-        if (result.item.status === 'processing') {
+        if (result.item.status === 'processing' || result.item.status === 'queued') {
           pollItemStatus(result.item.id, key)
         } else {
           actionLoading.value[key] = false
@@ -197,7 +185,7 @@ export function useGeneration() {
       })
       if (result.item) {
         results.value.push(result.item)
-        if (result.item.status === 'processing') {
+        if (result.item.status === 'processing' || result.item.status === 'queued') {
           pollItemStatus(result.item.id, key)
         } else {
           actionLoading.value[key] = false
@@ -274,7 +262,7 @@ export function useGeneration() {
         if (result.item) {
           results.value = [...results.value, result.item]
           activeGenerationId.value = result.generation.id
-          if (result.item.status === 'processing') {
+          if (result.item.status === 'processing' || result.item.status === 'queued') {
             const key = `t2v-${result.item.id}`
             actionLoading.value[key] = true
             pollingPromises.push(pollItemStatus(result.item.id, key))
@@ -344,7 +332,7 @@ export function useGeneration() {
 
           if (result.item) {
             results.value = [...results.value, result.item]
-            if (result.item.status === 'processing') {
+            if (result.item.status === 'processing' || result.item.status === 'queued') {
               const key = `t2v-batch-${result.item.id}`
               actionLoading.value[key] = true
               pollingPromises.push(pollItemStatus(result.item.id, key))
@@ -431,19 +419,8 @@ export function useGeneration() {
 
   function startBatchPolling() {
     stopPolling()
-    const startedAt = Date.now()
-    const maxPollMs = 10 * 60 * 1000
 
     pollingTimer.value = setInterval(async () => {
-      if (Date.now() - startedAt > maxPollMs) {
-        stopPolling()
-        generating.value = false
-        for (const item of results.value) {
-          if (item.status === 'processing') (item as any).status = 'failed'
-        }
-        return
-      }
-
       for (const genId of activeGenerationIds.value) {
         try {
           const result = await $fetch<GenerationResult>('/api/generate/generation-status', {
@@ -457,7 +434,7 @@ export function useGeneration() {
         } catch { /* swallow */ }
       }
 
-      const allDone = results.value.every(i => i.status === 'complete' || i.status === 'failed')
+      const allDone = results.value.every(i => i.status === 'complete' || i.status === 'failed' || i.status === 'cancelled')
       if (allDone) {
         stopPolling()
         generating.value = false

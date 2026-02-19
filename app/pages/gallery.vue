@@ -232,7 +232,7 @@ async function makeVideoFromGallery(mediaItemId: string, settings?: Record<strin
         status: result.item.status,
       })
 
-      if (result.item.status === 'processing') {
+      if (result.item.status === 'processing' || result.item.status === 'queued') {
         pollVideoStatus(result.item.id, loadingKey)
       } else {
         actionLoading.value[loadingKey] = false
@@ -583,7 +583,7 @@ const gridClass = computed(() => {
                 <span class="text-[10px] text-slate-400">{{ generationMedia(gen).length }} item{{ generationMedia(gen).length !== 1 ? 's' : '' }}</span>
                 <UBadge
                   v-if="gen.status !== 'complete'"
-                  :color="gen.status === 'processing' ? 'warning' : 'error'"
+                  :color="gen.status === 'processing' || gen.status === 'queued' ? 'warning' : 'error'"
                   variant="subtle"
                   size="xs"
                 >{{ gen.status }}</UBadge>
