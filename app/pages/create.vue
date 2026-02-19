@@ -50,7 +50,7 @@ const sizeItems = [512, 768, 1024, 1536, 2048].map(v => ({ label: `${v}`, value:
 // ─── Model selection ────────────────────────────────────────────────────
 const IMAGE_MODELS = [
   { id: 'wan22', label: 'Wan 2.2', description: '14B dual-UNET, 20 steps', icon: 'i-lucide-brain', defaultSteps: 20 },
-  { id: 'z_image_turbo', label: 'Z-Image Turbo', description: 'Ultra-fast, 4 steps', icon: 'i-lucide-zap', defaultSteps: 4 },
+  { id: 'z_image_turbo', label: 'Z-Image Turbo', description: 'Ultra-fast, 6 steps', icon: 'i-lucide-zap', defaultSteps: 6 },
 ] as const
 
 const selectedModels = ref<string[]>(['wan22'])
