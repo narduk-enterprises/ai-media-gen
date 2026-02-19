@@ -4,6 +4,7 @@ import { requireAuth } from '../../utils/auth'
 import { callRunPodAsync, resolveApiUrl } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
 import { backgroundComplete } from '../../utils/backgroundComplete'
+import { useMediaBucket } from '../../utils/r2'
 
 const text2videoSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
@@ -77,8 +78,10 @@ export default defineEventHandler(async (event) => {
   // Background completion — server keeps polling even if frontend disconnects
   if (jobId) {
     const cf = (event.context as any).cloudflare
+    const mediaBucket = useMediaBucket(event)
     if (cf?.context?.waitUntil) {
-      cf.context.waitUntil(backgroundComplete(event, [videoId]))
+      console.log(`[T2V] Scheduling background completion via waitUntil`)
+      cf.context.waitUntil(backgroundComplete(db, mediaBucket, [videoId]))
     }
   }
 

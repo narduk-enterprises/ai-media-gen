@@ -1,37 +1,44 @@
 /**
  * Background completion utility.
  *
- * After a generation response is sent to the client, this runs inside
- * `waitUntil()` to poll RunPod and save results — so the job completes
- * even if the user closes the browser.
+ * Ensures generation jobs are completed and saved even if the browser
+ * closes. Two mechanisms:
  *
- * On Cloudflare Workers, waitUntil() keeps the worker alive for up to
- * 30 seconds (free) or 15 minutes (paid). This is enough for most
- * image jobs; for video jobs that take longer, the recovery endpoint
- * handles anything that slips through.
+ * 1. **waitUntil** (best-effort): Called after the generation response is
+ *    sent. Polls RunPod and saves results in the background. Limited to
+ *    ~30s on CF free tier, 15 min on paid.
+ *
+ * 2. **Cron Trigger** (bulletproof): A scheduled handler runs every minute,
+ *    sweeps all orphaned 'processing' items, and completes them. This
+ *    works even if waitUntil fails or the browser was closed hours ago.
  */
 import { eq, and, inArray } from 'drizzle-orm'
 import { mediaItems, generations } from '../database/schema'
 import { checkRunPodJob } from './ai'
-import { uploadImageToR2, useMediaBucket as getMediaBucket } from './r2'
+import { uploadImageToR2 } from './r2'
+import type { DrizzleD1Database } from 'drizzle-orm/d1'
 
-const POLL_INTERVAL_MS = 5_000  // 5s between checks
+const POLL_INTERVAL_MS = 5_000     // 5s between checks
 const MAX_POLL_MS = 14 * 60 * 1000 // 14 min (stay under CF 15-min limit)
+
+type DB = DrizzleD1Database<any>
 
 /**
  * Poll a single media item's RunPod job until complete, then save to R2/DB.
+ * Accepts pre-captured db/bucket so it works in background contexts.
  */
 async function completeMediaItem(
-  db: ReturnType<typeof useDatabase>,
+  db: DB,
   mediaBucket: R2Bucket | null,
-  item: { id: string; type: string | null; runpodJobId: string | null; generationId: string | null; metadata: string | null }
+  item: { id: string; type: string | null; runpodJobId: string | null; generationId: string | null; metadata: string | null },
+  maxMs = MAX_POLL_MS,
 ): Promise<'complete' | 'failed' | 'timeout'> {
   if (!item.runpodJobId) return 'failed'
 
-  const apiUrl = item.metadata ? JSON.parse(item.metadata).apiUrl : undefined
+  const apiUrl = item.metadata ? (() => { try { return JSON.parse(item.metadata!).apiUrl } catch { return undefined } })() : undefined
   const startedAt = Date.now()
 
-  while (Date.now() - startedAt < MAX_POLL_MS) {
+  while (Date.now() - startedAt < maxMs) {
     try {
       const result = await checkRunPodJob(item.runpodJobId, apiUrl)
 
@@ -79,17 +86,14 @@ async function completeMediaItem(
     }
   }
 
-  console.log(`[BG] ⏰ ${item.id.slice(0, 8)} timed out after ${MAX_POLL_MS / 1000}s background polling`)
+  console.log(`[BG] ⏰ ${item.id.slice(0, 8)} timed out after ${maxMs / 1000}s`)
   return 'timeout'
 }
 
 /**
  * Update parent generation status after all items are resolved.
  */
-async function updateGenerationStatus(
-  db: ReturnType<typeof useDatabase>,
-  generationId: string
-) {
+async function updateGenerationStatus(db: DB, generationId: string) {
   const items = await db.select().from(mediaItems)
     .where(eq(mediaItems.generationId, generationId))
 
@@ -108,18 +112,20 @@ async function updateGenerationStatus(
 }
 
 /**
- * Start background completion for a list of media items.
- * Call this inside event.waitUntil() after sending the response.
+ * Start background completion for specific item IDs.
+ * Call this inside waitUntil() after sending the response.
+ *
+ * IMPORTANT: db and mediaBucket MUST be captured BEFORE calling this,
+ * while still inside the request handler context.
  */
 export async function backgroundComplete(
-  event: any,
-  itemIds: string[]
+  db: DB,
+  mediaBucket: R2Bucket | null,
+  itemIds: string[],
 ) {
   if (!itemIds.length) return
 
   try {
-    const db = useDatabase()
-    const mediaBucket = getMediaBucket(event)
     const items = await db.select().from(mediaItems)
       .where(inArray(mediaItems.id, itemIds))
 
@@ -147,17 +153,12 @@ export async function backgroundComplete(
 
 /**
  * Find and complete ALL orphaned processing items in the DB.
- * Used by the /api/generate/recover endpoint.
+ * Used by the /api/generate/recover endpoint AND the cron trigger.
  */
-export async function recoverOrphanedItems(event: any) {
-  const db = useDatabase()
-  const mediaBucket = getMediaBucket(event)
-
-  // Find all items still marked as processing with a job ID
+export async function recoverOrphanedItems(db: DB, mediaBucket: R2Bucket | null) {
+  // Find all items still marked as processing
   const orphaned = await db.select().from(mediaItems)
-    .where(and(
-      eq(mediaItems.status, 'processing'),
-    ))
+    .where(eq(mediaItems.status, 'processing'))
 
   if (!orphaned.length) {
     return { recovered: 0, failed: 0, stillProcessing: 0, total: 0 }
@@ -168,23 +169,24 @@ export async function recoverOrphanedItems(event: any) {
 
   console.log(`[Recovery] Found ${orphaned.length} orphaned items (${withJobId.length} with job IDs, ${withoutJobId.length} without)`)
 
-  // Mark items without job IDs as failed
+  // Mark items without job IDs as failed (if old enough)
   for (const item of withoutJobId) {
     const age = Date.now() - new Date(item.createdAt).getTime()
-    if (age > 10 * 60 * 1000) { // only if > 10 minutes old
+    if (age > 10 * 60 * 1000) {
       await db.update(mediaItems)
         .set({ status: 'failed', error: 'No RunPod job ID — lost in submission' })
         .where(eq(mediaItems.id, item.id))
     }
   }
 
-  // Try to complete items with job IDs
+  // Try to complete items with job IDs (single check, no long polling for cron)
   let recovered = 0
   let failed = 0
   let stillProcessing = 0
 
   for (const item of withJobId) {
-    const result = await completeMediaItem(db, mediaBucket, item)
+    // For cron sweeps, do a single check instead of long-polling
+    const result = await completeMediaItem(db, mediaBucket, item, 10_000) // 10s max per item
     if (result === 'complete') recovered++
     else if (result === 'failed') failed++
     else stillProcessing++

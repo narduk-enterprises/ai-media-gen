@@ -81,6 +81,12 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'cloudflare_module',
+    experimental: {
+      tasks: true,
+    },
+    scheduledTasks: {
+      '*/2 * * * *': ['recovery:sweep'],
+    },
     cloudflare: {
       deployConfig: true,
       nodeCompat: true,
@@ -99,7 +105,10 @@ export default defineNuxtConfig({
             binding: 'MEDIA',
             bucket_name: 'ai-media-gen-media'
           }
-        ]
+        ],
+        triggers: {
+          crons: ['*/2 * * * *']  // every 2 minutes — sweep orphaned items
+        }
       }
     },
     esbuild: {

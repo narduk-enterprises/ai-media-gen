@@ -101,8 +101,10 @@ export default defineEventHandler(async (event) => {
   // Background completion — server keeps polling even if frontend disconnects
   if (jobId) {
     const cf = (event.context as any).cloudflare
+    const mediaBucket = useMediaBucket(event)
     if (cf?.context?.waitUntil) {
-      cf.context.waitUntil(backgroundComplete(event, [videoId]))
+      console.log(`[I2V] Scheduling background completion via waitUntil`)
+      cf.context.waitUntil(backgroundComplete(db, mediaBucket, [videoId]))
     }
   }
 
