@@ -204,6 +204,7 @@ const t2vNegativePrompt = ref('')
 const t2vNumFrames = ref<number[]>([81])
 const t2vCount = ref(1)
 const t2vSteps = ref(4)
+const t2vSeed = ref(-1)
 const t2vResolutionIndex = ref(0)
 const t2vCurrentResolution = computed(() => shared.t2vResolutionPresets[t2vResolutionIndex.value]!)
 const t2vTotal = computed(() => t2vNumFrames.value.length * t2vCount.value)
@@ -215,7 +216,8 @@ async function generateText2Video() {
   for (const nf of t2vNumFrames.value) { for (let i = 0; i < t2vCount.value; i++) expandedFrames.push(nf) }
   await gen.generateText2Video({
     prompt: t2vPrompt.value.trim(), negativePrompt: t2vNegativePrompt.value, numFrames: expandedFrames,
-    steps: t2vSteps.value, width: t2vCurrentResolution.value.w, height: t2vCurrentResolution.value.h, loraStrength: shared.loraStrength.value,
+    steps: t2vSteps.value, width: t2vCurrentResolution.value.w, height: t2vCurrentResolution.value.h,
+    loraStrength: shared.loraStrength.value, model: shared.selectedVideoModel.value, seed: t2vSeed.value,
   })
 }
 
@@ -223,6 +225,7 @@ async function generateText2Video() {
 const bvPrompts = ref<string[]>([])
 const bvNumFrames = ref<number[]>([81])
 const bvSteps = ref(4)
+const bvSeed = ref(-1)
 const bvResolutionIndex = ref(0)
 const bvNegativePrompt = ref('')
 const bvCurrentResolution = computed(() => shared.t2vResolutionPresets[bvResolutionIndex.value]!)
@@ -233,7 +236,8 @@ async function generateBatchVideo() {
   if (!canGenerateBV.value) return
   await gen.generateBatchText2Video({
     prompts: bvPrompts.value, negativePrompt: bvNegativePrompt.value, numFrames: bvNumFrames.value,
-    steps: bvSteps.value, width: bvCurrentResolution.value.w, height: bvCurrentResolution.value.h, loraStrength: shared.loraStrength.value,
+    steps: bvSteps.value, width: bvCurrentResolution.value.w, height: bvCurrentResolution.value.h,
+    loraStrength: shared.loraStrength.value, model: shared.selectedVideoModel.value, seed: bvSeed.value,
   })
 }
 
@@ -248,6 +252,7 @@ const canGenerate = computed(() => {
   return false
 })
 const isVideoMode = computed(() => mode.value === 'text2video' || mode.value === 'batchvideo')
+const showSharedSettings = computed(() => !isVideoMode.value && mode.value !== 'img2img')
 
 function handleGenerate(append = false) {
   if (mode.value === 'persona') generatePersona(append)
@@ -296,9 +301,11 @@ onMounted(() => {
   if (s.t2vNegativePrompt != null) t2vNegativePrompt.value = s.t2vNegativePrompt
   if (s.t2vNumFrames != null) t2vNumFrames.value = Array.isArray(s.t2vNumFrames) ? s.t2vNumFrames : [s.t2vNumFrames]
   if (s.t2vSteps != null) t2vSteps.value = s.t2vSteps
+  if (s.t2vSeed != null) t2vSeed.value = s.t2vSeed
   if (s.t2vResolutionIndex != null) t2vResolutionIndex.value = s.t2vResolutionIndex
   if (s.bvNumFrames != null) bvNumFrames.value = Array.isArray(s.bvNumFrames) ? s.bvNumFrames : [s.bvNumFrames]
   if (s.bvSteps != null) bvSteps.value = s.bvSteps
+  if (s.bvSeed != null) bvSeed.value = s.bvSeed
   if (s.bvResolutionIndex != null) bvResolutionIndex.value = s.bvResolutionIndex
   if (s.bvNegativePrompt != null) bvNegativePrompt.value = s.bvNegativePrompt
   if (activeProject.value?.negativePrompt && !shared.negativePrompt.value) shared.negativePrompt.value = activeProject.value.negativePrompt
@@ -306,13 +313,13 @@ onMounted(() => {
 
 watch(
   [mode, activePersonId, selectedSceneIds, basePrompt, countPerScene, freePrompt, freeAttributes, freeCount,
-   shared.steps, shared.imageWidth, shared.imageHeight, shared.negativePrompt, shared.loraStrength, shared.selectedModels, shared.imageSeed,
-   t2vPrompt, t2vNegativePrompt, t2vNumFrames, t2vSteps, t2vResolutionIndex, bvNumFrames, bvSteps, bvResolutionIndex, bvNegativePrompt],
+   shared.steps, shared.imageWidth, shared.imageHeight, shared.negativePrompt, shared.loraStrength, shared.selectedModels, shared.selectedVideoModel, shared.imageSeed,
+   t2vPrompt, t2vNegativePrompt, t2vNumFrames, t2vSteps, t2vSeed, t2vResolutionIndex, bvNumFrames, bvSteps, bvSeed, bvResolutionIndex, bvNegativePrompt],
   () => shared.persistForm({ mode: mode.value, activePersonId: activePersonId.value, selectedSceneIds: selectedSceneIds.value,
     basePrompt: basePrompt.value, countPerScene: countPerScene.value, freePrompt: freePrompt.value, freeAttributes: freeAttributes.value,
     freeCount: freeCount.value, t2vPrompt: t2vPrompt.value, t2vNegativePrompt: t2vNegativePrompt.value, t2vNumFrames: t2vNumFrames.value,
-    t2vSteps: t2vSteps.value, t2vResolutionIndex: t2vResolutionIndex.value, bvNumFrames: bvNumFrames.value, bvSteps: bvSteps.value,
-    bvResolutionIndex: bvResolutionIndex.value, bvNegativePrompt: bvNegativePrompt.value }),
+    t2vSteps: t2vSteps.value, t2vSeed: t2vSeed.value, t2vResolutionIndex: t2vResolutionIndex.value, bvNumFrames: bvNumFrames.value, bvSteps: bvSteps.value,
+    bvSeed: bvSeed.value, bvResolutionIndex: bvResolutionIndex.value, bvNegativePrompt: bvNegativePrompt.value }),
   { deep: true },
 )
 
@@ -320,8 +327,8 @@ function resetForm() {
   activePersonId.value = null; selectedSceneIds.value = []; basePrompt.value = ''; countPerScene.value = 1
   freePrompt.value = ''; freeAttributes.value = createEmptyAttributes(); freeCount.value = 1
   batchPrompts.value = []; batchCountPerPrompt.value = 1
-  t2vPrompt.value = ''; t2vNegativePrompt.value = ''; t2vNumFrames.value = [81]; t2vSteps.value = 4; t2vResolutionIndex.value = 0
-  bvPrompts.value = []; bvNumFrames.value = [81]; bvSteps.value = 4; bvResolutionIndex.value = 0; bvNegativePrompt.value = ''
+  t2vPrompt.value = ''; t2vNegativePrompt.value = ''; t2vNumFrames.value = [81]; t2vSteps.value = 4; t2vSeed.value = -1; t2vResolutionIndex.value = 0
+  bvPrompts.value = []; bvNumFrames.value = [81]; bvSteps.value = 4; bvSeed.value = -1; bvResolutionIndex.value = 0; bvNegativePrompt.value = ''
   shared.resetShared(); gen.clearResults(); shared.persistForm()
 }
 
@@ -397,6 +404,22 @@ const gridClass = computed(() => {
       <template #text2video>
         <div class="space-y-6 pt-4">
           <PromptInput v-model="t2vPrompt" placeholder="Describe the video you want to generate..." :disabled="gen.generating.value" />
+          <div>
+            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Video Model</div>
+            <div class="grid grid-cols-2 gap-3">
+              <button v-for="m in shared.VIDEO_MODELS" :key="m.id" class="flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all duration-150"
+                :class="shared.selectedVideoModel.value === m.id ? 'border-cyan-400 bg-cyan-50/60 shadow-sm' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'" @click="shared.selectedVideoModel.value = m.id">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" :class="shared.selectedVideoModel.value === m.id ? 'bg-cyan-100 text-cyan-600' : 'bg-slate-100 text-slate-400'"><UIcon :name="m.icon" class="w-4 h-4" /></div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-semibold" :class="shared.selectedVideoModel.value === m.id ? 'text-cyan-700' : 'text-slate-700'">{{ m.label }}</div>
+                  <div class="text-[11px]" :class="shared.selectedVideoModel.value === m.id ? 'text-cyan-500' : 'text-slate-400'">{{ m.description }}</div>
+                </div>
+                <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0" :class="shared.selectedVideoModel.value === m.id ? 'border-cyan-500 bg-cyan-500' : 'border-slate-300'">
+                  <div v-if="shared.selectedVideoModel.value === m.id" class="w-1.5 h-1.5 rounded-full bg-white" />
+                </div>
+              </button>
+            </div>
+          </div>
           <UFormField label="Negative prompt" size="sm">
             <UTextarea v-model="t2vNegativePrompt" placeholder="Things to avoid (optional)..." :rows="2" autoresize :disabled="gen.generating.value" class="w-full" size="sm" />
           </UFormField>
@@ -404,6 +427,9 @@ const gridClass = computed(() => {
           <CountSelector v-model="t2vCount" label="Videos per duration" :options="[1, 2, 4]" />
           <StepsSlider v-model="t2vSteps" />
           <ResolutionPicker v-model="t2vResolutionIndex" :presets="shared.t2vResolutionPresets" />
+          <UFormField label="Seed" size="sm" :description="t2vSeed < 0 ? 'Random' : 'Fixed'">
+            <div class="flex items-center gap-2"><UInput v-model.number="t2vSeed" type="number" size="sm" class="w-28" /><UButton size="xs" variant="outline" color="neutral" icon="i-lucide-shuffle" square @click="t2vSeed = -1" title="Random seed" /></div>
+          </UFormField>
           <UCard v-if="t2vPrompt.trim()" variant="subtle">
             <div class="text-[10px] text-slate-500 uppercase tracking-wider font-medium mb-1">Video settings</div>
             <p class="text-xs text-slate-600">
@@ -424,9 +450,29 @@ const gridClass = computed(() => {
           <UFormField label="Negative prompt" size="sm">
             <UTextarea v-model="bvNegativePrompt" placeholder="Things to avoid (optional)..." :rows="2" autoresize :disabled="gen.generating.value" class="w-full" size="sm" />
           </UFormField>
+          <!-- Video Model Selector -->
+          <div>
+            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Video Model</div>
+            <div class="grid grid-cols-2 gap-3">
+              <button v-for="m in shared.VIDEO_MODELS" :key="m.id" class="flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all duration-150"
+                :class="shared.selectedVideoModel.value === m.id ? 'border-cyan-400 bg-cyan-50/60 shadow-sm' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'" @click="shared.selectedVideoModel.value = m.id">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" :class="shared.selectedVideoModel.value === m.id ? 'bg-cyan-100 text-cyan-600' : 'bg-slate-100 text-slate-400'"><UIcon :name="m.icon" class="w-4 h-4" /></div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-semibold" :class="shared.selectedVideoModel.value === m.id ? 'text-cyan-700' : 'text-slate-700'">{{ m.label }}</div>
+                  <div class="text-[11px]" :class="shared.selectedVideoModel.value === m.id ? 'text-cyan-500' : 'text-slate-400'">{{ m.description }}</div>
+                </div>
+                <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0" :class="shared.selectedVideoModel.value === m.id ? 'border-cyan-500 bg-cyan-500' : 'border-slate-300'">
+                  <div v-if="shared.selectedVideoModel.value === m.id" class="w-1.5 h-1.5 rounded-full bg-white" />
+                </div>
+              </button>
+            </div>
+          </div>
           <DurationPicker v-model="bvNumFrames" :presets="shared.durationPresets" />
           <StepsSlider v-model="bvSteps" />
           <ResolutionPicker v-model="bvResolutionIndex" :presets="shared.t2vResolutionPresets" />
+          <UFormField label="Seed" size="sm" :description="bvSeed < 0 ? 'Random' : 'Fixed'">
+            <div class="flex items-center gap-2"><UInput v-model.number="bvSeed" type="number" size="sm" class="w-28" /><UButton size="xs" variant="outline" color="neutral" icon="i-lucide-shuffle" square @click="bvSeed = -1" title="Random seed" /></div>
+          </UFormField>
           <div v-if="gen.generating.value && gen.batchProgress.value.total > 0" class="flex items-center gap-3 p-3 rounded-lg bg-cyan-50 border border-cyan-200">
             <div class="w-4 h-4 border-2 border-cyan-300 border-t-cyan-600 rounded-full animate-spin shrink-0" />
             <div class="text-xs text-cyan-700">Submitted {{ gen.batchProgress.value.current }} / {{ gen.batchProgress.value.total }} videos. Waiting…</div>
@@ -436,9 +482,9 @@ const gridClass = computed(() => {
 
       <template #img2img>
         <CreateI2ITab
-          :i2i-prompt="i2iPrompt" :i2i-image-preview="i2iImagePreview" :i2i-cfg="i2iCfg" :i2i-steps="i2iSteps"
+          :i2i-prompt="i2iPrompt" :i2i-image-preview="i2iImagePreview" :i2i-cfg="i2iCfg" :i2i-denoise="i2iDenoise" :i2i-steps="i2iSteps"
           :image-width="shared.imageWidth.value" :image-height="shared.imageHeight.value"
-          @update:i2i-prompt="i2iPrompt = $event" @update:i2i-cfg="i2iCfg = $event" @update:i2i-steps="i2iSteps = $event"
+          @update:i2i-prompt="i2iPrompt = $event" @update:i2i-cfg="i2iCfg = $event" @update:i2i-denoise="i2iDenoise = $event" @update:i2i-steps="i2iSteps = $event"
           @file-change="handleI2IFileChange" @drop="handleI2IDrop" @clear-image="clearI2IImage"
         />
       </template>
@@ -453,7 +499,7 @@ const gridClass = computed(() => {
         </div>
         <span class="text-[10px] text-slate-400">Select multiple to compare outputs</span>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <button v-for="m in shared.IMAGE_MODELS" :key="m.id" class="flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all duration-150"
           :class="shared.selectedModels.value.includes(m.id) ? 'border-violet-400 bg-violet-50/60 shadow-sm' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'" @click="shared.toggleModel(m.id)">
           <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" :class="shared.selectedModels.value.includes(m.id) ? 'bg-violet-100 text-violet-600' : 'bg-slate-100 text-slate-400'"><UIcon :name="m.icon" class="w-5 h-5" /></div>
@@ -468,8 +514,8 @@ const gridClass = computed(() => {
       </div>
     </UCard>
 
-    <!-- ═══ Shared Settings ═══ -->
-    <UCard class="mb-6" variant="outline">
+    <!-- ═══ Shared Settings (image modes only) ═══ -->
+    <UCard v-if="showSharedSettings" class="mb-6" variant="outline">
       <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
         <UFormField label="Steps" size="sm">
           <div class="flex items-center gap-2"><USlider v-model="shared.steps.value" :min="1" :max="50" class="w-28" size="xs" /><span class="text-xs text-slate-600 font-mono w-5 text-right">{{ shared.steps.value }}</span></div>

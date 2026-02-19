@@ -3,6 +3,7 @@ defineProps<{
   i2iPrompt: string
   i2iImagePreview: string
   i2iCfg: number
+  i2iDenoise: number
   i2iSteps: number
   imageWidth: number
   imageHeight: number
@@ -11,6 +12,7 @@ defineProps<{
 const emit = defineEmits<{
   'update:i2iPrompt': [value: string]
   'update:i2iCfg': [value: number]
+  'update:i2iDenoise': [value: number]
   'update:i2iSteps': [value: number]
   fileChange: [e: Event]
   drop: [e: DragEvent]
@@ -67,6 +69,12 @@ const i2iFileInput = ref<HTMLInputElement | null>(null)
         <div class="flex items-center gap-2">
           <USlider :model-value="i2iCfg" @update:model-value="(v) => emit('update:i2iCfg', v ?? i2iCfg)" :min="1" :max="15" :step="0.5" class="w-28" size="xs" />
           <span class="text-xs text-slate-600 font-mono w-8 text-right">{{ i2iCfg }}</span>
+        </div>
+      </UFormField>
+      <UFormField label="Denoise" size="sm" description="How much to change the image">
+        <div class="flex items-center gap-2">
+          <USlider :model-value="i2iDenoise" @update:model-value="(v) => emit('update:i2iDenoise', v ?? i2iDenoise)" :min="0" :max="1" :step="0.05" class="w-28" size="xs" />
+          <span class="text-xs text-slate-600 font-mono w-8 text-right">{{ i2iDenoise.toFixed(2) }}</span>
         </div>
       </UFormField>
       <UFormField label="Steps" size="sm">

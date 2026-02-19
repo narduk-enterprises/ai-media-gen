@@ -9,7 +9,14 @@ const DEFAULT_NEG = 'ugly, deformed, noisy, blurry, distorted, grainy, low quali
 
 const IMAGE_MODELS = [
   { id: 'wan22', label: 'Wan 2.2', description: '14B dual-UNET, 20 steps', icon: 'i-lucide-brain', defaultSteps: 20 },
-  { id: 'z_image_turbo', label: 'Z-Image Turbo', description: 'Ultra-fast, 6 steps', icon: 'i-lucide-zap', defaultSteps: 6 },
+  { id: 'qwen_image', label: 'Qwen 2.5', description: 'VL 7B, 50 steps (4 with Lightning)', icon: 'i-lucide-sparkles', defaultSteps: 50 },
+  { id: 'flux2_turbo', label: 'Flux 2 Turbo', description: 'Fast Mistral CLIP, 4 steps', icon: 'i-lucide-zap', defaultSteps: 4 },
+  { id: 'flux2_dev', label: 'Flux 2 Dev', description: 'Full quality, 20 steps', icon: 'i-lucide-gem', defaultSteps: 20 },
+] as const
+
+const VIDEO_MODELS = [
+  { id: 'wan22', label: 'Wan 2.2', description: '14B LightX2V, 4 steps', icon: 'i-lucide-brain', defaultSteps: 4 },
+  { id: 'ltx2', label: 'LTX-2', description: '19B + upscaler, 20 steps', icon: 'i-lucide-film', defaultSteps: 20 },
 ] as const
 
 const t2vResolutionPresets = [
@@ -43,6 +50,7 @@ export function useCreateShared() {
 
   // ─── Model selection ──────────────────────────────────────────
   const selectedModels = ref<string[]>(['wan22'])
+  const selectedVideoModel = ref('wan22')
   const compareMode = computed(() => selectedModels.value.length > 1)
 
   function toggleModel(id: string) {
@@ -71,6 +79,7 @@ export function useCreateShared() {
         negativePrompt: negativePrompt.value,
         loraStrength: loraStrength.value,
         selectedModels: selectedModels.value,
+        selectedVideoModel: selectedVideoModel.value,
         imageSeed: imageSeed.value,
         ...extra,
       }))
@@ -89,6 +98,7 @@ export function useCreateShared() {
       if (s.negativePrompt != null) negativePrompt.value = s.negativePrompt
       if (s.loraStrength != null) loraStrength.value = s.loraStrength
       if (Array.isArray(s.selectedModels) && s.selectedModels.length > 0) selectedModels.value = s.selectedModels
+      if (s.selectedVideoModel) selectedVideoModel.value = s.selectedVideoModel
       if (s.imageSeed != null) imageSeed.value = s.imageSeed
       return s
     } catch { return {} }
@@ -102,6 +112,7 @@ export function useCreateShared() {
     showAdvanced.value = false
     loraStrength.value = 1.0
     selectedModels.value = ['wan22']
+    selectedVideoModel.value = 'wan22'
     imageSeed.value = -1
   }
 
@@ -119,7 +130,9 @@ export function useCreateShared() {
 
     // Models
     IMAGE_MODELS,
+    VIDEO_MODELS,
     selectedModels,
+    selectedVideoModel,
     compareMode,
     toggleModel,
 

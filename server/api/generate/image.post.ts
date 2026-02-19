@@ -13,7 +13,7 @@ const generateSchema = z.object({
   width: z.number().int().min(512).max(2048).default(1024),
   height: z.number().int().min(512).max(2048).default(1024),
   loraStrength: z.number().min(0).max(2).default(1.0),
-  model: z.enum(['wan22', 'z_image_turbo']).default('wan22'),
+  model: z.enum(['wan22', 'qwen_image', 'flux2_dev', 'flux2_turbo']).default('wan22'),
   seed: z.number().int().default(-1),
   attributes: z.record(z.string()).optional(),
   endpoint: z.string().optional(),

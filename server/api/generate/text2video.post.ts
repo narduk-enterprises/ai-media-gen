@@ -12,6 +12,8 @@ const text2videoSchema = z.object({
   numFrames: z.number().min(41).max(201).optional().default(81),
   steps: z.number().min(1).max(20).optional().default(4),
   loraStrength: z.number().min(0).max(2).optional().default(1.0),
+  model: z.enum(['wan22', 'ltx2']).optional().default('wan22'),
+  seed: z.number().int().optional().default(-1),
   endpoint: z.string().optional(),
 })
 
@@ -24,7 +26,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, negativePrompt, width, height, numFrames, steps, loraStrength, endpoint } = parsed.data
+  const { prompt, negativePrompt, width, height, numFrames, steps, loraStrength, model, seed, endpoint } = parsed.data
   const apiUrl = resolveApiUrl(endpoint)
   const db = useDatabase()
   const now = new Date().toISOString()
@@ -59,6 +61,8 @@ export default defineEventHandler(async (event) => {
         num_frames: numFrames,
         steps,
         lora_strength: loraStrength,
+        model,
+        seed,
       },
     }),
     createdAt: now,
@@ -69,7 +73,7 @@ export default defineEventHandler(async (event) => {
   // Immediately submit to RunPod (fire-and-forget — cron is safety net)
   let submittedJobId: string | null = null
   try {
-    const meta = { apiUrl, runpodInput: { action: 'text2video', prompt, negative_prompt: negativePrompt, width, height, num_frames: numFrames, steps, lora_strength: loraStrength } }
+    const meta = { apiUrl, runpodInput: { action: 'text2video', prompt, negative_prompt: negativePrompt, width, height, num_frames: numFrames, steps, lora_strength: loraStrength, model, seed } }
     const result = await callRunPodAsync(meta.runpodInput, apiUrl)
     await db.update(mediaItems)
       .set({
