@@ -34,11 +34,13 @@ export default defineEventHandler(async (event) => {
       temperature,
     }, apiUrl)
 
-    if (response.output?.prompts) {
-      return {
-        prompts: response.output.prompts,
-        elapsed: response.output.elapsed_seconds,
-      }
+    // Handler returns { status, output: { prompts, elapsed_seconds } }
+    // Pod server wraps as { output: handler_result }, so prompts may be at either level
+    const prompts = response.output?.output?.prompts || response.output?.prompts
+    const elapsed = response.output?.output?.elapsed_seconds || response.output?.elapsed_seconds
+
+    if (prompts?.length) {
+      return { prompts, elapsed }
     }
 
     throw createError({
