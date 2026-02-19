@@ -2,11 +2,14 @@
 
 import { eq } from 'drizzle-orm'
 import { mediaItems } from '../../database/schema'
+import { useMediaBucket } from '../../utils/r2'
 
 /**
- * Serves images from R2 storage by media item ID.
- * Falls back to redirecting base64 data URIs for legacy items.
- * Sets aggressive caching headers since generated images are immutable.
+ * Serves media from R2 by media item ID.
+ * Fallback chain:
+ *   1. Direct R2 lookup by ID
+ *   2. D1 metadata.originalR2Key → R2 lookup
+ *   3. Legacy base64 data URI in D1
  */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -14,44 +17,40 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Missing media ID' })
   }
 
-  // Try R2 first
-  const cf = (event.context as any).cloudflare?.env
-  const bucket: R2Bucket | undefined = cf?.MEDIA
+  const bucket = useMediaBucket(event)
+  const db = useDatabase()
 
   if (bucket) {
-    // Try direct ID-based R2 key first
     let object = await bucket.get(id)
 
     // Fallback: check D1 metadata for alternative R2 key
     if (!object) {
-      const db = useDatabase()
-      const item = await db.select({ metadata: mediaItems.metadata })
-        .from(mediaItems)
-        .where(eq(mediaItems.id, id))
-        .get()
-      if (item?.metadata) {
-        try {
-          const meta = JSON.parse(item.metadata)
+      try {
+        const lookupItem = await db.select({ metadata: mediaItems.metadata })
+          .from(mediaItems)
+          .where(eq(mediaItems.id, id))
+          .get()
+        if (lookupItem?.metadata) {
+          const meta = JSON.parse(lookupItem.metadata)
           if (meta.originalR2Key) {
             object = await bucket.get(meta.originalR2Key)
           }
         }
-        catch {}
       }
+      catch {}
     }
 
     if (object) {
       setResponseHeaders(event, {
-        'Content-Type': object.httpMetadata?.contentType || 'image/png',
+        'Content-Type': object.httpMetadata?.contentType || 'video/mp4',
         'Cache-Control': 'public, max-age=31536000, immutable',
-        'ETag': object.httpEtag,
       })
-      return object.body
+      setResponseStatus(event, 200)
+      return sendStream(event, object.body as any)
     }
   }
 
-  // Fallback: check D1 for legacy base64 items
-  const db = useDatabase()
+  // D1 fallback for legacy base64
   const item = await db.select({ url: mediaItems.url })
     .from(mediaItems)
     .where(eq(mediaItems.id, id))
@@ -61,7 +60,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'Media not found' })
   }
 
-  // If it's a base64 data URI, extract and serve it directly
   const base64Match = item.url.match(/^data:([\w/+.-]+);base64,(.+)$/)
   if (base64Match) {
     const contentType = base64Match[1]!
@@ -71,15 +69,17 @@ export default defineEventHandler(async (event) => {
     for (let i = 0; i < binaryStr.length; i++) {
       bytes[i] = binaryStr.charCodeAt(i)
     }
-
     setResponseHeaders(event, {
       'Content-Type': contentType,
       'Cache-Control': 'public, max-age=31536000, immutable',
     })
-
     return send(event, bytes)
   }
 
-  // If it's already a URL path, redirect
+  // Prevent self-redirect loops
+  if (item.url.startsWith('/api/media/')) {
+    throw createError({ statusCode: 404, message: `R2 object missing for ${id}` })
+  }
+
   return sendRedirect(event, item.url, 302)
 })
