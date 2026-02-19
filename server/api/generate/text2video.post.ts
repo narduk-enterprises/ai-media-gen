@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
 import { callRunPodAsync, resolveApiUrl } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
+import { backgroundComplete } from '../../utils/backgroundComplete'
 
 const text2videoSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
@@ -71,6 +72,14 @@ export default defineEventHandler(async (event) => {
 
   if (!jobId) {
     await db.update(generations).set({ status: 'failed' }).where(eq(generations.id, genId))
+  }
+
+  // Background completion — server keeps polling even if frontend disconnects
+  if (jobId) {
+    const cf = (event.context as any).cloudflare
+    if (cf?.context?.waitUntil) {
+      cf.context.waitUntil(backgroundComplete(event, [videoId]))
+    }
   }
 
   return {

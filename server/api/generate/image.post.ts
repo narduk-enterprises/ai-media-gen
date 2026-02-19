@@ -1,8 +1,8 @@
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
 import { callRunPodAsync, resolveApiUrl } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
+import { backgroundComplete } from '../../utils/backgroundComplete'
 
 const generateSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
@@ -49,13 +49,12 @@ export default defineEventHandler(async (event) => {
     createdAt: now,
   })
 
-  // Submit all jobs to RunPod and store job IDs — no background work.
-  // The frontend polls generation-status which drives completion (checks
-  // RunPod, downloads results, uploads to R2). This avoids depending on
-  // waitUntil() which Cloudflare can kill at any time.
+  // Submit all jobs to RunPod and store job IDs
+  const itemIds: string[] = []
   const items = await Promise.all(
     Array.from({ length: count }, async (_, i) => {
       const itemId = crypto.randomUUID()
+      itemIds.push(itemId)
       const imagePrompt = prompts?.[i] || prompt
       let jobId: string | null = null
 
@@ -89,6 +88,12 @@ export default defineEventHandler(async (event) => {
       return { id: itemId, generationId, type: 'image', prompt: imagePrompt, runpodJobId: jobId, parentId: null, url: null, status: jobId ? 'processing' : 'failed', error: jobId ? null : 'Failed to submit to RunPod', metadata: null, createdAt: now }
     })
   )
+
+  // Background completion — server keeps polling even if frontend disconnects
+  const cf = (event.context as any).cloudflare
+  if (cf?.context?.waitUntil) {
+    cf.context.waitUntil(backgroundComplete(event, itemIds))
+  }
 
   return {
     generation: {

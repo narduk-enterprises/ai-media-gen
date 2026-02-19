@@ -4,6 +4,7 @@ import { requireAuth } from '../../utils/auth'
 import { callRunPodAsync, resolveApiUrl } from '../../utils/ai'
 import { useMediaBucket, readBase64FromR2 } from '../../utils/r2'
 import { mediaItems, generations } from '../../database/schema'
+import { backgroundComplete } from '../../utils/backgroundComplete'
 
 const audioSchema = z.object({
   mediaItemId: z.string().uuid('Invalid media item ID'),
@@ -92,6 +93,14 @@ export default defineEventHandler(async (event) => {
     metadata: JSON.stringify({ apiUrl }),
     createdAt: now,
   })
+
+  // Background completion — server keeps polling even if frontend disconnects
+  if (jobId) {
+    const cf = (event.context as any).cloudflare
+    if (cf?.context?.waitUntil) {
+      cf.context.waitUntil(backgroundComplete(event, [itemId]))
+    }
+  }
 
   return {
     item: {
