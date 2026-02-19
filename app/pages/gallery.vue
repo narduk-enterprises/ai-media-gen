@@ -16,6 +16,7 @@ const searchQuery = ref('')
 const sortOrder = ref<'newest' | 'oldest' | 'best'>('newest')
 type TypeFilter = 'all' | 'image' | 'video'
 const typeFilter = ref<TypeFilter>('all')
+const hasVideoOnly = ref(false)
 
 // ─── Flattened media across all generations ─────────────────────────────
 interface GalleryMedia {
@@ -59,9 +60,24 @@ const allMedia = computed<GalleryMedia[]>(() => {
   return result
 })
 
+// ─── "Has Video" helper: generation IDs that have at least one completed video ──
+const genIdsWithVideo = computed<Set<string>>(() => {
+  const ids = new Set<string>()
+  const gens = generations.value || []
+  for (const gen of gens) {
+    if (gen.items.some(i => i.type === 'video' && i.url && i.status === 'complete')) {
+      ids.add(gen.id)
+    }
+  }
+  return ids
+})
+
 // ─── Filter & sort ─────────────────────────────────────────────────────
 const filteredMedia = computed(() => {
   let items = allMedia.value
+  if (hasVideoOnly.value) {
+    items = items.filter(i => genIdsWithVideo.value.has(i.generationId))
+  }
   if (typeFilter.value !== 'all') {
     items = items.filter(i => i.type === typeFilter.value)
   }
@@ -79,6 +95,9 @@ const filteredMedia = computed(() => {
 
 const filteredGenerations = computed(() => {
   let gens = generations.value || []
+  if (hasVideoOnly.value) {
+    gens = gens.filter(g => genIdsWithVideo.value.has(g.id))
+  }
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase()
     gens = gens.filter(g => g.prompt.toLowerCase().includes(q))
@@ -336,9 +355,21 @@ const gridClass = computed(() => {
           >
             <UIcon name="i-heroicons-film" class="w-3 h-3" /> Videos
           </button>
-        </div>
+          </div>
 
-        <!-- View toggle -->
+          <!-- Has Video filter -->
+          <button
+            class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 border"
+            :class="hasVideoOnly
+              ? 'bg-cyan-50 border-cyan-200 text-cyan-700'
+              : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600'"
+            @click="hasVideoOnly = !hasVideoOnly"
+          >
+            <UIcon name="i-heroicons-film" class="w-3 h-3" />
+            Has Video
+          </button>
+
+          <!-- View toggle -->
         <div class="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
           <button
             class="px-2.5 py-1 rounded text-xs font-medium transition-all"
@@ -818,7 +849,7 @@ const gridClass = computed(() => {
                 <span class="text-white/40">Steps</span>
                 <span>{{ currentItem.settings.steps }}</span>
                 <span class="text-white/40">Created</span>
-                <span>{{ new Date(currentItem.createdAt).toLocaleString() }}</span>
+                <span>{{ formatDate(currentItem.createdAt) }}</span>
                 <template v-if="currentItem.settings.negativePrompt">
                   <span class="text-white/40">Neg. prompt</span>
                   <span class="text-white/60 line-clamp-2" :title="currentItem.settings.negativePrompt">{{ currentItem.settings.negativePrompt }}</span>

@@ -1,3 +1,10 @@
+/**
+ * App settings composable — SSR-safe.
+ *
+ * Uses useState (SSR payload) for defaults, defers localStorage
+ * hydration to client mount to avoid hydration mismatches.
+ */
+
 type EndpointType = 'full' | 'slim' | 'eu'
 
 interface AppSettings {
@@ -12,25 +19,28 @@ const defaults: AppSettings = {
   customEndpoint: '',
 }
 
-function load(): AppSettings {
-  if (import.meta.server) return { ...defaults }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { ...defaults }
-    return { ...defaults, ...JSON.parse(raw) }
-  } catch {
-    return { ...defaults }
-  }
-}
-
 function save(settings: AppSettings) {
   if (import.meta.server) return
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
 }
 
-const state = ref<AppSettings>(load())
-
 export function useAppSettings() {
+  // useState ensures consistent SSR → client hydration
+  const state = useState<AppSettings>('app-settings', () => ({ ...defaults }))
+
+  // Hydrate from localStorage only on the client, after mount
+  if (import.meta.client) {
+    onNuxtReady(() => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          state.value = { ...defaults, ...parsed }
+        }
+      } catch {}
+    })
+  }
+
   const runpodEndpoint = computed({
     get: () => state.value.runpodEndpoint,
     set: (val: EndpointType) => {

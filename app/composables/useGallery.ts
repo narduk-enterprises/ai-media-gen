@@ -2,54 +2,63 @@ import type { GenerationResult, MediaItemResult } from '~/types/gallery'
 
 const PAGE_SIZE = 50
 
+/**
+ * Gallery composable — SSR-safe.
+ *
+ * Uses useAsyncData with server:false so Nuxt knows to skip SSR
+ * data and fetch client-side without hydration mismatches.
+ */
 export function useGallery() {
-  const loading = ref(true)
   const loadingMore = ref(false)
-  const generations = ref<GenerationResult[]>([])
-  const total = ref(0)
-  const error = ref<Error | null>(null)
+  const generationsData = useState<GenerationResult[]>('gallery-generations', () => [])
+  const totalCount = useState<number>('gallery-total', () => 0)
 
-  const hasMore = computed(() => generations.value.length < total.value)
-
-  async function fetchGenerations() {
-    loading.value = true
-    error.value = null
-    try {
+  const { pending, error, refresh } = useAsyncData(
+    'gallery-data',
+    async () => {
       const result = await $fetch<{ generations: GenerationResult[]; total: number }>('/api/generations', {
         params: { limit: PAGE_SIZE, offset: 0 },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
-      generations.value = result.generations ?? []
-      total.value = result.total ?? 0
-    } catch (e: any) {
-      error.value = e
-    } finally {
-      loading.value = false
+      generationsData.value = result.generations ?? []
+      totalCount.value = result.total ?? 0
+      return true
+    },
+    {
+      server: false,
+      lazy: true,
     }
-  }
+  )
+
+  const hasMore = computed(() => generationsData.value.length < totalCount.value)
 
   async function loadMore() {
     if (loadingMore.value || !hasMore.value) return
     loadingMore.value = true
     try {
       const result = await $fetch<{ generations: GenerationResult[]; total: number }>('/api/generations', {
-        params: { limit: PAGE_SIZE, offset: generations.value.length },
+        params: { limit: PAGE_SIZE, offset: generationsData.value.length },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
-      generations.value = [...generations.value, ...(result.generations ?? [])]
-      total.value = result.total ?? total.value
+      generationsData.value = [...generationsData.value, ...(result.generations ?? [])]
+      totalCount.value = result.total ?? totalCount.value
     } catch (e: any) {
-      error.value = e
+      // error is handled by the caller
     } finally {
       loadingMore.value = false
     }
   }
 
-  if (import.meta.client) {
-    fetchGenerations()
+  return {
+    generations: generationsData,
+    total: totalCount,
+    pending,
+    loadingMore,
+    hasMore,
+    error,
+    refresh,
+    loadMore,
   }
-
-  return { generations, total, pending: loading, loadingMore, hasMore, error, refresh: fetchGenerations, loadMore }
 }
 
 /** Return up to 4 media thumbnails (images and videos) for a generation. */

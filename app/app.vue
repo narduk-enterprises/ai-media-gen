@@ -133,7 +133,7 @@ useHead({
 
       <!-- Footer -->
       <footer v-if="loggedIn" class="text-center py-6 text-xs text-slate-400">
-        AI Media Gen &middot; {{ new Date().getFullYear() }}
+        AI Media Gen &middot; 2026
       </footer>
     </div>
   </UApp>
