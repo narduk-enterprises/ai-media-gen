@@ -29,11 +29,6 @@ export default defineNuxtConfig({
     provider: 'none',
   },
 
-  colorMode: {
-    preference: 'light',
-    fallback: 'light',
-  },
-
   vite: {
     define: {
       __BUILD_TIME__: JSON.stringify(new Date().toISOString()),

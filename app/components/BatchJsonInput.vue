@@ -108,12 +108,12 @@ async function remixAll() {
       )
 
       for (let j = 0; j < results.length; j++) {
-        const result = results[j]
+        const result = results[j]!
         if (result.status === 'fulfilled' && result.value?.prompts?.[0]) {
           remixed.push(result.value.prompts[0])
         } else {
           // Keep original if remix fails
-          remixed.push(original[i + j])
+          remixed.push(original[i + j]!)
         }
         remixProgress.value.current = remixed.length
       }

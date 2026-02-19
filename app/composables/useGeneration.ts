@@ -5,7 +5,7 @@
  * across different creation modes (Persona+Scene, Free Build, etc.).
  */
 
-interface MediaItemResult {
+export interface MediaItemResult {
   id: string
   type: string
   url: string | null
@@ -13,7 +13,7 @@ interface MediaItemResult {
   parentId: string | null
 }
 
-interface GenerationResult {
+export interface GenerationResult {
   generation: {
     id: string
     prompt: string

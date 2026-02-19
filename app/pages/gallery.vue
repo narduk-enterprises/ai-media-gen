@@ -235,16 +235,10 @@ function recreateFromImage(img: GalleryMedia) {
 // ─── Reimagine (Image to Image) ─────────────────────────────────────
 const reimagineModalOpen = ref(false)
 const reimagineTarget = ref<GalleryMedia | null>(null)
-const reimaginePrompt = ref('')
 const reimagineLoading = ref(false)
-const reimagineCfg = ref(3.5)
-const reimagineSteps = ref(20)
-const reimagineError = ref('')
 
 function openReimaginModal(item: GalleryMedia) {
   reimagineTarget.value = item
-  reimaginePrompt.value = item.prompt
-  reimagineError.value = ''
   reimagineModalOpen.value = true
 }
 
@@ -253,41 +247,15 @@ function openReimaginByItemId(itemId: string) {
   if (item) openReimaginModal(item)
 }
 
-async function submitReimagine() {
-  if (!reimagineTarget.value || !reimaginePrompt.value.trim()) return
+async function handleReimagine(payload: { image: string; prompt: string; cfg: number; steps: number; width: number; height: number; negativePrompt: string; denoise: number }) {
   reimagineLoading.value = true
-  reimagineError.value = ''
   try {
-    // Fetch image as base64
-    const resp = await fetch(reimagineTarget.value.url)
-    const blob = await resp.blob()
-    const base64 = await new Promise<string>((resolve) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve((reader.result as string).replace(/^data:image\/[^;]+;base64,/, ''))
-      reader.readAsDataURL(blob)
-    })
-
-    const w = reimagineTarget.value.settings?.width || 1024
-    const h = reimagineTarget.value.settings?.height || 1024
-
     const result = await $fetch<any>('/api/generate/image2image', {
       method: 'POST',
-      body: {
-        image: base64,
-        prompt: reimaginePrompt.value.trim(),
-        negativePrompt: reimagineTarget.value.settings?.negativePrompt || '',
-        steps: reimagineSteps.value,
-        width: w,
-        height: h,
-        cfg: reimagineCfg.value,
-        denoise: 0.75,
-        endpoint: effectiveEndpoint.value,
-      },
+      body: { ...payload, endpoint: effectiveEndpoint.value },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
-
     reimagineModalOpen.value = false
-    // Poll for results
     if (result.items?.[0]) {
       const item = result.items[0]
       const loadingKey = `reimagine-${item.id}`
@@ -295,7 +263,7 @@ async function submitReimagine() {
       pollVideoStatus(item.id, loadingKey)
     }
   } catch (e: any) {
-    reimagineError.value = e.data?.message || e.message || 'Reimagine failed'
+    // Error handled inside modal
   } finally {
     reimagineLoading.value = false
   }
@@ -410,99 +378,38 @@ async function submitReimagine() {
       <!-- ═══ Grid View ═══ -->
       <div v-else-if="viewMode === 'grid'">
         <div :class="['grid gap-2', gridClass]">
-          <div v-for="(item, index) in filteredMedia" :key="item.id"
-            class="group relative aspect-square rounded-lg overflow-hidden cursor-pointer border border-slate-200 hover:border-violet-300 transition-all shadow-sm hover:shadow-md"
+          <MediaThumbnail
+            v-for="(item, index) in filteredMedia" :key="item.id"
+            :url="item.url" :type="item.type" :prompt="item.prompt"
+            :date="formatDate(item.createdAt)" show-overlay show-actions
             @click="openLightbox(index)"
           >
-            <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="none"
-              class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              @mouseenter="($event.target as HTMLVideoElement).play()" @mouseleave="($event.target as HTMLVideoElement).pause()" />
-            <NuxtImg v-else :src="item.url" :alt="item.prompt" width="400"
-              class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
-            <div v-if="item.type === 'video'" class="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/50 text-white text-[10px] flex items-center gap-1 backdrop-blur-sm">
-              <UIcon name="i-lucide-play" class="w-3 h-3" /> Video
-            </div>
-            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              <div class="absolute bottom-0 left-0 right-0 p-2.5 pointer-events-none">
-                <p class="text-white text-[10px] line-clamp-2 leading-relaxed">{{ item.prompt }}</p>
-                <p class="text-white/50 text-[9px] mt-0.5">{{ formatDate(item.createdAt) }}</p>
-              </div>
-            </div>
-            <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <template #actions>
               <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-image-plus"
                 @click.stop="openReimaginModal(item)" title="Reimagine" />
               <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-film"
                 :loading="actionLoading[`video-${item.id}`]" @click.stop="openVideoModal(item.id)" />
               <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="downloadMedia(item.url, index, item.type)" />
-            </div>
-          </div>
+            </template>
+          </MediaThumbnail>
         </div>
       </div>
 
       <!-- ═══ Grouped View ═══ -->
-      <div v-else class="space-y-4">
-        <div v-for="gen in filteredGenerations" :key="gen.id" class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <button class="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 transition-colors" @click="toggleGeneration(gen.id)">
-            <div class="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-200">
-              <video v-if="generationMedia(gen)[0]?.type === 'video' && generationMedia(gen)[0]?.url" :src="generationMedia(gen)[0]!.url! + '#t=0.1'" muted preload="none" class="w-full h-full object-cover" />
-              <NuxtImg v-else-if="generationMedia(gen)[0]?.url" :src="generationMedia(gen)[0]!.url!" alt="" width="80" class="w-full h-full object-cover" />
-              <div v-else class="w-full h-full bg-slate-100" />
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="text-sm text-slate-700 line-clamp-1">{{ gen.prompt }}</p>
-              <div class="flex items-center gap-2 mt-0.5">
-                <span class="text-[10px] text-slate-400">{{ formatDate(gen.createdAt) }}</span>
-                <span class="text-[10px] text-slate-300">·</span>
-                <span class="text-[10px] text-slate-400">{{ generationMedia(gen).length }} item{{ generationMedia(gen).length !== 1 ? 's' : '' }}</span>
-                <UBadge v-if="gen.status !== 'complete'" :color="gen.status === 'processing' || gen.status === 'queued' ? 'warning' : 'error'" variant="subtle" size="xs">{{ gen.status }}</UBadge>
-              </div>
-            </div>
-            <UIcon :name="expandedGenerations.has(gen.id) ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" class="w-4 h-4 text-slate-400 shrink-0" />
-          </button>
-
-          <div v-if="expandedGenerations.has(gen.id)" class="px-4 pb-3 border-t border-slate-100">
-            <div v-if="gen.settings" class="py-2 flex items-center gap-2 text-[10px] text-slate-400 flex-wrap">
-              <template v-if="parseSettings(gen.settings)">
-                <span>{{ parseSettings(gen.settings)?.width }}×{{ parseSettings(gen.settings)?.height }}</span>
-                <span class="text-slate-200">·</span>
-                <span>{{ parseSettings(gen.settings)?.steps }} steps</span>
-                <template v-if="parseSettings(gen.settings)?.attributes">
-                  <span class="text-slate-200">·</span>
-                  <span v-for="(val, key) in parseSettings(gen.settings)?.attributes" :key="String(key)" class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">{{ key }}: {{ val }}</span>
-                </template>
-              </template>
-            </div>
-
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 mt-1">
-              <div v-for="item in generationMedia(gen)" :key="item.id"
-                class="group relative aspect-square rounded-lg overflow-hidden cursor-pointer border border-slate-200 hover:border-violet-300 transition-all"
-                @click="openLightbox(filteredMedia.findIndex(i => i.id === item.id))"
-              >
-                <video v-if="item.type === 'video'" :src="item.url! + '#t=0.1'" muted preload="none"
-                  class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  @mouseenter="($event.target as HTMLVideoElement).play()" @mouseleave="($event.target as HTMLVideoElement).pause()" />
-                <NuxtImg v-else :src="item.url!" alt="" width="300"
-                  class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
-                <div v-if="item.type === 'video'" class="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/50 text-white text-[9px] flex items-center gap-0.5 backdrop-blur-sm">
-                  <UIcon name="i-lucide-play" class="w-2.5 h-2.5" /> Video
-                </div>
-                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none" />
-                <div class="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-image-plus"
-                    @click.stop="openReimaginByItemId(item.id)" title="Reimagine" />
-                  <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-film"
-                    :loading="actionLoading[`video-${item.id}`]" @click.stop="openVideoModal(item.id)" />
-                  <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="downloadMedia(item.url!, 0, item.type)" />
-                </div>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
-              <UButton variant="link" size="xs" color="neutral" icon="i-lucide-clipboard-copy" @click="copyPrompt(gen.prompt)">Copy prompt</UButton>
-              <UButton variant="link" size="xs" color="neutral" icon="i-lucide-refresh-cw" @click="navigateTo({ path: '/create', query: { prompt: gen.prompt } })">Recreate</UButton>
-            </div>
-          </div>
-        </div>
+      <div v-else>
+        <GalleryGroupedView
+          :generations="filteredGenerations"
+          :expanded-generations="expandedGenerations"
+          :action-loading="actionLoading"
+          :filtered-media="filteredMedia"
+          @toggle="toggleGeneration"
+          @open-lightbox="openLightbox"
+          @open-video-modal="openVideoModal"
+          @open-reimagine="openReimaginByItemId"
+          @download-media="downloadMedia"
+          @copy-prompt="copyPrompt"
+          @recreate="(prompt: string) => navigateTo({ path: '/create', query: { prompt } })"
+        />
       </div>
 
       <!-- Infinite scroll sentinel -->
@@ -585,46 +492,13 @@ async function submitReimagine() {
     />
 
     <!-- Reimagine Modal -->
-    <UModal v-model:open="reimagineModalOpen">
-      <template #content>
-        <div class="p-6 space-y-4">
-          <h3 class="text-lg font-semibold">Reimagine Image</h3>
-          <p class="text-xs text-slate-400">Generate a new image from this one with a different prompt.</p>
-
-          <div v-if="reimagineTarget" class="flex gap-3">
-            <img :src="reimagineTarget.url" class="w-24 h-24 rounded-lg object-cover border border-slate-200 shrink-0" />
-            <div class="flex-1">
-              <UTextarea v-model="reimaginePrompt" placeholder="Describe the new image..." :rows="3" autoresize class="w-full" />
-            </div>
-          </div>
-
-          <div class="flex flex-wrap gap-x-6 gap-y-2">
-            <UFormField label="CFG" size="sm">
-              <div class="flex items-center gap-2">
-                <USlider v-model="reimagineCfg" :min="1" :max="15" :step="0.5" class="w-24" size="xs" />
-                <span class="text-xs text-slate-600 font-mono w-6">{{ reimagineCfg }}</span>
-              </div>
-            </UFormField>
-            <UFormField label="Steps" size="sm">
-              <div class="flex items-center gap-2">
-                <USlider v-model="reimagineSteps" :min="4" :max="40" class="w-24" size="xs" />
-                <span class="text-xs text-slate-600 font-mono w-5">{{ reimagineSteps }}</span>
-              </div>
-            </UFormField>
-          </div>
-
-          <UAlert v-if="reimagineError" color="error" variant="subtle" :title="reimagineError" size="sm" />
-
-          <div class="flex justify-end gap-2 pt-2">
-            <UButton variant="outline" color="neutral" @click="reimagineModalOpen = false">Cancel</UButton>
-            <UButton color="primary" :loading="reimagineLoading" :disabled="!reimaginePrompt.trim()" @click="submitReimagine">
-              <UIcon name="i-lucide-sparkles" class="w-4 h-4" />
-              Generate
-            </UButton>
-          </div>
-        </div>
-      </template>
-    </UModal>
+    <ReimagineModal
+      :open="reimagineModalOpen"
+      :target="reimagineTarget"
+      :loading="reimagineLoading"
+      @update:open="reimagineModalOpen = $event"
+      @submit="handleReimagine"
+    />
   </div>
 </template>
 

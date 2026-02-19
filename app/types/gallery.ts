@@ -1,10 +1,16 @@
+/**
+ * Types matching the flattened shape returned by GET /api/generations.
+ * The API spreads generation columns at the top level alongside items.
+ */
+
 export interface MediaItemResult {
   id: string
   type: string
   url: string | null
   status: string
   parentId: string | null
-  qualityScore: number | null
+  prompt?: string | null
+  qualityScore?: number | null
 }
 
 export interface GenerationResult {

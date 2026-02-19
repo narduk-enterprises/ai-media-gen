@@ -161,14 +161,14 @@ let touchStartX = 0
 let touchStartTime = 0
 
 function onTouchStart(e: TouchEvent) {
-  const touch = e.touches[0]
+  const touch = e.touches[0]!
   touchStartY = touch.clientY
   touchStartX = touch.clientX
   touchStartTime = Date.now()
 }
 
 function onTouchEnd(e: TouchEvent, index: number) {
-  const touch = e.changedTouches[0]
+  const touch = e.changedTouches[0]!
   const deltaY = Math.abs(touch.clientY - touchStartY)
   const deltaX = Math.abs(touch.clientX - touchStartX)
   const elapsed = Date.now() - touchStartTime

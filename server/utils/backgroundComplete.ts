@@ -11,9 +11,10 @@
  */
 import { eq, inArray, and, isNull, or } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
-import { mediaItems, generations } from '../database/schema'
+import { mediaItems } from '../database/schema'
 import { checkRunPodJob } from './ai'
 import { uploadImageToR2, useMediaBucket } from './r2'
+import { updateGenerationStatus } from './queueProcessor'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import type { H3Event } from 'h3'
 
@@ -86,26 +87,6 @@ async function completeMediaItem(
   return 'timeout'
 }
 
-/**
- * Update parent generation status after all items are resolved.
- */
-async function updateGenerationStatus(db: DB, generationId: string) {
-  const items = await db.select().from(mediaItems)
-    .where(eq(mediaItems.generationId, generationId))
-
-  const allResolved = items.every(i => i.status === 'complete' || i.status === 'failed')
-  if (!allResolved) return
-
-  const allFailed = items.every(i => i.status === 'failed')
-  const anyFailed = items.some(i => i.status === 'failed')
-  const status = allFailed ? 'failed' : anyFailed ? 'partial' : 'complete'
-
-  await db.update(generations)
-    .set({ status })
-    .where(eq(generations.id, generationId))
-
-  console.log(`[BG] Generation ${generationId.slice(0, 8)} → ${status}`)
-}
 
 /**
  * Schedule background completion for specific item IDs.

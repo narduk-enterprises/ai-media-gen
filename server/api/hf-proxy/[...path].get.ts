@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
   // Forward content length if available
   const contentLength = response.headers.get('content-length')
   if (contentLength) {
-    setResponseHeader(event, 'Content-Length', contentLength)
+    setResponseHeader(event, 'Content-Length', parseInt(contentLength, 10))
   }
 
   // Allow caching (model files don't change once published)

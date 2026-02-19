@@ -76,14 +76,14 @@ const otherItems = computed(() =>
           <!-- Single item (no carousel needed) -->
           <div v-else class="flex items-center justify-center">
             <video
-              v-if="mediaItems[0].type === 'video'"
-              :src="mediaItems[0].url!"
+              v-if="mediaItems[0]?.type === 'video'"
+              :src="mediaItems[0]?.url ?? ''"
               controls
               class="max-h-[70vh] w-auto rounded-lg object-contain"
             />
             <NuxtImg
               v-else
-              :src="mediaItems[0].url!"
+              :src="mediaItems[0]?.url ?? ''"
               :alt="generation.prompt"
               class="max-h-[70vh] w-auto rounded-lg object-contain"
             />
