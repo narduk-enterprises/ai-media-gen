@@ -77,10 +77,14 @@ export function useWebLLM() {
    * Remix via the server-side GPU LLM (fast, high quality).
    */
   async function remixPromptServer(prompt: string): Promise<string> {
+    // Use the custom endpoint if set, otherwise the selected named endpoint
+    const { runpodEndpoint, customEndpoint } = useAppSettings()
+    const endpoint = customEndpoint.value || runpodEndpoint.value
+
     const response = await $fetch<{ prompts: string[]; elapsed: number }>('/api/generate/remix', {
       method: 'POST',
       headers: { 'X-Requested-With': 'fetch' },
-      body: { prompt, count: 1 },
+      body: { prompt, count: 1, endpoint },
     })
 
     if (!response?.prompts?.[0]) {
