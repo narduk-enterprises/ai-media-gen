@@ -9,7 +9,7 @@
  * module handles everything: grabbing DB/R2, calling waitUntil, polling,
  * saving results.
  */
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, and, isNull, or } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { mediaItems, generations } from '../database/schema'
 import { checkRunPodJob } from './ai'
@@ -157,22 +157,32 @@ async function doBackgroundWork(db: DB, mediaBucket: R2Bucket | null, itemIds: s
 }
 
 /**
- * Find and complete ALL orphaned processing items in the DB.
+ * Find and complete ALL recoverable items in the DB.
+ * Checks BOTH 'processing' items AND 'failed' items that have a RunPod job ID
+ * but no URL (the frontend may have timed them out while the job was still running).
  * Used by the /api/generate/recover endpoint AND the cron trigger.
  */
 export async function recoverOrphanedItems(db: DB, mediaBucket: R2Bucket | null) {
-  const orphaned = await db.select().from(mediaItems)
-    .where(eq(mediaItems.status, 'processing'))
+  const recoverable = await db.select().from(mediaItems)
+    .where(
+      or(
+        eq(mediaItems.status, 'processing'),
+        // Failed items that have a job ID but never got a URL — worth re-checking
+        and(eq(mediaItems.status, 'failed'), isNull(mediaItems.url))
+      )
+    )
 
-  if (!orphaned.length) {
+  // Only consider items that have a RunPod job ID to check
+  const withJobId = recoverable.filter(i => i.runpodJobId)
+  const withoutJobId = recoverable.filter(i => !i.runpodJobId && i.status === 'processing')
+
+  if (!withJobId.length && !withoutJobId.length) {
     return { recovered: 0, failed: 0, stillProcessing: 0, total: 0 }
   }
 
-  const withJobId = orphaned.filter(i => i.runpodJobId)
-  const withoutJobId = orphaned.filter(i => !i.runpodJobId)
+  console.log(`[Recovery] Found ${recoverable.length} recoverable items (${withJobId.length} with job IDs, ${withoutJobId.length} processing without)`)
 
-  console.log(`[Recovery] Found ${orphaned.length} orphaned items (${withJobId.length} with job IDs, ${withoutJobId.length} without)`)
-
+  // Clean up ancient processing items with no job ID
   for (const item of withoutJobId) {
     const age = Date.now() - new Date(item.createdAt).getTime()
     if (age > 10 * 60 * 1000) {
@@ -193,12 +203,12 @@ export async function recoverOrphanedItems(db: DB, mediaBucket: R2Bucket | null)
     else stillProcessing++
   }
 
-  const genIds = [...new Set(orphaned.map(i => i.generationId).filter(Boolean))] as string[]
+  const genIds = [...new Set(recoverable.map(i => i.generationId).filter(Boolean))] as string[]
   for (const genId of genIds) {
     await updateGenerationStatus(db, genId as string)
   }
 
-  return { recovered, failed, stillProcessing, total: orphaned.length }
+  return { recovered, failed, stillProcessing, total: recoverable.length }
 }
 
 function sleep(ms: number): Promise<void> {
