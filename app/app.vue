@@ -11,6 +11,7 @@ const navItems = [
 ]
 
 const mobileMenuOpen = ref(false)
+const clearingQueue = ref(false)
 
 watch(route, () => {
   mobileMenuOpen.value = false
@@ -19,6 +20,21 @@ watch(route, () => {
 async function handleLogout() {
   await logout()
   navigateTo('/')
+}
+
+async function handleClearQueue() {
+  if (clearingQueue.value) return
+  clearingQueue.value = true
+  try {
+    await $fetch('/api/generate/clear-queue', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'fetch' },
+    })
+  } catch {
+    // silent fail — queue might already be empty
+  } finally {
+    clearingQueue.value = false
+  }
 }
 
 const runtimeConfig = useRuntimeConfig()
@@ -72,6 +88,15 @@ useHead({
             <!-- Actions -->
             <div class="flex items-center gap-3">
               <div v-if="user" class="flex items-center gap-2">
+                <UButton
+                  color="error"
+                  variant="ghost"
+                  size="sm"
+                  icon="i-lucide-trash-2"
+                  :loading="clearingQueue"
+                  title="Clear GPU Queue"
+                  @click="handleClearQueue"
+                />
                 <span class="text-sm text-slate-500 hidden sm:block">{{ user.email }}</span>
                 <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-log-out" @click="handleLogout" />
               </div>

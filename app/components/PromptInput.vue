@@ -72,15 +72,16 @@ defineExpose({ remixing })
 
 <template>
   <UFormField :label="label || 'Prompt'" size="lg">
-    <UTextarea
-      v-model="modelValue"
-      :placeholder="placeholder || 'Describe what you want to generate...'"
-      :rows="3"
-      autoresize
-      :disabled="disabled"
-      class="w-full"
-      @paste="handlePaste"
-    />
+    <div @paste="handlePaste">
+      <UTextarea
+        v-model="modelValue"
+        :placeholder="placeholder || 'Describe what you want to generate...'"
+        :rows="3"
+        autoresize
+        :disabled="disabled"
+        class="w-full"
+      />
+    </div>
     <template #hint>
       <UButton
         v-if="isSupported"
