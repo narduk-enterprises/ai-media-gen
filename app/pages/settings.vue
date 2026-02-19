@@ -33,6 +33,28 @@ const renameProjectName = ref('')
 const showProjectExport = ref(false)
 const exportedJson = ref('')
 
+// ─── Recovery ───────────────────────────────────────────────────────────
+const recovering = ref(false)
+const recoverResult = ref<{ recovered: number; failed: number; stillProcessing: number; total: number } | null>(null)
+const recoverError = ref('')
+
+async function recoverGenerations() {
+  recovering.value = true
+  recoverResult.value = null
+  recoverError.value = ''
+  try {
+    const result = await $fetch<{ recovered: number; failed: number; stillProcessing: number; total: number }>('/api/generate/recover', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    recoverResult.value = result
+  } catch (e: any) {
+    recoverError.value = e?.data?.message || e?.message || 'Recovery failed'
+  } finally {
+    recovering.value = false
+  }
+}
+
 // ─── Persons ────────────────────────────────────────────────────────────
 const { persons, addPerson, deletePerson: deletePersonFn, renamePerson, updatePerson, duplicatePerson, importPersons, exportPerson } = usePersons()
 const newPersonName = ref('')
@@ -305,6 +327,42 @@ const totalCustomPresets = computed(() =>
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           <span class="text-[10px] text-emerald-600">Custom endpoint active</span>
           <button class="text-[10px] text-slate-400 hover:text-red-500 ml-auto" @click="customEndpoint = ''">Clear</button>
+        </div>
+      </div>
+
+      <!-- Recovery -->
+      <div class="mt-5 pt-4 border-t border-slate-100">
+        <div class="flex items-center justify-between mb-2">
+          <div>
+            <p class="text-xs font-medium text-slate-700">Recover Lost Generations</p>
+            <p class="text-[10px] text-slate-400">Find and complete any generations that were interrupted (e.g. browser closed during processing)</p>
+          </div>
+          <button
+            class="px-4 py-2 rounded-lg text-xs font-medium transition-all"
+            :class="recovering
+              ? 'bg-slate-100 text-slate-400 cursor-wait'
+              : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'"
+            :disabled="recovering"
+            @click="recoverGenerations"
+          >
+            <span v-if="recovering">Scanning...</span>
+            <span v-else>Recover</span>
+          </button>
+        </div>
+        <!-- Result -->
+        <div v-if="recoverResult" class="mt-2 p-3 rounded-lg text-xs" :class="recoverResult.total === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'">
+          <template v-if="recoverResult.total === 0">
+            ✅ No orphaned items found — all generations are accounted for.
+          </template>
+          <template v-else>
+            Found <strong>{{ recoverResult.total }}</strong> orphaned items:
+            <span v-if="recoverResult.recovered"> ✅ {{ recoverResult.recovered }} recovered</span>
+            <span v-if="recoverResult.failed"> ❌ {{ recoverResult.failed }} failed</span>
+            <span v-if="recoverResult.stillProcessing"> ⏳ {{ recoverResult.stillProcessing }} still processing</span>
+          </template>
+        </div>
+        <div v-if="recoverError" class="mt-2 p-3 rounded-lg bg-red-50 text-red-600 text-xs">
+          {{ recoverError }}
         </div>
       </div>
     </div>
