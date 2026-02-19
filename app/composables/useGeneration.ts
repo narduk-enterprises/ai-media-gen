@@ -450,6 +450,48 @@ export function useGeneration() {
     a.click()
   }
 
+  async function generateImage2Image(opts: {
+    image: string
+    prompt: string
+    negativePrompt?: string
+    steps?: number
+    width?: number
+    height?: number
+    cfg?: number
+    denoise?: number
+  }) {
+    submitting.value = true
+    error.value = ''
+    results.value = []
+
+    try {
+      const result = await $fetch<GenerationResult>('/api/generate/image2image', {
+        method: 'POST',
+        body: {
+          image: opts.image,
+          prompt: opts.prompt,
+          negativePrompt: opts.negativePrompt || '',
+          steps: opts.steps || 20,
+          width: opts.width || 1024,
+          height: opts.height || 1024,
+          cfg: opts.cfg || 3.5,
+          denoise: opts.denoise || 0.75,
+          endpoint: effectiveEndpoint.value,
+        },
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+
+      const newItems = result.items.filter(i => i.type === 'image')
+      results.value = [...results.value, ...newItems]
+      activeGenerationId.value = result.generation.id
+      startPolling(result.generation.id)
+    } catch (e: any) {
+      error.value = e.data?.message || e.message || 'Image-to-image failed'
+    } finally {
+      submitting.value = false
+    }
+  }
+
   onUnmounted(() => stopAllPolling())
 
   return {
@@ -466,6 +508,7 @@ export function useGeneration() {
     totalPending,
     actionLoading,
     generate,
+    generateImage2Image,
     generateText2Video,
     generateBatch,
     generateBatchText2Video,

@@ -231,6 +231,75 @@ function recreateFromImage(img: GalleryMedia) {
   if (img.settings) query.settings = JSON.stringify(img.settings)
   navigateTo({ path: '/create', query })
 }
+
+// ─── Reimagine (Image to Image) ─────────────────────────────────────
+const reimagineModalOpen = ref(false)
+const reimagineTarget = ref<GalleryMedia | null>(null)
+const reimaginePrompt = ref('')
+const reimagineLoading = ref(false)
+const reimagineCfg = ref(3.5)
+const reimagineSteps = ref(20)
+const reimagineError = ref('')
+
+function openReimaginModal(item: GalleryMedia) {
+  reimagineTarget.value = item
+  reimaginePrompt.value = item.prompt
+  reimagineError.value = ''
+  reimagineModalOpen.value = true
+}
+
+function openReimaginByItemId(itemId: string) {
+  const item = allMedia.value.find(m => m.id === itemId)
+  if (item) openReimaginModal(item)
+}
+
+async function submitReimagine() {
+  if (!reimagineTarget.value || !reimaginePrompt.value.trim()) return
+  reimagineLoading.value = true
+  reimagineError.value = ''
+  try {
+    // Fetch image as base64
+    const resp = await fetch(reimagineTarget.value.url)
+    const blob = await resp.blob()
+    const base64 = await new Promise<string>((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve((reader.result as string).replace(/^data:image\/[^;]+;base64,/, ''))
+      reader.readAsDataURL(blob)
+    })
+
+    const w = reimagineTarget.value.settings?.width || 1024
+    const h = reimagineTarget.value.settings?.height || 1024
+
+    const result = await $fetch<any>('/api/generate/image2image', {
+      method: 'POST',
+      body: {
+        image: base64,
+        prompt: reimaginePrompt.value.trim(),
+        negativePrompt: reimagineTarget.value.settings?.negativePrompt || '',
+        steps: reimagineSteps.value,
+        width: w,
+        height: h,
+        cfg: reimagineCfg.value,
+        denoise: 0.75,
+        endpoint: effectiveEndpoint.value,
+      },
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+
+    reimagineModalOpen.value = false
+    // Poll for results
+    if (result.items?.[0]) {
+      const item = result.items[0]
+      const loadingKey = `reimagine-${item.id}`
+      actionLoading.value[loadingKey] = true
+      pollVideoStatus(item.id, loadingKey)
+    }
+  } catch (e: any) {
+    reimagineError.value = e.data?.message || e.message || 'Reimagine failed'
+  } finally {
+    reimagineLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -360,6 +429,8 @@ function recreateFromImage(img: GalleryMedia) {
               </div>
             </div>
             <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-image-plus"
+                @click.stop="openReimaginModal(item)" title="Reimagine" />
               <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-film"
                 :loading="actionLoading[`video-${item.id}`]" @click.stop="openVideoModal(item.id)" />
               <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="downloadMedia(item.url, index, item.type)" />
@@ -417,6 +488,8 @@ function recreateFromImage(img: GalleryMedia) {
                 </div>
                 <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none" />
                 <div class="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-image-plus"
+                    @click.stop="openReimaginByItemId(item.id)" title="Reimagine" />
                   <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-film"
                     :loading="actionLoading[`video-${item.id}`]" @click.stop="openVideoModal(item.id)" />
                   <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="downloadMedia(item.url!, 0, item.type)" />
@@ -456,6 +529,8 @@ function recreateFromImage(img: GalleryMedia) {
       <template #toolbar="{ item, index: idx }">
         <UButton variant="ghost" size="xs" icon="i-lucide-clipboard-copy" class="text-white/60 hover:text-white" @click="copyPrompt(currentItem?.prompt || '')">Prompt</UButton>
         <template v-if="item.type === 'image'">
+          <UButton variant="ghost" size="xs" icon="i-lucide-image-plus" class="text-white/60 hover:text-white"
+            @click="openReimaginByItemId(item.id)">Reimagine</UButton>
           <UButton variant="ghost" size="xs" icon="i-lucide-film" class="text-white/60 hover:text-white"
             :loading="actionLoading[`video-${item.id}`]" @click="openVideoModal(item.id)">Video</UButton>
         </template>
@@ -508,6 +583,48 @@ function recreateFromImage(img: GalleryMedia) {
       @close="videoModalOpen = false"
       @generate="handleVideoGenerate"
     />
+
+    <!-- Reimagine Modal -->
+    <UModal v-model:open="reimagineModalOpen">
+      <template #content>
+        <div class="p-6 space-y-4">
+          <h3 class="text-lg font-semibold">Reimagine Image</h3>
+          <p class="text-xs text-slate-400">Generate a new image from this one with a different prompt.</p>
+
+          <div v-if="reimagineTarget" class="flex gap-3">
+            <img :src="reimagineTarget.url" class="w-24 h-24 rounded-lg object-cover border border-slate-200 shrink-0" />
+            <div class="flex-1">
+              <UTextarea v-model="reimaginePrompt" placeholder="Describe the new image..." :rows="3" autoresize class="w-full" />
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-x-6 gap-y-2">
+            <UFormField label="CFG" size="sm">
+              <div class="flex items-center gap-2">
+                <USlider v-model="reimagineCfg" :min="1" :max="15" :step="0.5" class="w-24" size="xs" />
+                <span class="text-xs text-slate-600 font-mono w-6">{{ reimagineCfg }}</span>
+              </div>
+            </UFormField>
+            <UFormField label="Steps" size="sm">
+              <div class="flex items-center gap-2">
+                <USlider v-model="reimagineSteps" :min="4" :max="40" class="w-24" size="xs" />
+                <span class="text-xs text-slate-600 font-mono w-5">{{ reimagineSteps }}</span>
+              </div>
+            </UFormField>
+          </div>
+
+          <UAlert v-if="reimagineError" color="error" variant="subtle" :title="reimagineError" size="sm" />
+
+          <div class="flex justify-end gap-2 pt-2">
+            <UButton variant="outline" color="neutral" @click="reimagineModalOpen = false">Cancel</UButton>
+            <UButton color="primary" :loading="reimagineLoading" :disabled="!reimaginePrompt.trim()" @click="submitReimagine">
+              <UIcon name="i-lucide-sparkles" class="w-4 h-4" />
+              Generate
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 

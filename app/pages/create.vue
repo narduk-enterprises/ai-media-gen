@@ -30,6 +30,7 @@ const modeTabs: TabsItem[] = [
   { label: 'Persona + Scene', icon: 'i-lucide-users', value: 'persona', slot: 'persona' },
   { label: 'Free Build', icon: 'i-lucide-wand-sparkles', value: 'free', slot: 'free' },
   { label: 'Batch', icon: 'i-lucide-layers', value: 'batch', slot: 'batch' },
+  { label: 'Img to Img', icon: 'i-lucide-image-plus', value: 'img2img', slot: 'img2img' },
   { label: 'Text to Video', icon: 'i-lucide-film', value: 'text2video', slot: 'text2video' },
   { label: 'Batch Video', icon: 'i-lucide-clapperboard', value: 'batchvideo', slot: 'batchvideo' },
 ]
@@ -191,6 +192,64 @@ async function generateBatch() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// MODE: Image to Image
+// ═══════════════════════════════════════════════════════════════════════
+
+const i2iPrompt = ref('')
+const i2iImageBase64 = ref('')
+const i2iImagePreview = ref('')
+const i2iCfg = ref(3.5)
+const i2iDenoise = ref(0.75)
+const i2iSteps = ref(20)
+
+const canGenerateI2I = computed(() => i2iImageBase64.value.length > 0 && i2iPrompt.value.trim().length > 0)
+
+function handleI2IFileChange(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const dataUrl = reader.result as string
+    i2iImagePreview.value = dataUrl
+    // Strip the data:image/xxx;base64, prefix
+    i2iImageBase64.value = dataUrl.replace(/^data:image\/[^;]+;base64,/, '')
+  }
+  reader.readAsDataURL(file)
+}
+
+function handleI2IDrop(e: DragEvent) {
+  e.preventDefault()
+  const file = e.dataTransfer?.files?.[0]
+  if (!file || !file.type.startsWith('image/')) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const dataUrl = reader.result as string
+    i2iImagePreview.value = dataUrl
+    i2iImageBase64.value = dataUrl.replace(/^data:image\/[^;]+;base64,/, '')
+  }
+  reader.readAsDataURL(file)
+}
+
+function clearI2IImage() {
+  i2iImageBase64.value = ''
+  i2iImagePreview.value = ''
+}
+
+async function generateI2I() {
+  if (!canGenerateI2I.value) return
+  await gen.generateImage2Image({
+    image: i2iImageBase64.value,
+    prompt: i2iPrompt.value.trim(),
+    negativePrompt: negativePrompt.value,
+    steps: i2iSteps.value,
+    width: imageWidth.value,
+    height: imageHeight.value,
+    cfg: i2iCfg.value,
+    denoise: i2iDenoise.value,
+  })
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // MODE 4: Text to Video
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -269,6 +328,7 @@ const canGenerate = computed(() => {
   if (mode.value === 'persona') return canGeneratePersona.value
   if (mode.value === 'free') return canGenerateFree.value
   if (mode.value === 'batch') return canGenerateBatch.value
+  if (mode.value === 'img2img') return canGenerateI2I.value
   if (mode.value === 'text2video') return canGenerateT2V.value
   if (mode.value === 'batchvideo') return canGenerateBV.value
   return false
@@ -280,6 +340,7 @@ function handleGenerate(append = false) {
   if (mode.value === 'persona') generatePersona(append)
   else if (mode.value === 'free') generateFree(append)
   else if (mode.value === 'batch') generateBatch()
+  else if (mode.value === 'img2img') generateI2I()
   else if (mode.value === 'text2video') generateText2Video()
   else if (mode.value === 'batchvideo') generateBatchVideo()
 }
@@ -750,6 +811,66 @@ const gridClass = computed(() => {
             <div class="text-xs text-cyan-700">
               Submitted {{ gen.batchProgress.value.current }} / {{ gen.batchProgress.value.total }} videos to API. Waiting for results…
             </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Img2Img mode -->
+      <template #img2img>
+        <div class="space-y-6 pt-4">
+          <!-- Image upload -->
+          <section>
+            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Source Image</h2>
+            <div
+              v-if="!i2iImagePreview"
+              class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center cursor-pointer hover:border-violet-400 hover:bg-violet-50/30 transition-colors"
+              @click="($refs.i2iFileInput as HTMLInputElement)?.click()"
+              @dragover.prevent
+              @drop="handleI2IDrop"
+            >
+              <div class="text-slate-400 mb-2">
+                <UIcon name="i-lucide-upload" class="w-8 h-8" />
+              </div>
+              <p class="text-sm text-slate-500">Drop an image here or click to browse</p>
+              <p class="text-xs text-slate-400 mt-1">PNG, JPG, WebP</p>
+            </div>
+            <div v-else class="relative inline-block">
+              <img :src="i2iImagePreview" class="max-h-64 rounded-xl border border-slate-200" />
+              <UButton
+                icon="i-lucide-x"
+                color="error"
+                variant="solid"
+                size="xs"
+                class="absolute top-2 right-2"
+                @click="clearI2IImage"
+              />
+            </div>
+            <input
+              ref="i2iFileInput"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="handleI2IFileChange"
+            />
+          </section>
+
+          <!-- Prompt -->
+          <PromptInput v-model="i2iPrompt" label="New Prompt" placeholder="Describe the style or changes you want..." />
+
+          <!-- Controls -->
+          <div class="flex flex-wrap gap-x-6 gap-y-3">
+            <UFormField label="CFG" size="sm" description="Higher = follow prompt more">
+              <div class="flex items-center gap-2">
+                <USlider v-model="i2iCfg" :min="1" :max="15" :step="0.5" class="w-28" size="xs" />
+                <span class="text-xs text-slate-600 font-mono w-8 text-right">{{ i2iCfg }}</span>
+              </div>
+            </UFormField>
+            <UFormField label="Steps" size="sm">
+              <div class="flex items-center gap-2">
+                <USlider v-model="i2iSteps" :min="4" :max="40" class="w-28" size="xs" />
+                <span class="text-xs text-slate-600 font-mono w-5 text-right">{{ i2iSteps }}</span>
+              </div>
+            </UFormField>
           </div>
         </div>
       </template>
