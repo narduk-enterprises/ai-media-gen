@@ -111,24 +111,8 @@ function onVideoMounted(el: any, index: number) {
   }
 }
 
-// ─── Auto-advance on video end (NO loop attribute) ───────────
-function onVideoEnded(index: number) {
-  if (index < videos.value.length - 1) {
-    // Scroll to next
-    const container = containerRef.value
-    if (container) {
-      const nextSlide = container.children[index + 1] as HTMLElement
-      nextSlide?.scrollIntoView({ behavior: 'smooth' })
-    }
-  } else {
-    // Last video — restart it
-    const video = videoElements.get(index)
-    if (video) {
-      video.currentTime = 0
-      video.play().catch(() => {})
-    }
-  }
-}
+// Videos loop automatically via the `loop` attribute on <video>.
+// User swipes up to go to the next video.
 
 // ─── Tap vs swipe detection ──────────────────────────────────
 // On mobile, we need to distinguish taps (pause/play) from swipes (scroll)
@@ -268,11 +252,11 @@ function formatTime(dateStr: string): string {
           :src="video.url + '#t=0.1'"
           :data-index="index"
           :muted="muted"
+          loop
           playsinline
           webkit-playsinline
           preload="metadata"
           class="feed-video"
-          @ended="onVideoEnded(index)"
           @click="onVideoClick(index)"
         />
 
