@@ -1462,13 +1462,13 @@ const gridClass = computed(() => {
           </UButton>
         </div>
         <UButton
-          :loading="gen.generating.value"
-          :disabled="!canGenerate"
+          :loading="gen.submitting.value"
+          :disabled="!canGenerate || gen.submitting.value"
           size="lg"
           :icon="isVideoMode ? 'i-lucide-film' : 'i-lucide-sparkles'"
           @click="handleGenerate(false)"
         >
-          {{ gen.generating.value ? 'Generating…' : (canGenerate ? (isVideoMode ? `Generate ${totalForButton()} Video${totalForButton() !== 1 ? 's' : ''}` : `Generate ${totalForButton()} Image${totalForButton() !== 1 ? 's' : ''}`) : 'Configure above') }}
+          {{ canGenerate ? (isVideoMode ? `Generate ${totalForButton()} Video${totalForButton() !== 1 ? 's' : ''}` : `Generate ${totalForButton()} Image${totalForButton() !== 1 ? 's' : ''}`) : 'Configure above' }}
         </UButton>
       </div>
     </div>

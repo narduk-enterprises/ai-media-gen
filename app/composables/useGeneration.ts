@@ -33,13 +33,14 @@ export function useGeneration() {
   // If a custom endpoint URL is set, pass it directly; otherwise use the named endpoint
   const effectiveEndpoint = computed(() => customEndpoint.value || runpodEndpoint.value)
 
-  const generating = ref(false)
+  const submitting = ref(false)
   const error = ref('')
   const results = ref<MediaItemResult[]>([])
   const activeGenerationId = ref<string | null>(null)
   const lastSettings = ref<Record<string, any> | null>(null)
-  const pollingTimer = ref<ReturnType<typeof setInterval> | null>(null)
+  const activePolls = ref(0)
 
+  const generating = computed(() => submitting.value || activePolls.value > 0)
   const completed = computed(() => results.value.filter(i => i.status === 'complete'))
   const completedMedia = computed(() => results.value.filter(i => i.status === 'complete' && i.url))
   const totalDone = computed(() => completed.value.length)
@@ -59,10 +60,9 @@ export function useGeneration() {
     const prompts = opts.prompts.slice(0, MAX_IMAGES_PER_BATCH)
     if (prompts.length === 0) return
 
-    generating.value = true
+    submitting.value = true
     error.value = ''
     if (!opts.append) results.value = []
-    stopPolling()
 
     try {
       const result = await $fetch<GenerationResult>('/api/generate/image', {
@@ -91,16 +91,17 @@ export function useGeneration() {
       startPolling(result.generation.id)
     } catch (e: any) {
       error.value = e.data?.message || e.message || 'Generation failed'
-      generating.value = false
+    } finally {
+      submitting.value = false
     }
   }
 
   // ─── Polling ────────────────────────────────────────────────────────
 
   function startPolling(generationId: string) {
-    stopPolling()
+    activePolls.value++
 
-    pollingTimer.value = setInterval(async () => {
+    const timer = setInterval(async () => {
       try {
         const result = await $fetch<GenerationResult>('/api/generate/generation-status', {
           params: { id: generationId },
@@ -115,18 +116,15 @@ export function useGeneration() {
         // Stop polling only when the server says all items are resolved
         const genItems = result.items.filter(i => i.type === 'image')
         if (genItems.every(i => i.status === 'complete' || i.status === 'failed' || i.status === 'cancelled')) {
-          stopPolling()
-          generating.value = false
+          clearInterval(timer)
+          activePolls.value--
         }
       } catch { /* swallow */ }
     }, 3000)
   }
 
-  function stopPolling() {
-    if (pollingTimer.value) {
-      clearInterval(pollingTimer.value)
-      pollingTimer.value = null
-    }
+  function stopAllPolling() {
+    activePolls.value = 0
   }
 
   // ─── Video / Audio from existing image ──────────────────────────────
@@ -233,10 +231,9 @@ export function useGeneration() {
       ? opts.numFrames
       : [opts.numFrames ?? 81]
 
-    generating.value = true
+    submitting.value = true
     error.value = ''
     if (!opts.append) results.value = []
-    stopPolling()
 
     const pollingPromises: Promise<void>[] = []
 
@@ -273,12 +270,9 @@ export function useGeneration() {
       }
     }
 
+    submitting.value = false
     if (pollingPromises.length > 0) {
-      Promise.all(pollingPromises).finally(() => {
-        generating.value = false
-      })
-    } else {
-      generating.value = false
+      Promise.all(pollingPromises).catch(() => {})
     }
   }
 
@@ -301,10 +295,9 @@ export function useGeneration() {
 
     const totalJobs = allPrompts.length * durations.length
 
-    generating.value = true
+    submitting.value = true
     error.value = ''
     results.value = []
-    stopPolling()
     batchProgress.value = { current: 0, total: totalJobs }
 
     const pollingPromises: Promise<void>[] = []
@@ -346,12 +339,9 @@ export function useGeneration() {
       }
     }
 
+    submitting.value = false
     if (pollingPromises.length > 0) {
-      Promise.all(pollingPromises).finally(() => {
-        generating.value = false
-      })
-    } else {
-      generating.value = false
+      Promise.all(pollingPromises).catch(() => {})
     }
   }
 
@@ -370,10 +360,9 @@ export function useGeneration() {
     const allPrompts = opts.prompts
     if (allPrompts.length === 0) return
 
-    generating.value = true
+    submitting.value = true
     error.value = ''
     results.value = []
-    stopPolling()
     activeGenerationIds.value = []
 
     const chunks: string[][] = []
@@ -415,12 +404,13 @@ export function useGeneration() {
     }
 
     startBatchPolling()
+    submitting.value = false
   }
 
   function startBatchPolling() {
-    stopPolling()
+    activePolls.value++
 
-    pollingTimer.value = setInterval(async () => {
+    const timer = setInterval(async () => {
       for (const genId of activeGenerationIds.value) {
         try {
           const result = await $fetch<GenerationResult>('/api/generate/generation-status', {
@@ -436,8 +426,8 @@ export function useGeneration() {
 
       const allDone = results.value.every(i => i.status === 'complete' || i.status === 'failed' || i.status === 'cancelled')
       if (allDone) {
-        stopPolling()
-        generating.value = false
+        clearInterval(timer)
+        activePolls.value--
         activeGenerationIds.value = []
       }
     }, 4000)
@@ -447,8 +437,8 @@ export function useGeneration() {
 
   function clearResults() {
     results.value = []
-    stopPolling()
-    generating.value = false
+    stopAllPolling()
+    submitting.value = false
     activeGenerationId.value = null
   }
 
@@ -460,11 +450,12 @@ export function useGeneration() {
     a.click()
   }
 
-  onUnmounted(() => stopPolling())
+  onUnmounted(() => stopAllPolling())
 
   return {
     MAX_IMAGES_PER_BATCH,
     generating,
+    submitting,
     error,
     results,
     activeGenerationId,
