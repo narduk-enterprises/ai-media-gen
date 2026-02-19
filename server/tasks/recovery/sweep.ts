@@ -3,38 +3,30 @@
  *
  * Runs every 2 minutes via Cloudflare Cron Trigger.
  * Finds all media items stuck in 'processing' state and completes them.
- * This is the bulletproof fallback for when waitUntil is unavailable
+ * This is the bulletproof fallback for when waitUntil times out (30s free tier)
  * or the browser was closed mid-generation.
  */
 import { recoverOrphanedItems } from '../../utils/backgroundComplete'
-import { initDatabase } from '../../database'
-import { drizzle } from 'drizzle-orm/d1'
-import * as schema from '../../database/schema'
+import { initDatabase } from '../../utils/database'
 
 export default defineTask({
   meta: {
     name: 'recovery:sweep',
     description: 'Recover orphaned processing items every 2 minutes',
   },
-  async run({ payload, context }) {
+  async run() {
     console.log('[Cron] Starting scheduled recovery sweep...')
 
     try {
-      // Get the database — it should already be initialized by the DB middleware
-      const db = useDatabase()
-
-      // For cron triggers we don't have a traditional request event,
-      // so we access the R2 bucket directly from the Cloudflare env if available
-      let mediaBucket: R2Bucket | null = null
-      try {
-        // In Nitro tasks on cloudflare_module, env bindings may be available via globalThis.__env__
-        const env = (globalThis as any).__env__ || (globalThis as any).process?.env
-        if (env?.MEDIA) {
-          mediaBucket = env.MEDIA as R2Bucket
-        }
-      } catch {
-        console.warn('[Cron] Could not access R2 bucket binding in cron context')
+      // In cron context, the D1 middleware hasn't run — init DB directly from binding
+      const env = (globalThis as any).__env__
+      if (!env?.DB) {
+        console.error('[Cron] No D1 binding available')
+        return { result: { error: 'No D1 binding' } }
       }
+
+      const db = initDatabase(env.DB)
+      const mediaBucket: R2Bucket | null = env.MEDIA ?? null
 
       const result = await recoverOrphanedItems(db, mediaBucket)
       console.log(`[Cron] Sweep complete — recovered: ${result.recovered}, failed: ${result.failed}, still processing: ${result.stillProcessing}, total: ${result.total}`)
