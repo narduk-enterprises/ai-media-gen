@@ -41,6 +41,7 @@ const steps = ref(20)
 const imageWidth = ref(1024)
 const imageHeight = ref(1024)
 const negativePrompt = ref(DEFAULT_NEG)
+const loraStrength = ref(1.0)
 const showAdvanced = ref(false)
 
 const sizeItems = [512, 768, 1024, 1536, 2048].map(v => ({ label: `${v}`, value: v }))
@@ -115,6 +116,7 @@ async function generatePersona(append = false) {
     steps: steps.value,
     width: imageWidth.value,
     height: imageHeight.value,
+    loraStrength: loraStrength.value,
     append,
   })
 }
@@ -158,6 +160,7 @@ async function generateFree(append = false) {
     steps: steps.value,
     width: imageWidth.value,
     height: imageHeight.value,
+    loraStrength: loraStrength.value,
     append,
   })
 }
@@ -188,6 +191,7 @@ async function generateBatch() {
     steps: steps.value,
     width: imageWidth.value,
     height: imageHeight.value,
+    loraStrength: loraStrength.value,
   })
 }
 
@@ -294,6 +298,7 @@ async function generateText2Video() {
     steps: t2vSteps.value,
     width: t2vCurrentResolution.value.w,
     height: t2vCurrentResolution.value.h,
+    loraStrength: loraStrength.value,
   })
 }
 
@@ -320,6 +325,7 @@ async function generateBatchVideo() {
     steps: bvSteps.value,
     width: bvCurrentResolution.value.w,
     height: bvCurrentResolution.value.h,
+    loraStrength: loraStrength.value,
   })
 }
 
@@ -414,6 +420,7 @@ function persistForm() {
       bvSteps: bvSteps.value,
       bvResolutionIndex: bvResolutionIndex.value,
       bvNegativePrompt: bvNegativePrompt.value,
+      loraStrength: loraStrength.value,
     }))
   } catch {}
 }
@@ -445,6 +452,7 @@ function restoreForm() {
     if (s.bvSteps != null) bvSteps.value = s.bvSteps
     if (s.bvResolutionIndex != null) bvResolutionIndex.value = s.bvResolutionIndex
     if (s.bvNegativePrompt != null) bvNegativePrompt.value = s.bvNegativePrompt
+    if (s.loraStrength != null) loraStrength.value = s.loraStrength
   } catch {}
 }
 
@@ -456,7 +464,7 @@ onMounted(() => {
 })
 
 watch(
-  [mode, activePersonId, selectedSceneIds, basePrompt, countPerScene, freePrompt, freeAttributes, freeCount, steps, imageWidth, imageHeight, negativePrompt, t2vPrompt, t2vNegativePrompt, t2vNumFrames, t2vSteps, t2vResolutionIndex, bvNumFrames, bvSteps, bvResolutionIndex, bvNegativePrompt],
+  [mode, activePersonId, selectedSceneIds, basePrompt, countPerScene, freePrompt, freeAttributes, freeCount, steps, imageWidth, imageHeight, negativePrompt, loraStrength, t2vPrompt, t2vNegativePrompt, t2vNumFrames, t2vSteps, t2vResolutionIndex, bvNumFrames, bvSteps, bvResolutionIndex, bvNegativePrompt],
   () => persistForm(),
   { deep: true },
 )
@@ -876,8 +884,8 @@ const gridClass = computed(() => {
       </template>
     </UTabs>
 
-    <!-- ═══ Shared Settings (image modes only) ═══ -->
-    <UCard v-if="!isVideoMode" class="mb-6" variant="outline">
+    <!-- ═══ Shared Settings ═══ -->
+    <UCard class="mb-6" variant="outline">
       <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
         <UFormField label="Steps" size="sm">
           <div class="flex items-center gap-2">
@@ -892,6 +900,13 @@ const gridClass = computed(() => {
 
         <UFormField label="Height" size="sm">
           <USelect v-model="imageHeight" :items="sizeItems" size="sm" class="w-24" />
+        </UFormField>
+
+        <UFormField label="LoRA" size="sm" description="Speed LoRA strength">
+          <div class="flex items-center gap-2">
+            <USlider v-model="loraStrength" :min="0" :max="2" :step="0.05" class="w-28" size="xs" />
+            <span class="text-xs text-slate-600 font-mono w-8 text-right">{{ loraStrength.toFixed(2) }}</span>
+          </div>
         </UFormField>
 
         <UButton variant="link" size="xs" color="neutral" class="ml-auto" @click="showAdvanced = !showAdvanced">

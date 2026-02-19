@@ -12,6 +12,7 @@ const generateSchema = z.object({
   steps: z.number().int().min(1).max(50).default(20),
   width: z.number().int().min(512).max(2048).default(1024),
   height: z.number().int().min(512).max(2048).default(1024),
+  loraStrength: z.number().min(0).max(2).default(1.0),
   attributes: z.record(z.string()).optional(),
   endpoint: z.string().optional(),
 })
@@ -25,7 +26,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, prompts, negativePrompt, count, steps, width, height, attributes, endpoint } = parsed.data
+  const { prompt, prompts, negativePrompt, count, steps, width, height, loraStrength, attributes, endpoint } = parsed.data
   const apiUrl = resolveApiUrl(endpoint)
 
   const settings = JSON.stringify({
@@ -69,6 +70,7 @@ export default defineEventHandler(async (event) => {
           width,
           height,
           steps,
+          lora_strength: loraStrength,
         },
       }),
       createdAt: now,

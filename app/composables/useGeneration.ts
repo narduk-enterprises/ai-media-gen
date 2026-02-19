@@ -55,6 +55,7 @@ export function useGeneration() {
     steps: number
     width: number
     height: number
+    loraStrength?: number
     append?: boolean
   }) {
     const prompts = opts.prompts.slice(0, MAX_IMAGES_PER_BATCH)
@@ -77,6 +78,7 @@ export function useGeneration() {
           height: opts.height,
           attributes: {},
           endpoint: effectiveEndpoint.value,
+          loraStrength: opts.loraStrength ?? 1.0,
         },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
@@ -223,6 +225,7 @@ export function useGeneration() {
     steps?: number
     width?: number
     height?: number
+    loraStrength?: number
     append?: boolean
   }) {
     if (!opts.prompt.trim()) return
@@ -252,6 +255,7 @@ export function useGeneration() {
             width: opts.width ?? 832,
             height: opts.height ?? 480,
             endpoint: effectiveEndpoint.value,
+            loraStrength: opts.loraStrength ?? 1.0,
           },
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
         })
@@ -285,6 +289,7 @@ export function useGeneration() {
     steps?: number
     width?: number
     height?: number
+    loraStrength?: number
   }) {
     const allPrompts = opts.prompts
     if (allPrompts.length === 0) return
@@ -319,6 +324,7 @@ export function useGeneration() {
               width: opts.width ?? 832,
               height: opts.height ?? 480,
               endpoint: effectiveEndpoint.value,
+            loraStrength: opts.loraStrength ?? 1.0,
             },
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
           })
@@ -356,6 +362,7 @@ export function useGeneration() {
     steps: number
     width: number
     height: number
+    loraStrength?: number
   }) {
     const allPrompts = opts.prompts
     if (allPrompts.length === 0) return
@@ -386,6 +393,7 @@ export function useGeneration() {
             height: opts.height,
             attributes: {},
             endpoint: effectiveEndpoint.value,
+          loraStrength: opts.loraStrength ?? 1.0,
           },
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
         })
