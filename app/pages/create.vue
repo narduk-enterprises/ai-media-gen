@@ -268,6 +268,7 @@ async function generateBatch() {
 const t2vPrompt = ref('')
 const t2vNegativePrompt = ref('')
 const t2vNumFrames = ref<number[]>([81])
+const t2vCount = ref(1)
 const t2vSteps = ref(4)
 const t2vResolutionIndex = ref(0)
 
@@ -289,6 +290,7 @@ const t2vResolutionPresets = [
 ]
 
 const t2vCurrentResolution = computed(() => t2vResolutionPresets[t2vResolutionIndex.value]!)
+const t2vTotal = computed(() => t2vNumFrames.value.length * t2vCount.value)
 const canGenerateT2V = computed(() => t2vPrompt.value.trim().length > 0)
 
 function toggleT2VDuration(value: number) {
@@ -309,10 +311,15 @@ function toggleBVDuration(value: number) {
 
 async function generateText2Video() {
   if (!canGenerateT2V.value) return
+  // Expand durations by count: [81] with count=2 → [81, 81]
+  const expandedFrames: number[] = []
+  for (const nf of t2vNumFrames.value) {
+    for (let i = 0; i < t2vCount.value; i++) expandedFrames.push(nf)
+  }
   await gen.generateText2Video({
     prompt: t2vPrompt.value.trim(),
     negativePrompt: t2vNegativePrompt.value,
-    numFrames: t2vNumFrames.value,
+    numFrames: expandedFrames,
     steps: t2vSteps.value,
     width: t2vCurrentResolution.value.w,
     height: t2vCurrentResolution.value.h,
@@ -456,7 +463,7 @@ function handleGenerate(append = false) {
 function totalForButton() {
   if (mode.value === 'persona') return personaTotal.value
   if (mode.value === 'batch') return batchTotal.value
-  if (mode.value === 'text2video') return t2vNumFrames.value.length
+  if (mode.value === 'text2video') return t2vTotal.value
   if (mode.value === 'batchvideo') return bvTotal.value
   return freeCount.value
 }
@@ -1158,8 +1165,23 @@ const gridClass = computed(() => {
                 <span class="block text-[9px] mt-0.5 opacity-60">{{ preset.description }}</span>
               </button>
             </div>
-            <p class="text-[10px] text-slate-400 mt-1.5">{{ t2vNumFrames.length }} duration{{ t2vNumFrames.length !== 1 ? 's' : '' }} selected · {{ t2vNumFrames.length }} video{{ t2vNumFrames.length !== 1 ? 's' : '' }} per prompt</p>
+            <p class="text-[10px] text-slate-400 mt-1.5">{{ t2vNumFrames.length }} duration{{ t2vNumFrames.length !== 1 ? 's' : '' }} selected</p>
           </section>
+
+          <!-- Count -->
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-500 font-medium">Videos per duration</span>
+            <UButton
+              v-for="n in [1, 2, 4]"
+              :key="n"
+              size="xs"
+              :variant="t2vCount === n ? 'soft' : 'outline'"
+              :color="t2vCount === n ? 'primary' : 'neutral'"
+              @click="t2vCount = n"
+            >
+              {{ n }}
+            </UButton>
+          </div>
 
           <!-- Steps -->
           <section>
@@ -1196,7 +1218,7 @@ const gridClass = computed(() => {
           <UCard v-if="t2vPrompt.trim()" variant="subtle">
             <div class="text-[10px] text-slate-500 uppercase tracking-wider font-medium mb-1">Video settings</div>
             <p class="text-xs text-slate-600">
-              {{ t2vNumFrames.length }} video{{ t2vNumFrames.length !== 1 ? 's' : '' }} ·
+              {{ t2vTotal }} video{{ t2vTotal !== 1 ? 's' : '' }} ({{ t2vNumFrames.length }} duration{{ t2vNumFrames.length !== 1 ? 's' : '' }} × {{ t2vCount }}) ·
               {{ t2vNumFrames.map(f => t2vDurationPresets.find(p => p.value === f)?.label ?? f + 'f').join(', ') }} ·
               {{ t2vSteps }} steps · {{ t2vCurrentResolution.w }}×{{ t2vCurrentResolution.h }}
             </p>
