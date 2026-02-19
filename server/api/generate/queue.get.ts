@@ -1,45 +1,25 @@
-import { eq, asc } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { mediaItems, generations } from '../../database/schema'
+import { resolveApiUrl, callRunPod } from '../../utils/ai'
 
-/**
- * Queue status endpoint — returns current queue state.
- */
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
-  const db = useDatabase()
 
-  const queued = await db.select({
-    id: mediaItems.id,
-    type: mediaItems.type,
-    prompt: mediaItems.prompt,
-    generationId: mediaItems.generationId,
-    createdAt: mediaItems.createdAt,
-  })
-    .from(mediaItems)
-    .where(eq(mediaItems.status, 'queued'))
-    .orderBy(asc(mediaItems.createdAt))
+  const query = getQuery(event) as { endpoint?: string }
+  const apiUrl = resolveApiUrl(query.endpoint)
 
-  const processing = await db.select({
-    id: mediaItems.id,
-    type: mediaItems.type,
-    prompt: mediaItems.prompt,
-    generationId: mediaItems.generationId,
-    runpodJobId: mediaItems.runpodJobId,
-    submittedAt: mediaItems.submittedAt,
-  })
-    .from(mediaItems)
-    .where(eq(mediaItems.status, 'processing'))
+  try {
+    const response = await callRunPod({ action: 'get_queue' }, apiUrl)
 
-  return {
-    queued: queued.map((item, index) => ({
-      ...item,
-      position: index + 1,
-    })),
-    processing,
-    counts: {
-      queued: queued.length,
-      processing: processing.length,
-    },
+    return {
+      running: response.output?.running ?? [],
+      pending: response.output?.pending ?? [],
+      total: response.output?.total ?? 0,
+    }
+  } catch (e: any) {
+    if (e.statusCode) throw e
+    throw createError({
+      statusCode: 502,
+      message: `Get queue failed: ${e.message}`,
+    })
   }
 })

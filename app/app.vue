@@ -7,6 +7,7 @@ const navItems = [
   { label: 'Personas & Scenes', to: '/personas', icon: 'i-lucide-users' },
   { label: 'Gallery', to: '/gallery', icon: 'i-lucide-image' },
   { label: 'Feed', to: '/feed', icon: 'i-lucide-play' },
+  { label: 'Queue', to: '/queue', icon: 'i-lucide-list-ordered' },
   { label: 'Settings', to: '/settings', icon: 'i-lucide-settings' },
 ]
 
