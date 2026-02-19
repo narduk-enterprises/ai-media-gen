@@ -13,6 +13,7 @@ const generateSchema = z.object({
   width: z.number().int().min(512).max(2048).default(1024),
   height: z.number().int().min(512).max(2048).default(1024),
   loraStrength: z.number().min(0).max(2).default(1.0),
+  model: z.enum(['wan22', 'z_image_turbo']).default('wan22'),
   attributes: z.record(z.string()).optional(),
   endpoint: z.string().optional(),
 })
@@ -26,7 +27,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, prompts, negativePrompt, count, steps, width, height, loraStrength, attributes, endpoint } = parsed.data
+  const { prompt, prompts, negativePrompt, count, steps, width, height, loraStrength, model, attributes, endpoint } = parsed.data
   const apiUrl = resolveApiUrl(endpoint)
 
   const settings = JSON.stringify({
@@ -71,6 +72,7 @@ export default defineEventHandler(async (event) => {
           height,
           steps,
           lora_strength: loraStrength,
+          model,
         },
       }),
       createdAt: now,

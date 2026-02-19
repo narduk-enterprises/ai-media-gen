@@ -46,6 +46,29 @@ const showAdvanced = ref(false)
 
 const sizeItems = [512, 768, 1024, 1536, 2048].map(v => ({ label: `${v}`, value: v }))
 
+// ─── Model selection ────────────────────────────────────────────────────
+const IMAGE_MODELS = [
+  { id: 'wan22', label: 'Wan 2.2', description: '14B dual-UNET, 20 steps', icon: 'i-lucide-brain', defaultSteps: 20 },
+  { id: 'z_image_turbo', label: 'Z-Image Turbo', description: 'Ultra-fast, 4 steps', icon: 'i-lucide-zap', defaultSteps: 4 },
+] as const
+
+const selectedModels = ref<string[]>(['wan22'])
+const compareMode = computed(() => selectedModels.value.length > 1)
+
+function toggleModel(id: string) {
+  const idx = selectedModels.value.indexOf(id)
+  if (idx >= 0 && selectedModels.value.length > 1) {
+    selectedModels.value.splice(idx, 1)
+  } else if (idx < 0) {
+    selectedModels.value.push(id)
+  }
+  // Auto-adjust steps when single model selected
+  if (selectedModels.value.length === 1) {
+    const m = IMAGE_MODELS.find(m => m.id === selectedModels.value[0])
+    if (m) steps.value = m.defaultSteps
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // MODE 1: Persona + Scene
 // ═══════════════════════════════════════════════════════════════════════
@@ -110,15 +133,19 @@ async function generatePersona(append = false) {
     ? [basePrompt.value.trim()]
     : presetConfig.value.basePrompts.length > 0 ? presetConfig.value.basePrompts : undefined
   const batch = buildBatchPrompts(persona as Record<string, string>, scenePayloads.value, countPerScene.value, baseArr)
-  await gen.generate({
-    prompts: batch.map(b => b.prompt),
-    negativePrompt: negativePrompt.value,
-    steps: steps.value,
-    width: imageWidth.value,
-    height: imageHeight.value,
-    loraStrength: loraStrength.value,
-    append,
-  })
+  for (const model of selectedModels.value) {
+    const m = IMAGE_MODELS.find(m => m.id === model)
+    await gen.generate({
+      prompts: batch.map(b => b.prompt),
+      negativePrompt: negativePrompt.value,
+      steps: compareMode.value ? (m?.defaultSteps ?? steps.value) : steps.value,
+      width: imageWidth.value,
+      height: imageHeight.value,
+      loraStrength: loraStrength.value,
+      model,
+      append: append || selectedModels.value.indexOf(model) > 0,
+    })
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -154,15 +181,19 @@ async function generateFree(append = false) {
   if (!canGenerateFree.value) return
   const prompts: string[] = []
   for (let i = 0; i < freeCount.value; i++) prompts.push(freePromptPreview.value)
-  await gen.generate({
-    prompts,
-    negativePrompt: negativePrompt.value,
-    steps: steps.value,
-    width: imageWidth.value,
-    height: imageHeight.value,
-    loraStrength: loraStrength.value,
-    append,
-  })
+  for (const model of selectedModels.value) {
+    const m = IMAGE_MODELS.find(m => m.id === model)
+    await gen.generate({
+      prompts,
+      negativePrompt: negativePrompt.value,
+      steps: compareMode.value ? (m?.defaultSteps ?? steps.value) : steps.value,
+      width: imageWidth.value,
+      height: imageHeight.value,
+      loraStrength: loraStrength.value,
+      model,
+      append: append || selectedModels.value.indexOf(model) > 0,
+    })
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -192,6 +223,7 @@ async function generateBatch() {
     width: imageWidth.value,
     height: imageHeight.value,
     loraStrength: loraStrength.value,
+    model: selectedModels.value[0] ?? 'wan22',
   })
 }
 
@@ -421,6 +453,7 @@ function persistForm() {
       bvResolutionIndex: bvResolutionIndex.value,
       bvNegativePrompt: bvNegativePrompt.value,
       loraStrength: loraStrength.value,
+      selectedModels: selectedModels.value,
     }))
   } catch {}
 }
@@ -453,6 +486,7 @@ function restoreForm() {
     if (s.bvResolutionIndex != null) bvResolutionIndex.value = s.bvResolutionIndex
     if (s.bvNegativePrompt != null) bvNegativePrompt.value = s.bvNegativePrompt
     if (s.loraStrength != null) loraStrength.value = s.loraStrength
+    if (Array.isArray(s.selectedModels) && s.selectedModels.length > 0) selectedModels.value = s.selectedModels
   } catch {}
 }
 
@@ -464,7 +498,7 @@ onMounted(() => {
 })
 
 watch(
-  [mode, activePersonId, selectedSceneIds, basePrompt, countPerScene, freePrompt, freeAttributes, freeCount, steps, imageWidth, imageHeight, negativePrompt, loraStrength, t2vPrompt, t2vNegativePrompt, t2vNumFrames, t2vSteps, t2vResolutionIndex, bvNumFrames, bvSteps, bvResolutionIndex, bvNegativePrompt],
+  [mode, activePersonId, selectedSceneIds, basePrompt, countPerScene, freePrompt, freeAttributes, freeCount, steps, imageWidth, imageHeight, negativePrompt, loraStrength, selectedModels, t2vPrompt, t2vNegativePrompt, t2vNumFrames, t2vSteps, t2vResolutionIndex, bvNumFrames, bvSteps, bvResolutionIndex, bvNegativePrompt],
   () => persistForm(),
   { deep: true },
 )
@@ -495,6 +529,7 @@ function resetForm() {
   bvSteps.value = 4
   bvResolutionIndex.value = 0
   bvNegativePrompt.value = ''
+  selectedModels.value = ['wan22']
   gen.clearResults()
   persistForm()
 }
@@ -883,6 +918,48 @@ const gridClass = computed(() => {
         </div>
       </template>
     </UTabs>
+
+    <!-- ═══ Model Selector (image modes only) ═══ -->
+    <UCard v-if="!isVideoMode" class="mb-6" variant="outline">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Model</h3>
+          <UBadge v-if="compareMode" size="xs" variant="subtle" color="info" class="gap-1">
+            <UIcon name="i-lucide-columns-2" class="w-3 h-3" />
+            Compare Mode
+          </UBadge>
+        </div>
+        <span class="text-[10px] text-slate-400">Select multiple to compare outputs</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          v-for="m in IMAGE_MODELS"
+          :key="m.id"
+          class="flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all duration-150"
+          :class="selectedModels.includes(m.id)
+            ? 'border-violet-400 bg-violet-50/60 shadow-sm'
+            : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'"
+          @click="toggleModel(m.id)"
+        >
+          <div
+            class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+            :class="selectedModels.includes(m.id) ? 'bg-violet-100 text-violet-600' : 'bg-slate-100 text-slate-400'"
+          >
+            <UIcon :name="m.icon" class="w-5 h-5" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold" :class="selectedModels.includes(m.id) ? 'text-violet-700' : 'text-slate-700'">{{ m.label }}</div>
+            <div class="text-[11px]" :class="selectedModels.includes(m.id) ? 'text-violet-500' : 'text-slate-400'">{{ m.description }}</div>
+          </div>
+          <div
+            class="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors"
+            :class="selectedModels.includes(m.id) ? 'border-violet-500 bg-violet-500' : 'border-slate-300'"
+          >
+            <UIcon v-if="selectedModels.includes(m.id)" name="i-lucide-check" class="w-3 h-3 text-white" />
+          </div>
+        </button>
+      </div>
+    </UCard>
 
     <!-- ═══ Shared Settings ═══ -->
     <UCard class="mb-6" variant="outline">
