@@ -403,6 +403,13 @@ function formatTime(dateStr: string): string {
 
         <!-- Right action bar -->
         <div class="feed-actions">
+          <NuxtLink :to="`/post/${video.id}`" class="feed-btn" @click.stop>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+          </NuxtLink>
           <a :href="video.url" download class="feed-btn" @click.stop>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
