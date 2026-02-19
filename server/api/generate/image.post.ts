@@ -3,7 +3,6 @@ import { requireAuth } from '../../utils/auth'
 import { callRunPodAsync, resolveApiUrl } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
 import { backgroundComplete } from '../../utils/backgroundComplete'
-import { useMediaBucket } from '../../utils/r2'
 
 const generateSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
@@ -36,9 +35,7 @@ export default defineEventHandler(async (event) => {
     height,
     attributes: attributes || {},
   })
-  // Eagerly capture DB and R2 while still in request context
   const db = useDatabase()
-  const mediaBucket = useMediaBucket(event)
   const generationId = crypto.randomUUID()
   const now = new Date().toISOString()
 
@@ -93,13 +90,7 @@ export default defineEventHandler(async (event) => {
   )
 
   // Background completion — server keeps polling even if frontend disconnects
-  const waitUntil = (event.context as any).waitUntil as ((promise: Promise<any>) => void) | undefined
-  if (waitUntil) {
-    console.log(`[Image] Scheduling background completion for ${itemIds.length} items via waitUntil`)
-    waitUntil(backgroundComplete(db, mediaBucket, itemIds))
-  } else {
-    console.warn(`[Image] waitUntil not available — relying on cron/frontend polling`)
-  }
+  backgroundComplete(event, itemIds)
 
   return {
     generation: {

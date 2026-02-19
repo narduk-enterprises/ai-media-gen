@@ -77,12 +77,7 @@ export default defineEventHandler(async (event) => {
 
   // Background completion — server keeps polling even if frontend disconnects
   if (jobId) {
-    const mediaBucket = useMediaBucket(event)
-    const waitUntil = (event.context as any).waitUntil as ((promise: Promise<any>) => void) | undefined
-    if (waitUntil) {
-      console.log(`[T2V] Scheduling background completion via waitUntil`)
-      waitUntil(backgroundComplete(db, mediaBucket, [videoId]))
-    }
+    backgroundComplete(event, [videoId])
   }
 
   return {

@@ -1,22 +1,21 @@
 /**
  * Background completion utility.
  *
- * Ensures generation jobs are completed and saved even if the browser
- * closes. Two mechanisms:
+ * Uses `import { waitUntil } from "cloudflare:workers"` to extend the
+ * Worker's lifetime and poll RunPod jobs to completion, even after the
+ * HTTP response has been sent.
  *
- * 1. **waitUntil** (best-effort): Called after the generation response is
- *    sent. Polls RunPod and saves results in the background. Limited to
- *    ~30s on CF free tier, 15 min on paid.
- *
- * 2. **Cron Trigger** (bulletproof): A scheduled handler runs every minute,
- *    sweeps all orphaned 'processing' items, and completes them. This
- *    works even if waitUntil fails or the browser was closed hours ago.
+ * The caller just calls `backgroundComplete(event, itemIds)` and this
+ * module handles everything: grabbing DB/R2, calling waitUntil, polling,
+ * saving results.
  */
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
+import { waitUntil } from 'cloudflare:workers'
 import { mediaItems, generations } from '../database/schema'
 import { checkRunPodJob } from './ai'
-import { uploadImageToR2 } from './r2'
+import { uploadImageToR2, useMediaBucket } from './r2'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
+import type { H3Event } from 'h3'
 
 const POLL_INTERVAL_MS = 5_000     // 5s between checks
 const MAX_POLL_MS = 14 * 60 * 1000 // 14 min (stay under CF 15-min limit)
@@ -25,7 +24,6 @@ type DB = DrizzleD1Database<any>
 
 /**
  * Poll a single media item's RunPod job until complete, then save to R2/DB.
- * Accepts pre-captured db/bucket so it works in background contexts.
  */
 async function completeMediaItem(
   db: DB,
@@ -43,7 +41,6 @@ async function completeMediaItem(
       const result = await checkRunPodJob(item.runpodJobId, apiUrl)
 
       if (!result) {
-        // Still running — wait and retry
         await sleep(POLL_INTERVAL_MS)
         continue
       }
@@ -78,7 +75,6 @@ async function completeMediaItem(
         return 'failed'
       }
 
-      // Unknown status — wait and retry
       await sleep(POLL_INTERVAL_MS)
     } catch (e: any) {
       console.warn(`[BG] ⚠️ ${item.id.slice(0, 8)} check error:`, e.message)
@@ -112,19 +108,30 @@ async function updateGenerationStatus(db: DB, generationId: string) {
 }
 
 /**
- * Start background completion for specific item IDs.
- * Call this inside waitUntil() after sending the response.
+ * Schedule background completion for specific item IDs.
  *
- * IMPORTANT: db and mediaBucket MUST be captured BEFORE calling this,
- * while still inside the request handler context.
+ * Uses the `waitUntil` import from `cloudflare:workers` so it can be
+ * called from anywhere — no need to pass ctx or event.context.
+ *
+ * Eagerly captures DB and R2 bucket from the event (still in request
+ * context) before handing off to the background promise.
  */
-export async function backgroundComplete(
-  db: DB,
-  mediaBucket: R2Bucket | null,
-  itemIds: string[],
-) {
+export function backgroundComplete(event: H3Event, itemIds: string[]) {
   if (!itemIds.length) return
 
+  // Capture DB/R2 while still in request context
+  const db = useDatabase()
+  const mediaBucket = useMediaBucket(event)
+
+  console.log(`[BG] Scheduling background completion for ${itemIds.length} items`)
+
+  waitUntil(doBackgroundWork(db, mediaBucket, itemIds))
+}
+
+/**
+ * The actual background work promise that runs after the response is sent.
+ */
+async function doBackgroundWork(db: DB, mediaBucket: R2Bucket | null, itemIds: string[]) {
   try {
     const items = await db.select().from(mediaItems)
       .where(inArray(mediaItems.id, itemIds))
@@ -134,12 +141,10 @@ export async function backgroundComplete(
 
     console.log(`[BG] Starting background completion for ${processingItems.length} items`)
 
-    // Process all items in parallel
     await Promise.allSettled(
       processingItems.map(item => completeMediaItem(db, mediaBucket, item))
     )
 
-    // Update generation statuses
     const genIds = [...new Set(processingItems.map(i => i.generationId).filter(Boolean))] as string[]
     for (const genId of genIds) {
       await updateGenerationStatus(db, genId)
@@ -156,7 +161,6 @@ export async function backgroundComplete(
  * Used by the /api/generate/recover endpoint AND the cron trigger.
  */
 export async function recoverOrphanedItems(db: DB, mediaBucket: R2Bucket | null) {
-  // Find all items still marked as processing
   const orphaned = await db.select().from(mediaItems)
     .where(eq(mediaItems.status, 'processing'))
 
@@ -169,7 +173,6 @@ export async function recoverOrphanedItems(db: DB, mediaBucket: R2Bucket | null)
 
   console.log(`[Recovery] Found ${orphaned.length} orphaned items (${withJobId.length} with job IDs, ${withoutJobId.length} without)`)
 
-  // Mark items without job IDs as failed (if old enough)
   for (const item of withoutJobId) {
     const age = Date.now() - new Date(item.createdAt).getTime()
     if (age > 10 * 60 * 1000) {
@@ -179,20 +182,17 @@ export async function recoverOrphanedItems(db: DB, mediaBucket: R2Bucket | null)
     }
   }
 
-  // Try to complete items with job IDs (single check, no long polling for cron)
   let recovered = 0
   let failed = 0
   let stillProcessing = 0
 
   for (const item of withJobId) {
-    // For cron sweeps, do a single check instead of long-polling
-    const result = await completeMediaItem(db, mediaBucket, item, 10_000) // 10s max per item
+    const result = await completeMediaItem(db, mediaBucket, item, 10_000)
     if (result === 'complete') recovered++
     else if (result === 'failed') failed++
     else stillProcessing++
   }
 
-  // Update generation statuses
   const genIds = [...new Set(orphaned.map(i => i.generationId).filter(Boolean))] as string[]
   for (const genId of genIds) {
     await updateGenerationStatus(db, genId as string)
