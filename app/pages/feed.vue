@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { GenerationResult } from '~/types/gallery'
 
 definePageMeta({ layout: false })
 useSeoMeta({ title: 'Feed' })
@@ -14,24 +13,19 @@ interface FeedVideo {
 
 const videos = ref<FeedVideo[]>([])
 const loading = ref(true)
+const loadingMore = ref(false)
+const hasMore = ref(true)
 
-async function fetchVideos() {
+const PAGE_SIZE = 10
+
+async function loadInitial() {
   try {
-    const result = await $fetch<{ generations: GenerationResult[]; total: number }>('/api/generations', {
-      params: { limit: 200, offset: 0 },
+    const result = await $fetch<{ videos: FeedVideo[]; hasMore: boolean }>('/api/feed/videos', {
+      params: { limit: PAGE_SIZE, offset: 0 },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
-
-    videos.value = result.generations
-      .flatMap(g => g.items
-        .filter(i => i.type === 'video' && i.url && i.status === 'complete')
-        .map(i => ({
-          id: i.id,
-          url: i.url!,
-          prompt: g.prompt,
-          createdAt: g.createdAt,
-        }))
-      )
+    videos.value = result.videos
+    hasMore.value = result.hasMore
   } catch (e) {
     console.error('Failed to fetch videos:', e)
   } finally {
@@ -39,30 +33,35 @@ async function fetchVideos() {
   }
 }
 
-// Auto-refresh: poll every 30s and merge new videos in
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  loadingMore.value = true
+  try {
+    const result = await $fetch<{ videos: FeedVideo[]; hasMore: boolean }>('/api/feed/videos', {
+      params: { limit: PAGE_SIZE, offset: videos.value.length },
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    if (result.videos.length > 0) {
+      videos.value = [...videos.value, ...result.videos]
+    }
+    hasMore.value = result.hasMore
+  } catch {} finally {
+    loadingMore.value = false
+  }
+}
+
+// Auto-refresh: poll every 30s — check for newly completed videos
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 async function refreshVideos() {
   try {
-    const result = await $fetch<{ generations: GenerationResult[]; total: number }>('/api/generations', {
-      params: { limit: 200, offset: 0 },
+    // Only fetch the first page to see if new videos appeared
+    const result = await $fetch<{ videos: FeedVideo[] }>('/api/feed/videos', {
+      params: { limit: PAGE_SIZE, offset: 0 },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
-
-    const fresh = result.generations
-      .flatMap(g => g.items
-        .filter(i => i.type === 'video' && i.url && i.status === 'complete')
-        .map(i => ({
-          id: i.id,
-          url: i.url!,
-          prompt: g.prompt,
-          createdAt: g.createdAt,
-        }))
-      )
-
-    // Merge: add any new IDs without disrupting existing list
     const existingIds = new Set(videos.value.map(v => v.id))
-    const newVideos = fresh.filter(v => !existingIds.has(v.id))
+    const newVideos = result.videos.filter(v => !existingIds.has(v.id))
     if (newVideos.length > 0) {
       videos.value = [...newVideos, ...videos.value]
       console.log(`[Feed] +${newVideos.length} new videos`)
@@ -71,7 +70,7 @@ async function refreshVideos() {
 }
 
 if (import.meta.client) {
-  fetchVideos()
+  loadInitial()
   pollTimer = setInterval(refreshVideos, 30_000)
 }
 
@@ -81,6 +80,13 @@ const muted = ref(true)
 const paused = ref(false)
 const progress = ref(0)
 const showPauseIndicator = ref(false)
+
+// Load more when user gets within 3 videos of the end
+watch(currentIndex, (idx) => {
+  if (idx >= videos.value.length - 3) {
+    loadMore()
+  }
+})
 
 // ─── Element refs ────────────────────────────────────────────
 const containerRef = ref<HTMLElement | null>(null)
@@ -134,6 +140,7 @@ onBeforeUnmount(() => {
   observer?.disconnect()
   if (progressRaf) cancelAnimationFrame(progressRaf)
   if (pollTimer) clearInterval(pollTimer)
+  window.removeEventListener('keydown', onKeyDown)
 })
 
 // After a video element mounts, observe it
@@ -215,7 +222,50 @@ function tickProgress() {
 
 onMounted(() => {
   progressRaf = requestAnimationFrame(tickProgress)
+  window.addEventListener('keydown', onKeyDown)
 })
+
+// ─── Keyboard navigation (desktop) ──────────────────────────
+function onKeyDown(e: KeyboardEvent) {
+  // Ignore if user is typing in an input/textarea
+  const tag = (e.target as HTMLElement)?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+  switch (e.key) {
+    case 'ArrowDown':
+    case 'ArrowRight': {
+      e.preventDefault()
+      const nextIdx = Math.min(currentIndex.value + 1, videos.value.length - 1)
+      scrollToSlide(nextIdx)
+      break
+    }
+    case 'ArrowUp':
+    case 'ArrowLeft': {
+      e.preventDefault()
+      const prevIdx = Math.max(currentIndex.value - 1, 0)
+      scrollToSlide(prevIdx)
+      break
+    }
+    case ' ': {
+      e.preventDefault()
+      togglePlayPause(currentIndex.value)
+      break
+    }
+    case 'm':
+    case 'M': {
+      e.preventDefault()
+      muted.value = !muted.value
+      break
+    }
+  }
+}
+
+function scrollToSlide(index: number) {
+  const container = containerRef.value
+  if (!container) return
+  const slides = container.querySelectorAll('.feed-slide')
+  slides[index]?.scrollIntoView({ behavior: 'smooth' })
+}
 
 // ─── Share ───────────────────────────────────────────────────
 function shareVideo(video: FeedVideo) {
@@ -427,7 +477,7 @@ function formatTime(dateStr: string): string {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   /* Prevent iOS from taking over native video player */
   -webkit-appearance: none;
 }
