@@ -16,7 +16,7 @@ import type { DrizzleD1Database } from 'drizzle-orm/d1'
 
 type DB = DrizzleD1Database<any>
 
-const MAX_CONCURRENT = 3           // max RunPod jobs in-flight at once
+const MAX_CONCURRENT = 5           // max RunPod jobs in-flight at once
 const STALE_THRESHOLD_MS = 30 * 60 * 1000 // 30 min — mark as failed if no RunPod response
 const POLL_TIMEOUT_MS = 10_000     // 10s per item during poll phase (single check, not long-poll)
 

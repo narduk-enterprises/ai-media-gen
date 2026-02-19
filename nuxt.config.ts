@@ -85,7 +85,7 @@ export default defineNuxtConfig({
       tasks: true,
     },
     scheduledTasks: {
-      '*/2 * * * *': ['recovery:sweep'],
+      '* * * * *': ['recovery:sweep'],
     },
     cloudflare: {
       deployConfig: true,
@@ -107,7 +107,7 @@ export default defineNuxtConfig({
           }
         ],
         triggers: {
-          crons: ['*/2 * * * *']  // every 2 minutes — sweep orphaned items
+          crons: ['* * * * *']  // every minute — keep the pipeline fed
         }
       }
     },
