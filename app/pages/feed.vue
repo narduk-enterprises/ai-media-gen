@@ -39,8 +39,40 @@ async function fetchVideos() {
   }
 }
 
+// Auto-refresh: poll every 30s and merge new videos in
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+async function refreshVideos() {
+  try {
+    const result = await $fetch<{ generations: GenerationResult[]; total: number }>('/api/generations', {
+      params: { limit: 200, offset: 0 },
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+
+    const fresh = result.generations
+      .flatMap(g => g.items
+        .filter(i => i.type === 'video' && i.url && i.status === 'complete')
+        .map(i => ({
+          id: i.id,
+          url: i.url!,
+          prompt: g.prompt,
+          createdAt: g.createdAt,
+        }))
+      )
+
+    // Merge: add any new IDs without disrupting existing list
+    const existingIds = new Set(videos.value.map(v => v.id))
+    const newVideos = fresh.filter(v => !existingIds.has(v.id))
+    if (newVideos.length > 0) {
+      videos.value = [...newVideos, ...videos.value]
+      console.log(`[Feed] +${newVideos.length} new videos`)
+    }
+  } catch {}
+}
+
 if (import.meta.client) {
   fetchVideos()
+  pollTimer = setInterval(refreshVideos, 30_000)
 }
 
 // ─── Reactive state ──────────────────────────────────────────
@@ -101,6 +133,7 @@ watch(videos, () => {
 onBeforeUnmount(() => {
   observer?.disconnect()
   if (progressRaf) cancelAnimationFrame(progressRaf)
+  if (pollTimer) clearInterval(pollTimer)
 })
 
 // After a video element mounts, observe it
