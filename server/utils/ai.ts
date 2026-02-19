@@ -199,7 +199,9 @@ export async function checkRunPodJob(jobId: string, apiUrlOverride?: string): Pr
     return null; // still running
   } catch (e: any) {
     // 404 = job not found (expired or never existed) — treat as failed
-    if (e?.response?.status === 404 || e?.status === 404 || e?.statusCode === 404) {
+    const status = e?.response?.status ?? e?.status ?? e?.statusCode
+    const body = e?.response?._data ?? e?.data
+    if (status === 404 || body?.error === 'not found') {
       return { id: jobId, status: 'FAILED', error: 'Job not found (expired)' } as RunPodResponse;
     }
     return null;
