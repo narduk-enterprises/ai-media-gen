@@ -39,12 +39,13 @@ export const mediaItems = sqliteTable('media_items', {
   type: text('type').notNull(), // 'image' | 'video' | 'audio'
   parentId: text('parent_id'), // links video→image, audio→video
   url: text('url'),
-  status: text('status').notNull().default('pending'), // pending | processing | complete | failed
+  status: text('status').notNull().default('queued'), // queued | processing | complete | failed | cancelled
   error: text('error'),
-  metadata: text('metadata'), // JSON blob: { width, height, duration, etc. }
-  runpodJobId: text('runpod_job_id'), // RunPod job ID for recovery of timed-out generations
+  metadata: text('metadata'), // JSON blob: RunPod input payload + apiUrl
+  runpodJobId: text('runpod_job_id'), // RunPod job ID (null while queued, set when submitted)
   prompt: text('prompt'), // per-item prompt (may differ from generation prompt in "vary per image" mode)
   qualityScore: real('quality_score'), // AI aesthetic score (1-10)
+  submittedAt: text('submitted_at'), // when the item was actually sent to RunPod (null while queued)
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 })
 

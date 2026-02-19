@@ -6,17 +6,16 @@ import { generations, mediaItems } from '../../database/schema'
  * Reconcile R2 video files with D1 records.
  *
  * Scans R2 for `video-` prefixed objects (bulk-uploaded from pod),
- * creates new media_items for any that aren't already tracked in D1.
- *
- * Deduplication: tracks the original R2 key in metadata to prevent
- * creating duplicates on repeated calls.
+ * deduplicates by original filename (keeps latest), creates new
+ * media_items pointing to existing R2 keys (no copy needed).
  *
  * POST /api/generate/reconcile-videos
- * Body: { dryRun?: boolean }
+ * Body: { dryRun?: boolean, batch?: number }
  */
 export default defineEventHandler(async (event) => {
   const body = await readBody(event).catch(() => ({}))
   const dryRun = body?.dryRun === true
+  const batchSize = Math.min(body?.batch || 50, 200)
 
   const bucket = useMediaBucket(event)
   if (!bucket) {
@@ -25,34 +24,41 @@ export default defineEventHandler(async (event) => {
 
   const db = useDatabase()
 
-  // 1. List all video-* objects in R2 (bulk-uploaded from pod)
-  const videoKeys: Array<{ key: string, size: number }> = []
+  // 1. List all video-* objects in R2
+  const allVideoKeys: Array<{ key: string, size: number }> = []
   let cursor: string | undefined
-  let listCount = 0
   do {
     const list = await bucket.list({ prefix: 'video-', cursor, limit: 500 })
     for (const obj of list.objects) {
-      videoKeys.push({ key: obj.key, size: obj.size })
+      if (obj.size < 1000) continue
+      allVideoKeys.push({ key: obj.key, size: obj.size })
     }
     cursor = list.truncated ? list.cursor : undefined
-    listCount++
-    if (listCount > 20) break // safety
   } while (cursor)
 
-  // 2. Find which R2 keys already have D1 media_items (by checking metadata.originalR2Key)
+  // 2. Deduplicate by original filename — keep latest timestamp
+  const byFilename = new Map<string, { key: string, size: number, ts: number }>()
+  for (const { key, size } of allVideoKeys) {
+    const lastDash = key.lastIndexOf('-')
+    const ts = parseInt(key.slice(lastDash + 1), 10)
+    const filename = key.slice(6, lastDash)
+    const existing = byFilename.get(filename)
+    if (!existing || ts > existing.ts) {
+      byFilename.set(filename, { key, size, ts })
+    }
+  }
+  const uniqueKeys = Array.from(byFilename.values())
+
+  // 3. Check which are already tracked in D1 metadata
   const existingItems = await db.select({
-    id: mediaItems.id,
     metadata: mediaItems.metadata,
-    url: mediaItems.url,
   })
     .from(mediaItems)
     .where(eq(mediaItems.type, 'video'))
     .all()
 
   const trackedKeys = new Set<string>()
-  const existingUrls = new Set<string>()
   for (const item of existingItems) {
-    if (item.url) existingUrls.add(item.url)
     if (item.metadata) {
       try {
         const meta = JSON.parse(item.metadata)
@@ -62,61 +68,41 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Also check by URL pattern (items already pointing to these R2 keys)
-  const unlinkedKeys = videoKeys.filter(({ key }) => {
-    const url = `/api/media/${key}`
-    return !trackedKeys.has(key) && !existingUrls.has(url)
-  })
+  const unlinkedKeys = uniqueKeys.filter(({ key }) => !trackedKeys.has(key))
 
   if (dryRun) {
     return {
-      totalR2Videos: videoKeys.length,
-      alreadyTracked: videoKeys.length - unlinkedKeys.length,
-      unlinked: unlinkedKeys.length,
-      unlinkedSample: unlinkedKeys.slice(0, 10),
-      message: 'Dry run — no changes made',
+      totalR2Raw: allVideoKeys.length,
+      uniqueVideos: uniqueKeys.length,
+      alreadyTracked: uniqueKeys.length - unlinkedKeys.length,
+      toProcess: unlinkedKeys.length,
+      sample: unlinkedKeys.slice(0, 5),
     }
   }
 
-  // 3. Create a single "recovered" generation to group these items
+  // 4. Process in batch
+  const batch = unlinkedKeys.slice(0, batchSize)
+  if (batch.length === 0) {
+    return { done: true, message: 'All videos already tracked' }
+  }
+
+  // Create a generation for this batch
   const genId = crypto.randomUUID()
   const now = new Date().toISOString()
-
   await db.insert(generations).values({
     id: genId,
     userId: 'system',
-    prompt: 'Recovered videos from pod bulk upload',
-    imageCount: unlinkedKeys.length,
+    prompt: 'Recovered videos from pod',
+    imageCount: batch.length,
     status: 'complete',
     createdAt: now,
-    settings: JSON.stringify({ source: 'reconcile-videos', recoveredAt: now }),
   })
 
-  // 4. Create D1 media_items pointing to existing R2 keys
+  // 5. Create D1 records pointing to existing R2 keys (NO copy)
   let successCount = 0
-  let errorCount = 0
-  const results: Array<{ key: string, mediaId: string, status: string }> = []
-
-  for (const { key, size } of unlinkedKeys) {
+  for (const { key, size } of batch) {
     try {
       const mediaId = crypto.randomUUID()
-
-      // Copy R2 object to UUID-keyed entry for proper serving
-      const obj = await bucket.get(key)
-      if (!obj) {
-        results.push({ key, mediaId, status: 'skipped-not-found' })
-        continue
-      }
-
-      const data = await obj.arrayBuffer()
-      await bucket.put(mediaId, data, {
-        httpMetadata: {
-          contentType: 'video/mp4',
-          cacheControl: 'public, max-age=31536000, immutable',
-        },
-      })
-
-      // Create D1 record
       await db.insert(mediaItems).values({
         id: mediaId,
         generationId: genId,
@@ -125,28 +111,19 @@ export default defineEventHandler(async (event) => {
         status: 'complete',
         metadata: JSON.stringify({
           originalR2Key: key,
-          recoveredAt: now,
           sizeMB: (size / 1024 / 1024).toFixed(2),
         }),
         createdAt: now,
-        prompt: 'Recovered video from pod',
+        prompt: 'Recovered video',
       })
-
-      results.push({ key, mediaId, status: 'created' })
       successCount++
     }
-    catch (err: any) {
-      results.push({ key, mediaId: '', status: `error: ${err.message}` })
-      errorCount++
-    }
+    catch {}
   }
 
   return {
-    totalR2Videos: videoKeys.length,
-    processed: unlinkedKeys.length,
-    success: successCount,
-    errors: errorCount,
     generationId: genId,
-    results: results.slice(0, 50),
+    success: successCount,
+    remaining: unlinkedKeys.length - batch.length,
   }
 })

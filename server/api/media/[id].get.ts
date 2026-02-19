@@ -19,15 +19,33 @@ export default defineEventHandler(async (event) => {
   const bucket: R2Bucket | undefined = cf?.MEDIA
 
   if (bucket) {
-    const object = await bucket.get(id)
+    // Try direct ID-based R2 key first
+    let object = await bucket.get(id)
+
+    // Fallback: check D1 metadata for alternative R2 key
+    if (!object) {
+      const db = useDatabase()
+      const item = await db.select({ metadata: mediaItems.metadata })
+        .from(mediaItems)
+        .where(eq(mediaItems.id, id))
+        .get()
+      if (item?.metadata) {
+        try {
+          const meta = JSON.parse(item.metadata)
+          if (meta.originalR2Key) {
+            object = await bucket.get(meta.originalR2Key)
+          }
+        }
+        catch {}
+      }
+    }
+
     if (object) {
       setResponseHeaders(event, {
         'Content-Type': object.httpMetadata?.contentType || 'image/png',
         'Cache-Control': 'public, max-age=31536000, immutable',
         'ETag': object.httpEtag,
       })
-
-      // Stream the response body
       return object.body
     }
   }
