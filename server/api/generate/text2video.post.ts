@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl, callRunPodAsync } from '../../utils/ai'
@@ -15,7 +15,10 @@ const text2videoSchema = z.object({
   loraStrength: z.number().min(0).max(2).optional().default(1.0),
   model: z.enum(['wan22', 'ltx2']).optional().default('wan22'),
   seed: z.number().int().optional().default(-1),
+  audioPrompt: z.string().optional().default(''),
   endpoint: z.string().optional(),
+  // Optional: reuse an existing generation to group batch items together
+  generationId: z.string().uuid().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -27,20 +30,38 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, negativePrompt, width, height, numFrames, steps, loraStrength, model, seed, endpoint } = parsed.data
+  const { prompt, negativePrompt, width, height, numFrames, steps, loraStrength, model, seed, audioPrompt, endpoint, generationId } = parsed.data
   const apiUrl = resolveApiUrl(endpoint)
   const db = useDatabase()
   const now = new Date().toISOString()
 
-  const genId = crypto.randomUUID()
-  await db.insert(generations).values({
-    id: genId,
-    userId: user.id,
-    prompt,
-    imageCount: 1,
-    status: 'processing',
-    createdAt: now,
-  })
+  // Either reuse existing generation or create a new one
+  let genId: string
+  if (generationId) {
+    // Verify the generation belongs to this user
+    const existing = await db.select({ id: generations.id }).from(generations)
+      .where(eq(generations.id, generationId)).get()
+    if (existing) {
+      genId = generationId
+      // Increment imageCount
+      await db.update(generations)
+        .set({ imageCount: sql`${generations.imageCount} + 1` })
+        .where(eq(generations.id, genId))
+    } else {
+      // Generation not found — create a new one
+      genId = crypto.randomUUID()
+      await db.insert(generations).values({
+        id: genId, userId: user.id, prompt,
+        imageCount: 1, status: 'processing', createdAt: now,
+      })
+    }
+  } else {
+    genId = crypto.randomUUID()
+    await db.insert(generations).values({
+      id: genId, userId: user.id, prompt,
+      imageCount: 1, status: 'processing', createdAt: now,
+    })
+  }
 
   const videoId = crypto.randomUUID()
 
@@ -57,24 +78,23 @@ export default defineEventHandler(async (event) => {
         action: 'text2video',
         prompt,
         negative_prompt: negativePrompt,
-        width,
-        height,
+        width, height,
         num_frames: numFrames,
         steps,
         lora_strength: loraStrength,
-        model,
-        seed,
+        model, seed,
+        ...(audioPrompt ? { audio_prompt: audioPrompt } : {}),
       },
     }),
     createdAt: now,
   })
 
-  console.log(`[T2V] Item queued: ${videoId.slice(0, 8)}`)
+  console.log(`[T2V] Item queued: ${videoId.slice(0, 8)} → gen ${genId.slice(0, 8)}`)
 
   // Submit to RunPod in background — response returns immediately
   waitUntil((async () => {
     try {
-      const meta = { apiUrl, runpodInput: { action: 'text2video', prompt, negative_prompt: negativePrompt, width, height, num_frames: numFrames, steps, lora_strength: loraStrength, model, seed } }
+      const meta = { apiUrl, runpodInput: { action: 'text2video', prompt, negative_prompt: negativePrompt, width, height, num_frames: numFrames, steps, lora_strength: loraStrength, model, seed, ...(audioPrompt ? { audio_prompt: audioPrompt } : {}) } }
       const result = await callRunPodAsync(meta.runpodInput, apiUrl)
       await db.update(mediaItems)
         .set({

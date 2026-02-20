@@ -7,8 +7,8 @@ definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Gallery' })
 
 const { generations, total, pending, loadingMore, hasMore, error, refresh, loadMore } = useGallery()
-const { runpodEndpoint, customEndpoint } = useAppSettings()
-const effectiveEndpoint = computed(() => customEndpoint.value || runpodEndpoint.value)
+const gen = useGeneration()
+const actionLoading = gen.actionLoading
 
 // ─── Infinite scroll ──────────────────────────────────────────────────
 const sentinelRef = ref<HTMLElement | null>(null)
@@ -107,7 +107,48 @@ const filteredGenerations = computed(() => {
   }
   if (typeFilter.value !== 'all') gens = gens.filter(g => g.items.some(i => i.type === typeFilter.value && i.url && i.status === 'complete'))
   if (sortOrder.value === 'oldest') gens = [...gens].reverse()
-  return gens
+
+  // Group sweep generations into combined entries
+  const sweepMap = new Map<string, typeof gens>()
+  const nonSweep: typeof gens = []
+  for (const g of gens) {
+    let sweepId: string | null = null
+    try { sweepId = JSON.parse(g.settings || '{}').sweepId } catch {}
+    if (sweepId) {
+      const arr = sweepMap.get(sweepId) || []
+      arr.push(g)
+      sweepMap.set(sweepId, arr)
+    } else {
+      nonSweep.push(g)
+    }
+  }
+
+  // Merge each sweep group into a single combined generation
+  const result = [...nonSweep]
+  for (const [sweepId, sweepGens] of sweepMap) {
+    // Merge all items into one combined generation
+    const allItems = sweepGens.flatMap(g => {
+      // Tag each item with its sweep label from settings
+      let sweepLabel = ''
+      try { sweepLabel = JSON.parse(g.settings || '{}').sweepLabel || '' } catch {}
+      return g.items.map(item => ({ ...item, prompt: sweepLabel || item.prompt }))
+    })
+    const first = sweepGens[0]!
+    result.push({
+      ...first,
+      id: `sweep-${sweepId}`,
+      imageCount: allItems.length,
+      items: allItems,
+      // Store sweepId in settings for the grouped view to detect
+      settings: JSON.stringify({ ...JSON.parse(first.settings || '{}'), sweepId, sweepVariants: sweepGens.length }),
+    })
+  }
+
+  // Re-sort by createdAt
+  result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  if (sortOrder.value === 'oldest') result.reverse()
+
+  return result
 })
 
 // ─── Lightbox (using AppLightbox) ───────────────────────────────────────
@@ -156,78 +197,24 @@ const totalGenerations = computed(() => (generations.value || []).length)
 // ─── Video modal ────────────────────────────────────────────────────────
 const videoModalOpen = ref(false)
 const videoModalTarget = ref<string | null>(null)
-const actionLoading = ref<Record<string, boolean>>({})
-const videoProcessingItems = ref<Array<{ id: string; mediaItemId: string; status: string }>>([])
-const videoError = ref('')
+const videoError = computed(() => gen.error.value)
 
 function openVideoModal(mediaItemId: string) {
   videoModalTarget.value = mediaItemId
   videoModalOpen.value = true
 }
 
-function handleVideoGenerate(settings: { model: string; numFrames: number; steps: number; cfg: number; width: number; height: number; fps?: number; loraStrength?: number; imageStrength?: number }) {
-  if (!videoModalTarget.value) return
-  makeVideoFromGallery(videoModalTarget.value, settings)
+function handleVideoGenerate(settings: { model: string; numFrames: number; steps: number; cfg: number; width: number; height: number; fps?: number; loraStrength?: number; imageStrength?: number }, imageId?: string) {
+  const target = imageId || videoModalTarget.value
+  if (!target) return
+  gen.makeVideo(target, settings)
   videoModalOpen.value = false
 }
 
-async function makeVideoFromGallery(mediaItemId: string, settings?: Record<string, any> | null) {
-  const loadingKey = `video-${mediaItemId}`
-  if (actionLoading.value[loadingKey]) return
-  actionLoading.value[loadingKey] = true
-  videoError.value = ''
-  try {
-    const body: Record<string, any> = {
-      mediaItemId,
-      model: settings?.model || 'wan22',
-      numFrames: settings?.numFrames || 81,
-      steps: settings?.steps || 20,
-      cfg: settings?.cfg || 3.5,
-      width: settings?.width || 768,
-      height: settings?.height || 768,
-      endpoint: effectiveEndpoint.value,
-    }
-    if (settings?.model === 'ltx2') {
-      body.fps = settings.fps || 24
-      body.loraStrength = settings.loraStrength ?? 0.7
-      body.imageStrength = settings.imageStrength ?? 1.0
-    }
-    const result = await $fetch<{ item: { id: string; status: string } }>('/api/generate/video', {
-      method: 'POST',
-      body,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    if (result.item) {
-      videoProcessingItems.value.push({ id: result.item.id, mediaItemId, status: result.item.status })
-      if (result.item.status === 'processing' || result.item.status === 'queued') pollVideoStatus(result.item.id, loadingKey)
-      else actionLoading.value[loadingKey] = false
-    }
-  } catch (e: any) {
-    videoError.value = e.data?.message || 'Video generation failed'
-    actionLoading.value[loadingKey] = false
-  }
-}
-
-async function pollVideoStatus(itemId: string, loadingKey: string) {
-  for (let i = 0; i < 120; i++) {
-    await new Promise(r => setTimeout(r, 5000))
-    try {
-      const result = await $fetch<{ item: { id: string; status: string } }>(`/api/generate/status/${itemId}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-      const idx = videoProcessingItems.value.findIndex(v => v.id === itemId)
-      if (idx >= 0) videoProcessingItems.value[idx]!.status = result.item.status
-      if (result.item.status === 'complete' || result.item.status === 'failed') {
-        actionLoading.value[loadingKey] = false
-        videoProcessingItems.value = videoProcessingItems.value.filter(v => v.id !== itemId)
-        refresh()
-        return
-      }
-    } catch { /* continue polling */ }
-  }
-  actionLoading.value[loadingKey] = false
-  videoProcessingItems.value = videoProcessingItems.value.filter(v => v.id !== itemId)
-}
-
-const activeVideoCount = computed(() => videoProcessingItems.value.length)
+const activeVideoCount = computed(() => {
+  const al = gen.actionLoading.value
+  return Object.keys(al).filter(k => (k.startsWith('video-') || k.startsWith('upscale-') || k.startsWith('reimagine-')) && al[k]).length
+})
 
 const gridClass = computed(() => {
   if (filteredMedia.value.length <= 2) return 'grid-cols-1 sm:grid-cols-2 max-w-3xl mx-auto'
@@ -265,18 +252,8 @@ function openReimaginByItemId(itemId: string) {
 async function handleReimagine(payload: { image: string; prompt: string; cfg: number; steps: number; width: number; height: number; negativePrompt: string; denoise: number }) {
   reimagineLoading.value = true
   try {
-    const result = await $fetch<any>('/api/generate/image2image', {
-      method: 'POST',
-      body: { ...payload, endpoint: effectiveEndpoint.value },
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    })
+    await gen.generateImage2Image(payload)
     reimagineModalOpen.value = false
-    if (result.items?.[0]) {
-      const item = result.items[0]
-      const loadingKey = `reimagine-${item.id}`
-      actionLoading.value[loadingKey] = true
-      pollVideoStatus(item.id, loadingKey)
-    }
   } catch (e: any) {
     // Error handled inside modal
   } finally {
@@ -286,24 +263,7 @@ async function handleReimagine(payload: { image: string; prompt: string; cfg: nu
 
 // ─── Upscale (Enhance) ───────────────────────────────────────────────
 async function upscaleImage(mediaItemId: string) {
-  const loadingKey = `upscale-${mediaItemId}`
-  if (actionLoading.value[loadingKey]) return
-  actionLoading.value[loadingKey] = true
-  videoError.value = ''
-  try {
-    const result = await $fetch<{ item: { id: string; status: string } }>('/api/generate/upscale', {
-      method: 'POST',
-      body: { mediaItemId, scale: 2, endpoint: effectiveEndpoint.value },
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    if (result.item) {
-      videoProcessingItems.value.push({ id: result.item.id, mediaItemId, status: result.item.status })
-      pollVideoStatus(result.item.id, loadingKey)
-    }
-  } catch (e: any) {
-    videoError.value = e.data?.message || 'Upscale failed'
-    actionLoading.value[loadingKey] = false
-  }
+  await gen.upscale(mediaItemId)
 }
 </script>
 
@@ -403,7 +363,7 @@ async function upscaleImage(mediaItemId: string) {
       <div v-else-if="viewMode === 'wall'">
         <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-0.5">
           <div v-for="(item, index) in filteredMedia" :key="item.id" class="relative aspect-square overflow-hidden cursor-pointer" @click="openLightbox(index)">
-            <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="none" class="w-full h-full object-cover" />
+            <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="metadata" class="w-full h-full object-cover" />
             <NuxtImg v-else :src="item.url" :alt="item.prompt" width="300" class="w-full h-full object-cover" loading="lazy" />
             <div v-if="item.type === 'video'" class="absolute top-1 left-1 w-4 h-4 rounded-full bg-black/50 flex items-center justify-center backdrop-blur-sm">
               <UIcon name="i-lucide-play" class="w-2.5 h-2.5 text-white" />
@@ -475,11 +435,11 @@ async function upscaleImage(mediaItemId: string) {
     <AppLightbox v-model:open="lightboxOpen" v-model:index="lightboxIndex" :items="lightboxItems">
       <template #toolbar="{ item, index: idx }">
         <UButton variant="ghost" size="xs" icon="i-lucide-clipboard-copy" class="text-white/60 hover:text-white" @click="copyPrompt(currentItem?.prompt || '')">Prompt</UButton>
+        <UButton variant="ghost" size="xs" icon="i-lucide-sparkles" class="text-white/60 hover:text-white"
+            :loading="actionLoading[`upscale-${item.id}`]" @click="upscaleImage(item.id)">Enhance</UButton>
         <template v-if="item.type === 'image'">
           <UButton variant="ghost" size="xs" icon="i-lucide-image-plus" class="text-white/60 hover:text-white"
             @click="openReimaginByItemId(item.id)">Reimagine</UButton>
-          <UButton variant="ghost" size="xs" icon="i-lucide-sparkles" class="text-white/60 hover:text-white"
-            :loading="actionLoading[`upscale-${item.id}`]" @click="upscaleImage(item.id)">Enhance</UButton>
           <UButton variant="ghost" size="xs" icon="i-lucide-film" class="text-white/60 hover:text-white"
             :loading="actionLoading[`video-${item.id}`]" @click="openVideoModal(item.id)">Video</UButton>
         </template>
@@ -528,6 +488,7 @@ async function upscaleImage(mediaItemId: string) {
     <!-- Video Settings Modal -->
     <VideoSettingsModal
       :open="videoModalOpen"
+      :media-item-id="videoModalTarget"
       :loading="videoModalTarget ? actionLoading[`video-${videoModalTarget}`] : false"
       @close="videoModalOpen = false"
       @generate="handleVideoGenerate"

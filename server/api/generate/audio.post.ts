@@ -12,6 +12,13 @@ const audioSchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  // image2video_audio action is not in the pod's OpenAPI spec (v5.4.1)
+  // Disable until the pod adds support for this action
+  throw createError({
+    statusCode: 501,
+    message: 'Audio generation is currently unavailable — the pod does not support the image2video_audio action.',
+  })
+
   const user = await requireAuth(event)
   const body = await readBody(event)
   const parsed = audioSchema.safeParse(body)

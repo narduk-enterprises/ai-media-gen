@@ -1,13 +1,13 @@
 /**
  * GET /api/generate/my-queue
  *
- * Single unified endpoint returning all active queue items for the current user.
- * Replaces per-generation polling — one request gets everything.
+ * Returns active queue items (queued/processing) plus recently completed
+ * items for the current user.
  *
  * Also does inline RunPod status checks for processing items so the client
  * gets the freshest possible data with minimal requests.
  */
-import { eq, and, isNull, desc, or, inArray } from 'drizzle-orm'
+import { eq, and, isNull, desc, or } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
 import { generations, mediaItems } from '../../database/schema'
 import { checkRunPodJob } from '../../utils/ai'
@@ -18,33 +18,61 @@ export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
   const db = useDatabase()
 
-  // Get all non-dismissed items for this user (join through generations)
-  const userGenerations = await db.select({ id: generations.id })
-    .from(generations)
-    .where(eq(generations.userId, user.id))
-
-  if (userGenerations.length === 0) {
-    return { items: [], stats: { queued: 0, processing: 0, complete: 0, failed: 0 } }
+  // ── Active items: queued or processing (any user generation, any age) ──
+  let activeItems: typeof mediaItems.$inferSelect[] = []
+  try {
+    activeItems = await db.select().from(mediaItems)
+      .innerJoin(generations, eq(mediaItems.generationId, generations.id))
+      .where(and(
+        eq(generations.userId, user.id),
+        or(
+          eq(mediaItems.status, 'queued'),
+          eq(mediaItems.status, 'processing'),
+        ),
+      ))
+      .orderBy(desc(mediaItems.createdAt))
+      .limit(50)
+      .then(rows => rows.map(r => r.media_items))
+  } catch (e: any) {
+    console.error('[my-queue] Active items query failed:', e.message)
   }
 
-  const genIds = userGenerations.map(g => g.id)
+  // ── Recent completed/failed items (non-dismissed, limit 20) ──
+  let recentItems: typeof mediaItems.$inferSelect[] = []
+  try {
+    recentItems = await db.select().from(mediaItems)
+      .innerJoin(generations, eq(mediaItems.generationId, generations.id))
+      .where(and(
+        eq(generations.userId, user.id),
+        isNull(mediaItems.dismissedAt),
+        or(
+          eq(mediaItems.status, 'complete'),
+          eq(mediaItems.status, 'failed'),
+          eq(mediaItems.status, 'cancelled'),
+        ),
+      ))
+      .orderBy(desc(mediaItems.createdAt))
+      .limit(20)
+      .then(rows => rows.map(r => r.media_items))
+  } catch (e: any) {
+    console.error('[my-queue] Recent items query failed:', e.message)
+  }
 
-  // Fetch all non-dismissed items across all user's generations
-  const items = await db.select().from(mediaItems)
-    .where(and(
-      inArray(mediaItems.generationId, genIds),
-      isNull(mediaItems.dismissedAt),
-    ))
-    .orderBy(desc(mediaItems.createdAt))
-    .limit(100) // cap to prevent huge payloads
+  // Merge and dedupe
+  const seen = new Set<string>()
+  const items: typeof mediaItems.$inferSelect[] = []
+  for (const item of [...activeItems, ...recentItems]) {
+    if (!seen.has(item.id)) {
+      seen.add(item.id)
+      items.push(item)
+    }
+  }
 
-  // ── Active RunPod check for processing items ──────────────────────
+  // ── Inline RunPod checks for processing items ─────────────────────
   const processingItems = items.filter(i => i.status === 'processing' && i.runpodJobId)
 
   if (processingItems.length > 0) {
     const mediaBucket = useMediaBucket(event)
-
-    // Check up to 10 processing items inline (don't hold the request too long)
     const toCheck = processingItems.slice(0, 10)
 
     await Promise.allSettled(toCheck.map(async (item) => {
@@ -54,7 +82,7 @@ export default defineEventHandler(async (event) => {
           : undefined
 
         const result = await checkRunPodJob(item.runpodJobId!, apiUrl)
-        if (!result) return // still running
+        if (!result) return
 
         if (result.status === 'COMPLETED' && result.output?.output?.data) {
           const base64Data = result.output.output.data
@@ -97,10 +125,10 @@ export default defineEventHandler(async (event) => {
     if (item.status === 'queued') queued++
     else if (item.status === 'processing') processing++
     else if (item.status === 'complete') complete++
-    else if (item.status === 'failed' || item.status === 'cancelled') failed++
+    else failed++
   }
 
-  // Transform items for response
+  // Transform for response
   const transformedItems = items.map(item => ({
     id: item.id,
     generationId: item.generationId,

@@ -4,14 +4,12 @@ const { user, loggedIn, logout } = useAuth()
 
 const navItems = [
   { label: 'Create', to: '/create', icon: 'i-lucide-sparkles' },
-  { label: 'Personas & Scenes', to: '/personas', icon: 'i-lucide-users' },
   { label: 'Gallery', to: '/gallery', icon: 'i-lucide-image' },
   { label: 'Feed', to: '/feed', icon: 'i-lucide-play' },
   { label: 'Settings', to: '/settings', icon: 'i-lucide-settings' },
 ]
 
 const mobileMenuOpen = ref(false)
-const clearingQueue = ref(false)
 
 watch(route, () => {
   mobileMenuOpen.value = false
@@ -22,20 +20,6 @@ async function handleLogout() {
   navigateTo('/')
 }
 
-async function handleClearQueue() {
-  if (clearingQueue.value) return
-  clearingQueue.value = true
-  try {
-    await $fetch('/api/generate/clear-queue', {
-      method: 'POST',
-      headers: { 'X-Requested-With': 'fetch' },
-    })
-  } catch {
-    // silent fail — queue might already be empty
-  } finally {
-    clearingQueue.value = false
-  }
-}
 
 const runtimeConfig = useRuntimeConfig()
 const siteUrl = runtimeConfig.public.appUrl || 'http://localhost:3000'
@@ -88,15 +72,6 @@ useHead({
             <!-- Actions -->
             <div class="flex items-center gap-3">
               <div v-if="user" class="flex items-center gap-2">
-                <UButton
-                  color="error"
-                  variant="ghost"
-                  size="sm"
-                  icon="i-lucide-trash-2"
-                  :loading="clearingQueue"
-                  title="Clear GPU Queue"
-                  @click="handleClearQueue"
-                />
                 <span class="text-sm text-slate-500 hidden sm:block">{{ user.email }}</span>
                 <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-log-out" @click="handleLogout" />
               </div>

@@ -17,6 +17,8 @@ const generateSchema = z.object({
   model: z.enum(['wan22', 'qwen_image', 'flux2_dev', 'flux2_turbo']).default('wan22'),
   seed: z.number().int().default(-1),
   attributes: z.record(z.string()).optional(),
+  sweepId: z.string().optional(),
+  sweepLabel: z.string().optional(),
   endpoint: z.string().optional(),
 })
 
@@ -29,13 +31,15 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, prompts, negativePrompt, count, steps, width, height, loraStrength, model, seed, attributes, endpoint } = parsed.data
+  const { prompt, prompts, negativePrompt, count, steps, width, height, loraStrength, model, seed, attributes, sweepId, sweepLabel, endpoint } = parsed.data
   const apiUrl = resolveApiUrl(endpoint)
 
-  const settings = JSON.stringify({
-    negativePrompt, steps, width, height, seed, model,
+  const settingsObj: Record<string, any> = {
+    negativePrompt, steps, width, height, seed, model, loraStrength,
     attributes: attributes || {},
-  })
+  }
+  if (sweepId) { settingsObj.sweepId = sweepId; settingsObj.sweepLabel = sweepLabel || '' }
+  const settings = JSON.stringify(settingsObj)
   const db = useDatabase()
   const generationId = crypto.randomUUID()
   const now = new Date().toISOString()

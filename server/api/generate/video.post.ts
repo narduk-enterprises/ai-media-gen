@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { eq, and } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl, callRunPodAsync } from '../../utils/ai'
@@ -9,6 +9,8 @@ import { mediaItems, generations } from '../../database/schema'
 const videoSchema = z.object({
   mediaItemId: z.string().uuid('Invalid media item ID'),
   model: z.enum(['wan22', 'ltx2']).optional().default('wan22'),
+  prompt: z.string().optional(),
+  negativePrompt: z.string().optional().default(''),
   numFrames: z.number().min(41).max(721).optional(),
   steps: z.number().min(1).max(50).optional(),
   cfg: z.number().min(1).max(10).optional(),
@@ -29,22 +31,24 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { mediaItemId, model, numFrames, steps, cfg, width, height, fps, loraStrength, imageStrength, endpoint } = parsed.data
+  const { mediaItemId, model, prompt: customPrompt, negativePrompt, numFrames, steps, cfg, width, height, fps, loraStrength, imageStrength, endpoint } = parsed.data
   const apiUrl = resolveApiUrl(endpoint)
   const db = useDatabase()
 
-  const source = await db
-    .select()
-    .from(mediaItems)
-    .innerJoin(generations, eq(mediaItems.generationId, generations.id))
-    .where(and(eq(mediaItems.id, mediaItemId), eq(generations.userId, user.id)))
-    .limit(1)
+  // Fetch media item
+  const [sourceItem] = await db.select().from(mediaItems).where(eq(mediaItems.id, mediaItemId)).limit(1)
 
-  if (!source[0]) {
+  if (!sourceItem) {
     throw createError({ statusCode: 404, message: 'Image not found' })
   }
 
-  const sourceItem = source[0].media_items
+  // Verify user owns this generation
+  const [gen] = await db.select().from(generations).where(eq(generations.id, sourceItem.generationId)).limit(1)
+
+  if (!gen || gen.userId !== user.id) {
+    throw createError({ statusCode: 404, message: 'Image not found' })
+  }
+
   if (sourceItem.type !== 'image' || !sourceItem.url) {
     throw createError({ statusCode: 400, message: 'Source must be a completed image' })
   }
@@ -65,8 +69,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Could not read source image data' })
   }
 
-  const gen = source[0].generations
-  const prompt = gen.prompt || ''
+  const prompt = customPrompt || gen.prompt || ''
   const now = new Date().toISOString()
 
   const videoId = crypto.randomUUID()
@@ -77,6 +80,7 @@ export default defineEventHandler(async (event) => {
     action: 'image2video',
     model,
     prompt,
+    negative_prompt: negativePrompt,
     image: imageBase64,
     width: width || (isLtx2 ? 768 : 768),
     height: height || (isLtx2 ? 432 : 768),

@@ -5,15 +5,40 @@
  * Shows queued, processing, completed, and failed items with actions
  * (cancel, dismiss, view). Auto-collapses when empty.
  */
-import type { QueueItem } from '~/composables/useQueue'
+import { useQueue, type QueueItem } from '~/composables/useQueue'
 
 const queue = useQueue()
 const collapsed = ref(false)
+const activeFilter = ref<'all' | 'active' | 'complete' | 'failed'>('active')
+
+// Initialize queue on component mount
+onMounted(() => {
+  queue.init()
+})
 
 // Auto-expand when new items appear
 watch(() => queue.totalActive.value, (active) => {
   if (active > 0) collapsed.value = false
 })
+
+// Filtered items based on active filter
+const filteredItems = computed(() => {
+  const items = queue.items.value
+  switch (activeFilter.value) {
+    case 'active': return items.filter(i => i.status === 'queued' || i.status === 'processing')
+    case 'complete': return items.filter(i => i.status === 'complete')
+    case 'failed': return items.filter(i => i.status === 'failed' || i.status === 'cancelled')
+    default: return items
+  }
+})
+
+// Filter tabs with counts
+const filterTabs = computed(() => [
+  { key: 'active' as const, label: 'Active', count: queue.totalActive.value, color: 'text-blue-500' },
+  { key: 'complete' as const, label: 'Done', count: queue.stats.value.complete, color: 'text-emerald-500' },
+  { key: 'failed' as const, label: 'Failed', count: queue.stats.value.failed, color: 'text-red-500' },
+  { key: 'all' as const, label: 'All', count: queue.totalItems.value, color: 'text-slate-500' },
+])
 
 function statusIcon(status: QueueItem['status']) {
   switch (status) {
@@ -93,19 +118,34 @@ function timeAgo(dateStr: string) {
         <div class="flex items-center gap-2">
           <UIcon name="i-lucide-list-ordered" class="w-4 h-4 text-slate-400" />
           <span class="text-sm font-semibold text-slate-700">Queue</span>
-          <span v-if="queue.totalActive.value > 0" class="text-xs text-blue-500 font-medium">
-            {{ queue.totalActive.value }} active
-          </span>
         </div>
         <div class="flex items-center gap-1">
+          <UButton
+            v-if="queue.totalActive.value > 0"
+            variant="ghost"
+            size="xs"
+            color="error"
+            icon="i-lucide-ban"
+            title="Cancel all active"
+            @click="queue.cancelAll()"
+          />
           <UButton
             v-if="queue.completedItems.value.length > 0 || queue.failedItems.value.length > 0"
             variant="ghost"
             size="xs"
             color="neutral"
             icon="i-lucide-check-check"
-            title="Clear completed"
+            title="Dismiss completed & failed"
             @click="queue.clearCompleted()"
+          />
+          <UButton
+            v-if="queue.totalItems.value > 0"
+            variant="ghost"
+            size="xs"
+            color="error"
+            icon="i-lucide-trash-2"
+            title="Permanently delete all jobs"
+            @click="queue.deleteAll()"
           />
           <UButton
             variant="ghost"
@@ -118,24 +158,40 @@ function timeAgo(dateStr: string) {
         </div>
       </div>
 
-      <!-- Stats bar -->
-      <div v-if="queue.totalItems.value > 0" class="px-4 py-2 border-b border-slate-100 flex items-center gap-3 text-[10px] font-medium uppercase tracking-wider shrink-0">
-        <span v-if="queue.stats.value.queued" class="text-amber-500">{{ queue.stats.value.queued }} queued</span>
-        <span v-if="queue.stats.value.processing" class="text-blue-500">{{ queue.stats.value.processing }} running</span>
-        <span v-if="queue.stats.value.complete" class="text-emerald-500">{{ queue.stats.value.complete }} done</span>
-        <span v-if="queue.stats.value.failed" class="text-red-500">{{ queue.stats.value.failed }} failed</span>
+      <!-- Filter tabs -->
+      <div class="flex border-b border-slate-100 shrink-0">
+        <button
+          v-for="tab in filterTabs"
+          :key="tab.key"
+          class="flex-1 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider transition-colors relative"
+          :class="activeFilter === tab.key
+            ? `${tab.color} bg-slate-50`
+            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50/50'"
+          @click="activeFilter = tab.key"
+        >
+          {{ tab.label }}
+          <span v-if="tab.count > 0" class="ml-0.5">({{ tab.count }})</span>
+          <div
+            v-if="activeFilter === tab.key"
+            class="absolute bottom-0 left-2 right-2 h-0.5 rounded-full"
+            :class="tab.color.replace('text-', 'bg-')"
+          />
+        </button>
       </div>
 
       <!-- Items list -->
       <div class="flex-1 overflow-y-auto">
-        <div v-if="queue.totalItems.value === 0" class="flex flex-col items-center justify-center h-full text-slate-400 px-4">
+        <div v-if="filteredItems.length === 0" class="flex flex-col items-center justify-center h-full text-slate-400 px-4">
           <UIcon name="i-lucide-inbox" class="w-8 h-8 mb-2 opacity-40" />
-          <p class="text-xs text-center">No items in queue.<br />Generate something to get started!</p>
+          <p class="text-xs text-center">
+            <template v-if="queue.totalItems.value === 0">No items in queue.<br />Generate something to get started!</template>
+            <template v-else>No {{ activeFilter }} items.</template>
+          </p>
         </div>
 
         <TransitionGroup name="queue-item" tag="div" class="divide-y divide-slate-50">
           <div
-            v-for="item in queue.items.value"
+            v-for="item in filteredItems"
             :key="item.id"
             class="px-3 py-2.5 hover:bg-slate-50/80 transition-colors group"
           >
@@ -153,7 +209,7 @@ function timeAgo(dateStr: string) {
               </div>
 
               <!-- Content -->
-              <div class="flex-1 min-w-0">
+              <NuxtLink :to="`/job/${item.id}`" class="flex-1 min-w-0 cursor-pointer">
                 <div class="flex items-center gap-1.5">
                   <UIcon :name="typeIcon(item.type)" class="w-3 h-3 text-slate-400 shrink-0" />
                   <span class="text-xs font-medium text-slate-700 truncate">
@@ -177,7 +233,7 @@ function timeAgo(dateStr: string) {
                 </p>
 
                 <span class="text-[10px] text-slate-400 mt-0.5 block">{{ timeAgo(item.createdAt) }}</span>
-              </div>
+              </NuxtLink>
 
               <!-- Actions -->
               <div class="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -198,6 +254,15 @@ function timeAgo(dateStr: string) {
                   icon="i-lucide-x"
                   title="Dismiss"
                   @click="queue.dismiss(item.id)"
+                />
+                <UButton
+                  v-if="item.status === 'complete' || item.status === 'failed' || item.status === 'cancelled'"
+                  variant="ghost"
+                  size="xs"
+                  color="error"
+                  icon="i-lucide-trash-2"
+                  title="Delete permanently"
+                  @click="queue.deleteItem(item.id)"
                 />
               </div>
             </div>

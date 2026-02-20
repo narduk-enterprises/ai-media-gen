@@ -33,7 +33,7 @@ function generationMedia(gen: GenerationResult): MediaItemResult[] {
     <div v-for="gen in generations" :key="gen.id" class="bg-white rounded-xl border border-slate-200 overflow-hidden">
       <button class="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 transition-colors" @click="emit('toggle', gen.id)">
         <div class="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-200">
-          <video v-if="generationMedia(gen)[0]?.type === 'video' && generationMedia(gen)[0]?.url" :src="generationMedia(gen)[0]!.url! + '#t=0.1'" muted preload="none" class="w-full h-full object-cover" />
+          <video v-if="generationMedia(gen)[0]?.type === 'video' && generationMedia(gen)[0]?.url" :src="generationMedia(gen)[0]!.url! + '#t=0.1'" muted preload="metadata" class="w-full h-full object-cover" />
           <NuxtImg v-else-if="generationMedia(gen)[0]?.url" :src="generationMedia(gen)[0]!.url!" alt="" width="80" class="w-full h-full object-cover" />
           <div v-else class="w-full h-full bg-slate-100" />
         </div>
@@ -44,8 +44,14 @@ function generationMedia(gen: GenerationResult): MediaItemResult[] {
             <span class="text-[10px] text-slate-300">·</span>
             <span class="text-[10px] text-slate-400">{{ generationMedia(gen).length }} item{{ generationMedia(gen).length !== 1 ? 's' : '' }}</span>
             <UBadge v-if="gen.status !== 'complete'" :color="gen.status === 'processing' || gen.status === 'queued' ? 'warning' : 'error'" variant="subtle" size="xs">{{ gen.status }}</UBadge>
+            <UBadge v-if="gen.id.startsWith('sweep-')" color="warning" variant="subtle" size="xs">
+              <UIcon name="i-lucide-test-tubes" class="w-2.5 h-2.5 mr-0.5" />Sweep · {{ parseSettings(gen.settings)?.sweepVariants ?? '?' }} variants
+            </UBadge>
           </div>
         </div>
+        <NuxtLink v-if="gen.id.startsWith('sweep-')" :to="`/sweep/${parseSettings(gen.settings)?.sweepId}`" class="text-[10px] text-amber-600 hover:text-amber-800 flex items-center gap-0.5 shrink-0 mr-2" @click.stop>
+          <UIcon name="i-lucide-sliders-horizontal" class="w-3 h-3" />Compare
+        </NuxtLink>
         <UIcon :name="expandedGenerations.has(gen.id) ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" class="w-4 h-4 text-slate-400 shrink-0" />
       </button>
 
@@ -72,7 +78,7 @@ function generationMedia(gen: GenerationResult): MediaItemResult[] {
             <template #actions>
               <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-image-plus"
                 @click.stop="emit('openReimagine', item.id)" title="Reimagine" />
-              <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-sparkles"
+              <UButton v-if="item.type === 'image' || item.type === 'video'" size="xs" variant="soft" color="neutral" icon="i-lucide-sparkles"
                 :loading="actionLoading[`upscale-${item.id}`]" @click.stop="emit('upscale', item.id)" title="Enhance 2x" />
               <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-film"
                 :loading="actionLoading[`video-${item.id}`]" @click.stop="emit('openVideoModal', item.id)" title="Animate" />

@@ -9,11 +9,13 @@ const schema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
   negativePrompt: z.string().default(''),
   image: z.string().min(1, 'Image (base64) is required'),
+  model: z.enum(['wan22', 'flux2_turbo']).default('wan22'),
   steps: z.number().int().min(1).max(50).default(20),
   width: z.number().int().min(512).max(2048).default(1024),
   height: z.number().int().min(512).max(2048).default(1024),
-  cfg: z.number().min(1).max(20).default(3.5),
+  cfg: z.number().min(1).max(20).default(7.0),
   denoise: z.number().min(0).max(1).default(0.75),
+  seed: z.number().int().default(-1),
   endpoint: z.string().optional(),
 })
 
@@ -26,7 +28,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, negativePrompt, image, steps, width, height, cfg, denoise, endpoint } = parsed.data
+  const { prompt, negativePrompt, image, model, steps, width, height, cfg, denoise, seed, endpoint } = parsed.data
   const apiUrl = resolveApiUrl(endpoint)
 
   const db = useDatabase()
@@ -34,7 +36,7 @@ export default defineEventHandler(async (event) => {
   const itemId = crypto.randomUUID()
   const now = new Date().toISOString()
 
-  const settings = JSON.stringify({ negativePrompt, steps, width, height, cfg, denoise })
+  const settings = JSON.stringify({ negativePrompt, model, steps, width, height, cfg, denoise, seed })
 
   await db.insert(generations).values({
     id: generationId,
@@ -51,11 +53,13 @@ export default defineEventHandler(async (event) => {
     prompt,
     negative_prompt: negativePrompt,
     image,
+    model,
     width,
     height,
     steps,
     cfg,
     denoise,
+    seed,
   }
 
   await db.insert(mediaItems).values({

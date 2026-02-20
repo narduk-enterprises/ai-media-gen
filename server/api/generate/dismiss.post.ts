@@ -6,7 +6,7 @@
  *
  * Accepts: { itemIds: string[] } or { all: true } to dismiss all completed/failed.
  */
-import { eq, and, inArray, or } from 'drizzle-orm'
+import { eq, and, or } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
 import { mediaItems, generations } from '../../database/schema'
 
@@ -17,59 +17,61 @@ export default defineEventHandler(async (event) => {
   const now = new Date().toISOString()
 
   if (body?.all) {
-    // Dismiss all completed/failed/cancelled items for this user
+    // Get all generation IDs for this user
     const userGens = await db.select({ id: generations.id })
       .from(generations)
       .where(eq(generations.userId, user.id))
 
     if (userGens.length === 0) return { dismissed: 0 }
 
-    const genIds = userGens.map(g => g.id)
+    // Find resolvable items using join + or(eq()) instead of inArray
     const resolvable = await db.select({ id: mediaItems.id }).from(mediaItems)
+      .innerJoin(generations, eq(mediaItems.generationId, generations.id))
       .where(and(
-        inArray(mediaItems.generationId, genIds),
+        eq(generations.userId, user.id),
         or(
           eq(mediaItems.status, 'complete'),
           eq(mediaItems.status, 'failed'),
           eq(mediaItems.status, 'cancelled'),
         ),
       ))
+      .then(rows => rows.map(r => r.media_items))
 
     if (resolvable.length === 0) return { dismissed: 0 }
 
-    await db.update(mediaItems)
-      .set({ dismissedAt: now })
-      .where(inArray(mediaItems.id, resolvable.map(r => r.id)))
+    // Update each item individually (avoid inArray D1 bug)
+    let dismissed = 0
+    for (const item of resolvable) {
+      await db.update(mediaItems).set({ dismissedAt: now }).where(eq(mediaItems.id, item.id))
+      dismissed++
+    }
 
-    return { dismissed: resolvable.length }
+    return { dismissed }
   }
 
   if (!body?.itemIds?.length) {
     throw createError({ statusCode: 400, message: 'itemIds or all:true is required' })
   }
 
-  // Verify items belong to this user
-  const items = await db.select({
-    id: mediaItems.id,
-    generationId: mediaItems.generationId,
-  }).from(mediaItems)
-    .where(inArray(mediaItems.id, body.itemIds))
-
+  // Verify items belong to this user — check one by one
   const userGenIds = new Set(
     (await db.select({ id: generations.id }).from(generations)
       .where(eq(generations.userId, user.id))
     ).map(g => g.id)
   )
 
-  const ownedIds = items
-    .filter(i => userGenIds.has(i.generationId))
-    .map(i => i.id)
+  let dismissed = 0
+  for (const itemId of body.itemIds) {
+    const [item] = await db.select({ id: mediaItems.id, generationId: mediaItems.generationId })
+      .from(mediaItems)
+      .where(eq(mediaItems.id, itemId))
+      .limit(1)
 
-  if (ownedIds.length === 0) return { dismissed: 0 }
+    if (item && userGenIds.has(item.generationId)) {
+      await db.update(mediaItems).set({ dismissedAt: now }).where(eq(mediaItems.id, item.id))
+      dismissed++
+    }
+  }
 
-  await db.update(mediaItems)
-    .set({ dismissedAt: now })
-    .where(inArray(mediaItems.id, ownedIds))
-
-  return { dismissed: ownedIds.length }
+  return { dismissed }
 })

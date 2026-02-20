@@ -20,6 +20,7 @@ const emit = defineEmits<{
   openLightbox: [index: number]
   openVideoModal: [mediaItemId: string]
   makeAudio: [mediaItemId: string]
+  upscale: [mediaItemId: string]
 }>()
 </script>
 
@@ -68,6 +69,7 @@ const emit = defineEmits<{
         @click="emit('openLightbox', completedMedia.findIndex((i: any) => i.id === item.id))"
         @video="emit('openVideoModal', $event)"
         @audio="emit('makeAudio', $event)"
+        @upscale="emit('upscale', $event)"
       />
     </div>
 

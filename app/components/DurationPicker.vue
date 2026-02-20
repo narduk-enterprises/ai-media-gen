@@ -40,7 +40,7 @@ function toggle(value: number) {
       Duration
       <span v-if="multiSelect" class="text-slate-400 font-normal normal-case tracking-normal">(select one or more)</span>
     </label>
-    <div class="grid grid-cols-5 gap-1.5">
+    <div class="flex flex-wrap gap-1.5">
       <button
         v-for="preset in presets"
         :key="preset.value"

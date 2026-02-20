@@ -19,8 +19,12 @@ function parseBatchJson(raw: string): string[] | null {
       for (const item of parsed) {
         if (typeof item === 'string' && item.trim()) {
           result.push(item.trim())
-        } else if (typeof item === 'object' && item !== null && typeof item.prompt === 'string' && item.prompt.trim()) {
-          result.push(item.prompt.trim())
+        } else if (typeof item === 'object' && item !== null) {
+          // Support {prompt: "..."} or {Positive: "...", Negative: "...", Audio: "..."}
+          const p = item.prompt ?? item.Positive ?? item.positive
+          if (typeof p === 'string' && p.trim()) {
+            result.push(p.trim())
+          }
         }
       }
       return result.length > 0 ? result : null
@@ -62,8 +66,24 @@ function handleParse() {
   if (parsed) {
     prompts.value = parsed
     fileError.value = ''
+    jsonInput.value = '' // collapse after successful parse
   } else {
     fileError.value = 'Invalid JSON. Expected an array of strings or objects with a "prompt" field.'
+  }
+}
+
+function handlePaste(e: ClipboardEvent) {
+  const text = e.clipboardData?.getData('text/plain')?.trim()
+  if (!text) return
+  // Try auto-parse on paste — if it looks like JSON, parse immediately
+  if (text.startsWith('[')) {
+    const parsed = parseBatchJson(text)
+    if (parsed) {
+      nextTick(() => {
+        prompts.value = parsed
+        fileError.value = ''
+      })
+    }
   }
 }
 
@@ -146,9 +166,9 @@ async function remixAll() {
       v-model="jsonInput"
       :placeholder="placeholder || 'Paste JSON array here...'"
       :rows="4"
-      autoresize
-      class="w-full font-mono"
+      class="w-full font-mono max-h-40 overflow-y-auto"
       size="sm"
+      @paste="handlePaste"
     />
 
     <div class="flex items-center gap-2">

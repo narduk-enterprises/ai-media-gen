@@ -14,6 +14,7 @@ defineEmits<{
   click: []
   video: [id: string]
   audio: [id: string]
+  upscale: [id: string]
 }>()
 </script>
 
@@ -62,12 +63,18 @@ defineEmits<{
     @click="$emit('click')"
   >
     <video
-      :src="item.url"
+      :src="item.url + '#t=0.1'"
       class="w-full h-full object-cover"
       muted loop playsinline
+      preload="metadata"
       @mouseenter="($event.target as HTMLVideoElement).play()"
       @mouseleave="($event.target as HTMLVideoElement).pause()"
     />
+    <div class="absolute inset-0 bg-linear-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
+    <div class="absolute bottom-0 left-0 right-0 p-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-sparkles" class="flex-1 backdrop-blur-sm"
+        :loading="actionLoading?.[`upscale-${item.id}`]" @click.stop="$emit('upscale', item.id)">Enhance</UButton>
+    </div>
     <div class="absolute top-2 left-2 flex items-center gap-1.5">
       <UBadge size="xs" variant="subtle" color="neutral">{{ index + 1 }}</UBadge>
       <UBadge size="xs" variant="soft" color="info" icon="i-lucide-film">Video</UBadge>

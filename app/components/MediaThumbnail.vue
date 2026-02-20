@@ -27,7 +27,7 @@ defineEmits<{
       v-if="type === 'video'"
       :src="url + '#t=0.1'"
       muted
-      preload="none"
+      preload="metadata"
       class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
       @mouseenter="($event.target as HTMLVideoElement).play()"
       @mouseleave="($event.target as HTMLVideoElement).pause()"

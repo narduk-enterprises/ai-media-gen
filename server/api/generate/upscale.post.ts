@@ -33,44 +33,62 @@ export default defineEventHandler(async (event) => {
     .limit(1)
 
   if (!source[0]) {
-    throw createError({ statusCode: 404, message: 'Image not found' })
+    throw createError({ statusCode: 404, message: 'Media item not found' })
   }
 
   const sourceItem = source[0].media_items
-  if (sourceItem.type !== 'image' || !sourceItem.url) {
-    throw createError({ statusCode: 400, message: 'Source must be a completed image' })
+  const isVideo = sourceItem.type === 'video'
+
+  if (!sourceItem.url) {
+    throw createError({ statusCode: 400, message: 'Source must be a completed media item with a URL' })
   }
 
-  // Read source image as base64
-  let imageBase64: string | null = null
-  const base64Match = sourceItem.url.match(/^data:image\/\w+;base64,(.+)$/)
-  if (base64Match) {
-    imageBase64 = base64Match[1]!
+  // Read source media as base64
+  let mediaBase64: string | null = null
+
+  if (!isVideo) {
+    // Image: check for inline base64 or R2
+    const base64Match = sourceItem.url.match(/^data:image\/\w+;base64,(.+)$/)
+    if (base64Match) {
+      mediaBase64 = base64Match[1]!
+    } else {
+      const bucket = useMediaBucket(event)
+      if (bucket) {
+        mediaBase64 = await readBase64FromR2(bucket, mediaItemId)
+      }
+    }
   } else {
-    const bucket = useMediaBucket(event)
-    if (bucket) {
-      imageBase64 = await readBase64FromR2(bucket, mediaItemId)
+    // Video: fetch from URL
+    try {
+      const resp = await fetch(sourceItem.url)
+      if (resp.ok) {
+        const buf = await resp.arrayBuffer()
+        const uint8 = new Uint8Array(buf)
+        let binary = ''
+        for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]!)
+        mediaBase64 = btoa(binary)
+      }
+    } catch (e: any) {
+      console.warn(`[Upscale] Failed to fetch video: ${e.message}`)
     }
   }
 
-  if (!imageBase64) {
-    throw createError({ statusCode: 400, message: 'Could not read source image data' })
+  if (!mediaBase64) {
+    throw createError({ statusCode: 400, message: `Could not read source ${isVideo ? 'video' : 'image'} data` })
   }
 
   const now = new Date().toISOString()
   const enhancedId = crypto.randomUUID()
 
-  const runpodInput = {
-    action: 'upscale' as const,
-    image: imageBase64,
-    scale,
-  }
+  const runpodInput = isVideo
+    ? { action: 'upscale_video' as const, video: mediaBase64, scale, fps: 24 }
+    : { action: 'upscale' as const, image: mediaBase64, scale }
 
   // Insert as queued
   await db.insert(mediaItems).values({
     id: enhancedId,
     generationId: sourceItem.generationId,
-    type: 'image',
+    type: isVideo ? 'video' : 'image',
     parentId: mediaItemId,
     prompt: sourceItem.prompt || source[0].generations.prompt || '',
     status: 'queued',
@@ -78,7 +96,7 @@ export default defineEventHandler(async (event) => {
     createdAt: now,
   })
 
-  console.log(`[Upscale] Item queued: ${enhancedId.slice(0, 8)} (${scale}x)`)
+  console.log(`[Upscale] Item queued: ${enhancedId.slice(0, 8)} (${scale}x ${isVideo ? 'video' : 'image'})`)
 
   // Submit in background
   waitUntil((async () => {
@@ -102,7 +120,7 @@ export default defineEventHandler(async (event) => {
     item: {
       id: enhancedId,
       generationId: sourceItem.generationId,
-      type: 'image',
+      type: isVideo ? 'video' : 'image',
       parentId: mediaItemId,
       runpodJobId: null,
       status: 'queued',
@@ -110,3 +128,4 @@ export default defineEventHandler(async (event) => {
     },
   }
 })
+
