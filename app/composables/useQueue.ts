@@ -131,7 +131,10 @@ export function useQueue() {
       // Optimistic update
       const idx = items.value.findIndex(i => i.id === itemId)
       if (idx >= 0) {
-        items.value[idx] = { ...items.value[idx], status: 'cancelled', error: 'Cancelled by user' }
+        const updated = { ...items.value[idx] } as QueueItem
+        updated.status = 'cancelled'
+        updated.error = 'Cancelled by user'
+        items.value = items.value.map((item, i) => i === idx ? updated : item)
         recalcStats()
       }
     } catch (e: any) {

@@ -283,6 +283,28 @@ async function handleReimagine(payload: { image: string; prompt: string; cfg: nu
     reimagineLoading.value = false
   }
 }
+
+// ─── Upscale (Enhance) ───────────────────────────────────────────────
+async function upscaleImage(mediaItemId: string) {
+  const loadingKey = `upscale-${mediaItemId}`
+  if (actionLoading.value[loadingKey]) return
+  actionLoading.value[loadingKey] = true
+  videoError.value = ''
+  try {
+    const result = await $fetch<{ item: { id: string; status: string } }>('/api/generate/upscale', {
+      method: 'POST',
+      body: { mediaItemId, scale: 2, endpoint: effectiveEndpoint.value },
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    if (result.item) {
+      videoProcessingItems.value.push({ id: result.item.id, mediaItemId, status: result.item.status })
+      pollVideoStatus(result.item.id, loadingKey)
+    }
+  } catch (e: any) {
+    videoError.value = e.data?.message || 'Upscale failed'
+    actionLoading.value[loadingKey] = false
+  }
+}
 </script>
 
 <template>
@@ -402,8 +424,10 @@ async function handleReimagine(payload: { image: string; prompt: string; cfg: nu
             <template #actions>
               <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-image-plus"
                 @click.stop="openReimaginModal(item)" title="Reimagine" />
+              <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-sparkles"
+                :loading="actionLoading[`upscale-${item.id}`]" @click.stop="upscaleImage(item.id)" title="Enhance 2x" />
               <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-film"
-                :loading="actionLoading[`video-${item.id}`]" @click.stop="openVideoModal(item.id)" />
+                :loading="actionLoading[`video-${item.id}`]" @click.stop="openVideoModal(item.id)" title="Animate" />
               <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="downloadMedia(item.url, index, item.type)" />
             </template>
           </MediaThumbnail>
@@ -421,6 +445,7 @@ async function handleReimagine(payload: { image: string; prompt: string; cfg: nu
           @open-lightbox="openLightbox"
           @open-video-modal="openVideoModal"
           @open-reimagine="openReimaginByItemId"
+          @upscale="upscaleImage"
           @download-media="downloadMedia"
           @copy-prompt="copyPrompt"
           @recreate="(prompt: string) => navigateTo({ path: '/create', query: { prompt } })"
@@ -453,6 +478,8 @@ async function handleReimagine(payload: { image: string; prompt: string; cfg: nu
         <template v-if="item.type === 'image'">
           <UButton variant="ghost" size="xs" icon="i-lucide-image-plus" class="text-white/60 hover:text-white"
             @click="openReimaginByItemId(item.id)">Reimagine</UButton>
+          <UButton variant="ghost" size="xs" icon="i-lucide-sparkles" class="text-white/60 hover:text-white"
+            :loading="actionLoading[`upscale-${item.id}`]" @click="upscaleImage(item.id)">Enhance</UButton>
           <UButton variant="ghost" size="xs" icon="i-lucide-film" class="text-white/60 hover:text-white"
             :loading="actionLoading[`video-${item.id}`]" @click="openVideoModal(item.id)">Video</UButton>
         </template>

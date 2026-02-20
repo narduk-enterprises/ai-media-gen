@@ -7,7 +7,6 @@ const navItems = [
   { label: 'Personas & Scenes', to: '/personas', icon: 'i-lucide-users' },
   { label: 'Gallery', to: '/gallery', icon: 'i-lucide-image' },
   { label: 'Feed', to: '/feed', icon: 'i-lucide-play' },
-  { label: 'Queue', to: '/queue', icon: 'i-lucide-list-ordered' },
   { label: 'Settings', to: '/settings', icon: 'i-lucide-settings' },
 ]
 
@@ -134,9 +133,14 @@ useHead({
       </header>
 
       <!-- Main content -->
-      <main class="flex-1">
+      <main class="flex-1" :class="loggedIn ? 'mr-0 lg:mr-72' : ''">
         <NuxtPage />
       </main>
+
+      <!-- Queue Sidebar (right side, logged-in only) -->
+      <ClientOnly>
+        <QueueSidebar v-if="loggedIn" />
+      </ClientOnly>
 
       <!-- Footer -->
       <footer v-if="loggedIn" class="text-center py-6 text-xs text-slate-400">

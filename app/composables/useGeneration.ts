@@ -1,9 +1,11 @@
 /**
- * useGeneration — encapsulates image/video/audio generation, polling, and result management.
+ * useGeneration — encapsulates image/video/audio generation and result management.
  *
- * Extracted from create.vue so the generation pipeline can be shared
- * across different creation modes (Persona+Scene, Free Build, etc.).
+ * Polling has been moved to the centralized useQueue composable.
+ * After submitting, this composable triggers queue.refresh() and
+ * the QueueSidebar handles progress visualization.
  */
+import type { QueueItem } from './useQueue'
 
 export interface MediaItemResult {
   id: string
@@ -29,6 +31,7 @@ const MAX_IMAGES_PER_BATCH = 16
 
 export function useGeneration() {
   const { runpodEndpoint, customEndpoint } = useAppSettings()
+  const queue = useQueue()
 
   // If a custom endpoint URL is set, pass it directly; otherwise use the named endpoint
   const effectiveEndpoint = computed(() => customEndpoint.value || runpodEndpoint.value)
@@ -38,15 +41,39 @@ export function useGeneration() {
   const results = ref<MediaItemResult[]>([])
   const activeGenerationId = ref<string | null>(null)
   const lastSettings = ref<Record<string, any> | null>(null)
-  const activePolls = ref(0)
-  const activeTimers = new Set<ReturnType<typeof setInterval>>()
+  // Track generation IDs so we can sync results from the queue
+  const trackedGenerationIds = ref<Set<string>>(new Set())
 
-  const generating = computed(() => submitting.value || activePolls.value > 0)
+  const generating = computed(() => submitting.value)
   const completed = computed(() => results.value.filter(i => i.status === 'complete'))
   const completedMedia = computed(() => results.value.filter(i => i.status === 'complete' && i.url))
   const totalDone = computed(() => completed.value.length)
   const totalFailed = computed(() => results.value.filter(i => i.status === 'failed').length)
   const totalPending = computed(() => results.value.filter(i => i.status !== 'complete' && i.status !== 'failed').length)
+
+  // Sync results from queue items — when queue items update, reflect in local results
+  if (import.meta.client) {
+    watch(() => queue.items.value, (queueItems) => {
+      if (trackedGenerationIds.value.size === 0) return
+      for (const qItem of queueItems) {
+        if (!trackedGenerationIds.value.has(qItem.generationId)) continue
+        const idx = results.value.findIndex(r => r.id === qItem.id)
+        if (idx >= 0) {
+          const existing = results.value[idx]
+          // Update existing result if status or url changed
+          if (existing && (existing.status !== qItem.status || existing.url !== qItem.url)) {
+            results.value.splice(idx, 1, {
+              id: qItem.id,
+              type: qItem.type,
+              url: qItem.url,
+              status: qItem.status,
+              parentId: qItem.parentId,
+            })
+          }
+        }
+      }
+    }, { deep: true })
+  }
 
   // ─── Core generation ────────────────────────────────────────────────
 
@@ -95,48 +122,15 @@ export function useGeneration() {
       const newItems = result.items.filter(i => i.type === 'image')
       results.value = [...results.value, ...newItems]
       activeGenerationId.value = result.generation.id
-      startPolling(result.generation.id)
+      trackedGenerationIds.value.add(result.generation.id)
+      // Trigger queue refresh — the sidebar picks it up and handles polling
+      queue.refresh()
+      queue.startPolling()
     } catch (e: any) {
       error.value = e.data?.message || e.message || 'Generation failed'
     } finally {
       submitting.value = false
     }
-  }
-
-  // ─── Polling ────────────────────────────────────────────────────────
-
-  function startPolling(generationId: string) {
-    if (import.meta.server) return // SSR guard — no timers on the server
-    activePolls.value++
-
-    const timer = setInterval(async () => {
-      try {
-        const result = await $fetch<GenerationResult>('/api/generate/generation-status', {
-          params: { id: generationId },
-          headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        })
-
-        for (const updated of result.items) {
-          const idx = results.value.findIndex(i => i.id === updated.id)
-          if (idx >= 0) results.value.splice(idx, 1, updated)
-        }
-
-        // Stop polling only when the server says all items are resolved
-        const genItems = result.items.filter(i => i.type === 'image')
-        if (genItems.every(i => i.status === 'complete' || i.status === 'failed' || i.status === 'cancelled')) {
-          clearInterval(timer)
-          activeTimers.delete(timer)
-          activePolls.value--
-        }
-      } catch { /* swallow */ }
-    }, 2000)
-    activeTimers.add(timer)
-  }
-
-  function stopAllPolling() {
-    for (const timer of activeTimers) clearInterval(timer)
-    activeTimers.clear()
-    activePolls.value = 0
   }
 
   // ─── Video / Audio from existing image ──────────────────────────────
@@ -169,7 +163,9 @@ export function useGeneration() {
       if (result.item) {
         results.value.push(result.item)
         if (result.item.status === 'processing' || result.item.status === 'queued') {
-          pollItemStatus(result.item.id, key)
+          watchItemCompletion(result.item.id, key)
+          queue.refresh()
+          queue.startPolling()
         } else {
           actionLoading.value[key] = false
         }
@@ -196,7 +192,9 @@ export function useGeneration() {
       if (result.item) {
         results.value.push(result.item)
         if (result.item.status === 'processing' || result.item.status === 'queued') {
-          pollItemStatus(result.item.id, key)
+          watchItemCompletion(result.item.id, key)
+          queue.refresh()
+          queue.startPolling()
         } else {
           actionLoading.value[key] = false
         }
@@ -207,23 +205,30 @@ export function useGeneration() {
     }
   }
 
-  async function pollItemStatus(itemId: string, loadingKey: string) {
-    const maxAttempts = 120
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(r => setTimeout(r, 2000))
-      try {
-        const result = await $fetch<{ item: MediaItemResult }>(`/api/generate/status/${itemId}`, {
-          headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        })
-        const idx = results.value.findIndex(img => img.id === itemId)
-        if (idx >= 0) results.value.splice(idx, 1, result.item)
-        if (result.item.status === 'complete' || result.item.status === 'failed') {
-          actionLoading.value[loadingKey] = false
-          return
+  /**
+   * Watch queue items for an item completing, then clear its actionLoading key.
+   * Replaces the old pollItemStatus approach.
+   */
+  function watchItemCompletion(itemId: string, loadingKey: string) {
+    if (import.meta.server) return
+    const unwatch = watch(() => queue.items.value, (queueItems) => {
+      const item = queueItems.find(i => i.id === itemId)
+      if (item && (item.status === 'complete' || item.status === 'failed' || item.status === 'cancelled')) {
+        actionLoading.value[loadingKey] = false
+        // Also sync into local results
+        const idx = results.value.findIndex(r => r.id === itemId)
+        if (idx >= 0) {
+          results.value.splice(idx, 1, {
+            id: item.id,
+            type: item.type,
+            url: item.url,
+            status: item.status,
+            parentId: item.parentId,
+          })
         }
-      } catch { /* continue */ }
-    }
-    actionLoading.value[loadingKey] = false
+        unwatch()
+      }
+    }, { deep: true })
   }
 
   // ─── Text-to-Video generation ──────────────────────────────────────
@@ -250,7 +255,6 @@ export function useGeneration() {
     error.value = ''
     if (!opts.append) results.value = []
 
-    const pollingPromises: Promise<void>[] = []
 
     for (const nf of durations) {
       try {
@@ -277,10 +281,11 @@ export function useGeneration() {
         if (result.item) {
           results.value = [...results.value, result.item]
           activeGenerationId.value = result.generation.id
+          trackedGenerationIds.value.add(result.generation.id)
           if (result.item.status === 'processing' || result.item.status === 'queued') {
             const key = `t2v-${result.item.id}`
             actionLoading.value[key] = true
-            pollingPromises.push(pollItemStatus(result.item.id, key))
+            watchItemCompletion(result.item.id, key)
           }
         }
       } catch (e: any) {
@@ -289,9 +294,8 @@ export function useGeneration() {
     }
 
     submitting.value = false
-    if (pollingPromises.length > 0) {
-      Promise.all(pollingPromises).catch(() => {})
-    }
+    queue.refresh()
+    queue.startPolling()
   }
 
   // ─── Batch Text-to-Video generation ─────────────────────────────────
@@ -321,7 +325,6 @@ export function useGeneration() {
     results.value = []
     batchProgress.value = { current: 0, total: totalJobs }
 
-    const pollingPromises: Promise<void>[] = []
     let submitted = 0
 
     for (let i = 0; i < allPrompts.length; i++) {
@@ -349,10 +352,11 @@ export function useGeneration() {
 
           if (result.item) {
             results.value = [...results.value, result.item]
+            trackedGenerationIds.value.add(result.generation.id)
             if (result.item.status === 'processing' || result.item.status === 'queued') {
               const key = `t2v-batch-${result.item.id}`
               actionLoading.value[key] = true
-              pollingPromises.push(pollItemStatus(result.item.id, key))
+              watchItemCompletion(result.item.id, key)
             }
           }
         } catch (e: any) {
@@ -364,9 +368,8 @@ export function useGeneration() {
     }
 
     submitting.value = false
-    if (pollingPromises.length > 0) {
-      Promise.all(pollingPromises).catch(() => {})
-    }
+    queue.refresh()
+    queue.startPolling()
   }
 
   // ─── Batch generation (>16 images across multiple API calls) ────────
@@ -433,46 +436,22 @@ export function useGeneration() {
       }
     }
 
-    startBatchPolling()
+    // Trigger queue refresh for batch tracking
+    for (const genId of activeGenerationIds.value) {
+      trackedGenerationIds.value.add(genId)
+    }
+    queue.refresh()
+    queue.startPolling()
     submitting.value = false
-  }
-
-  function startBatchPolling() {
-    if (import.meta.server) return // SSR guard
-    activePolls.value++
-
-    const timer = setInterval(async () => {
-      for (const genId of activeGenerationIds.value) {
-        try {
-          const result = await $fetch<GenerationResult>('/api/generate/generation-status', {
-            params: { id: genId },
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-          })
-          for (const updated of result.items) {
-            const idx = results.value.findIndex(i => i.id === updated.id)
-            if (idx >= 0) results.value.splice(idx, 1, updated)
-          }
-        } catch { /* swallow */ }
-      }
-
-      const allDone = results.value.every(i => i.status === 'complete' || i.status === 'failed' || i.status === 'cancelled')
-      if (allDone) {
-        clearInterval(timer)
-        activeTimers.delete(timer)
-        activePolls.value--
-        activeGenerationIds.value = []
-      }
-    }, 2000)
-    activeTimers.add(timer)
   }
 
   // ─── Utilities ──────────────────────────────────────────────────────
 
   function clearResults() {
     results.value = []
-    stopAllPolling()
     submitting.value = false
     activeGenerationId.value = null
+    trackedGenerationIds.value.clear()
   }
 
   function downloadMedia(url: string, index: number, type: string = 'image') {
@@ -517,15 +496,15 @@ export function useGeneration() {
       const newItems = result.items.filter(i => i.type === 'image')
       results.value = [...results.value, ...newItems]
       activeGenerationId.value = result.generation.id
-      startPolling(result.generation.id)
+      trackedGenerationIds.value.add(result.generation.id)
+      queue.refresh()
+      queue.startPolling()
     } catch (e: any) {
       error.value = e.data?.message || e.message || 'Image-to-image failed'
     } finally {
       submitting.value = false
     }
   }
-
-  onUnmounted(() => stopAllPolling())
 
   return {
     MAX_IMAGES_PER_BATCH,

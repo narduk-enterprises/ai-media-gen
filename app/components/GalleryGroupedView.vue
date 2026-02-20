@@ -14,6 +14,7 @@ const emit = defineEmits<{
   openLightbox: [index: number]
   openVideoModal: [id: string]
   openReimagine: [id: string]
+  upscale: [id: string]
   downloadMedia: [url: string, index: number, type: string]
   copyPrompt: [text: string]
   recreate: [prompt: string]
@@ -71,8 +72,10 @@ function generationMedia(gen: GenerationResult): MediaItemResult[] {
             <template #actions>
               <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-image-plus"
                 @click.stop="emit('openReimagine', item.id)" title="Reimagine" />
+              <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-sparkles"
+                :loading="actionLoading[`upscale-${item.id}`]" @click.stop="emit('upscale', item.id)" title="Enhance 2x" />
               <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-film"
-                :loading="actionLoading[`video-${item.id}`]" @click.stop="emit('openVideoModal', item.id)" />
+                :loading="actionLoading[`video-${item.id}`]" @click.stop="emit('openVideoModal', item.id)" title="Animate" />
               <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="emit('downloadMedia', item.url!, 0, item.type)" />
             </template>
           </MediaThumbnail>
