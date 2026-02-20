@@ -76,58 +76,48 @@ function selectAudio(preset: typeof audioPresets[number]) {
 
 // ─── Random Batch ───────────────────────────────────────────────────────
 const randomQty = ref(5)
-const randomProgress = ref({ current: 0, total: 0 })
 const randomRunning = ref(false)
 
 async function generateRandom() {
   if (randomRunning.value) return
   randomRunning.value = true
-  randomProgress.value = { current: 0, total: randomQty.value }
   gen.error.value = ''
 
   try {
-    const { items } = await $fetch<{ items: { id: string; url: string; prompt: string }[] }>('/api/media/random', {
+    // 1. Fetch random image IDs
+    const { items: randomImages } = await $fetch<{ items: { id: string }[] }>('/api/media/random', {
       params: { count: randomQty.value },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
 
-    if (!items.length) {
+    if (!randomImages.length) {
       gen.error.value = 'No images found in gallery'
       return
     }
 
-    randomProgress.value.total = items.length
+    // 2. Single batch call — returns immediately, server processes in background
     const endpoint = customEndpoint.value || runpodEndpoint.value
+    const result = await $fetch<{
+      generation: { id: string; status: string; imageCount: number }
+      items: { id: string; generationId: string; type: string; prompt: string; status: string; url: null }[]
+    }>('/api/generate/image2video-auto-batch', {
+      method: 'POST',
+      body: {
+        mediaItemIds: randomImages.map(i => i.id),
+        basePrompt: basePrompt.value, audioPrompt: audioPrompt.value,
+        negativePrompt: negativePrompt.value,
+        steps: steps.value, numFrames: numFrames.value,
+        width: width.value, height: height.value,
+        imageStrength: imageStrength.value, endpoint,
+      },
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
 
-    for (const img of items) {
-      try {
-        const body: Record<string, any> = {
-          mediaItemId: img.id,
-          basePrompt: basePrompt.value, audioPrompt: audioPrompt.value,
-          negativePrompt: negativePrompt.value, count: 1,
-          steps: steps.value, numFrames: numFrames.value,
-          width: width.value, height: height.value,
-          imageStrength: imageStrength.value, endpoint,
-        }
-
-        const result = await $fetch<{
-          generation: { id: string; status: string }
-          items: { id: string; type: string; status: string; prompt: string }[]
-          caption: string
-        }>('/api/generate/image2video-auto', {
-          method: 'POST', body,
-          headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        })
-
-        if (result.items?.length) {
-          gen.results.value = [...gen.results.value, ...result.items.map(item => ({
-            ...item, url: null, parentId: null, generationId: result.generation.id,
-          }))] as any
-        }
-      } catch (e: any) {
-        console.warn(`[RandomBatch] Failed for ${img.id}:`, e.message)
-      }
-      randomProgress.value.current++
+    if (result.items?.length) {
+      gen.results.value = [...gen.results.value, ...result.items.map(item => ({
+        ...item, parentId: null,
+      }))] as any
+      gen.activeGenerationId.value = result.generation.id
     }
   } catch (e: any) {
     gen.error.value = e.data?.message || e.message || 'Random batch failed'
@@ -219,13 +209,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
           variant="soft"
           icon="i-lucide-shuffle"
           @click="generateRandom"
-        >{{ randomRunning ? `Processing ${randomProgress.current}/${randomProgress.total}…` : `Generate ${randomQty} Random Videos` }}</UButton>
-      </div>
-      <div v-if="randomRunning" class="mt-3">
-        <div class="h-1.5 bg-violet-100 rounded-full overflow-hidden">
-          <div class="h-full bg-violet-500 rounded-full transition-all duration-300" :style="{ width: randomProgress.total ? `${(randomProgress.current / randomProgress.total) * 100}%` : '0%' }" />
-        </div>
-        <p class="text-xs text-violet-600 mt-1">Submitting {{ randomProgress.current }} / {{ randomProgress.total }} images to pipeline…</p>
+        >{{ randomRunning ? 'Submitting…' : `Generate ${randomQty} Random Videos` }}</UButton>
       </div>
     </UCard>
 
