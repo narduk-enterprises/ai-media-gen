@@ -2,6 +2,25 @@
 const gen = useGeneration()
 const { customEndpoint, runpodEndpoint } = useAppSettings()
 
+// ─── Preset Suggestions ─────────────────────────────────────────────────
+const directionPresets = [
+  { label: '🎬 Cinematic', prompt: 'Cinematic motion, smooth camera movements, dramatic lighting, film grain' },
+  { label: '🎵 Music Video', prompt: 'Dynamic cuts, vibrant colors, rhythmic camera movement, music video energy' },
+  { label: '🌊 Dreamy', prompt: 'Ethereal, slow motion, soft focus transitions, dreamlike atmosphere' },
+  { label: '🎥 Documentary', prompt: 'Naturalistic, handheld camera, candid moments, observational style' },
+  { label: '⚡ Action', prompt: 'Fast-paced, dynamic tracking shots, intense movement, high energy' },
+  { label: '🌅 Timelapse', prompt: 'Slow timelapse feel, gradual changes in lighting, clouds moving, passage of time' },
+]
+
+const audioPresets = [
+  { label: '🎵 Upbeat', prompt: 'upbeat electronic music, positive energy, rhythmic beats' },
+  { label: '🎻 Orchestral', prompt: 'cinematic orchestral score, strings, dramatic crescendo' },
+  { label: '🌿 Ambient', prompt: 'ambient nature sounds, gentle wind, birds chirping, peaceful' },
+  { label: '🔇 Silent', prompt: '' },
+  { label: '🏙️ Urban', prompt: 'city ambience, distant traffic, footsteps, urban atmosphere' },
+  { label: '🌊 Ocean', prompt: 'ocean waves crashing, seagulls, coastal breeze, water sounds' },
+]
+
 // ─── Local State ────────────────────────────────────────────────────────
 const selectedMediaItemId = ref<string | null>(null)
 const selectedBase64 = ref('')
@@ -12,6 +31,14 @@ const count = ref(5)
 const steps = ref(20)
 const numFrames = ref(97)
 const loading = ref(false)
+
+// Auto-fill with random presets on mount
+onMounted(() => {
+  const randDir = directionPresets[Math.floor(Math.random() * directionPresets.length)]
+  const randAudio = audioPresets.filter(p => p.prompt)[Math.floor(Math.random() * (audioPresets.length - 1))]
+  if (randDir) basePrompt.value = randDir.prompt
+  if (randAudio) audioPrompt.value = randAudio.prompt
+})
 
 // Pipeline results
 const caption = ref('')
@@ -28,6 +55,14 @@ function onImageClear() {
   selectedBase64.value = ''
   caption.value = ''
   generatedPrompts.value = []
+}
+
+function selectDirection(preset: typeof directionPresets[number]) {
+  basePrompt.value = preset.prompt
+}
+
+function selectAudio(preset: typeof audioPresets[number]) {
+  audioPrompt.value = preset.prompt
 }
 
 // ─── Generate ───────────────────────────────────────────────────────────
@@ -94,12 +129,34 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
     <!-- Direction & Audio -->
     <UCard variant="outline">
       <div class="space-y-4">
-        <UFormField label="Direction prompt" size="sm" description="Optional guidance for the video style">
-          <UTextarea v-model="basePrompt" placeholder="Make it feel like a summer music video..." :rows="2" autoresize :disabled="loading" class="w-full" size="sm" />
+        <UFormField label="Direction prompt" size="sm" description="Style and camera guidance for the video">
+          <div class="flex flex-wrap gap-1.5 mb-2">
+            <UButton
+              v-for="p in directionPresets" :key="p.label"
+              size="xs"
+              :variant="basePrompt === p.prompt ? 'soft' : 'ghost'"
+              :color="basePrompt === p.prompt ? 'primary' : 'neutral'"
+              @click="selectDirection(p)"
+              :disabled="loading"
+            >{{ p.label }}</UButton>
+          </div>
+          <UTextarea v-model="basePrompt" placeholder="Or type your own direction..." :rows="2" autoresize :disabled="loading" class="w-full" size="sm" />
         </UFormField>
-        <UFormField label="Audio prompt" size="sm" description="Describe the audio/sound for each video">
-          <UTextarea v-model="audioPrompt" placeholder="upbeat music, laughter, wind blowing..." :rows="2" autoresize :disabled="loading" class="w-full" size="sm" />
+
+        <UFormField label="Audio prompt" size="sm" description="Soundtrack/ambience for the video">
+          <div class="flex flex-wrap gap-1.5 mb-2">
+            <UButton
+              v-for="p in audioPresets" :key="p.label"
+              size="xs"
+              :variant="audioPrompt === p.prompt ? 'soft' : 'ghost'"
+              :color="audioPrompt === p.prompt ? 'primary' : 'neutral'"
+              @click="selectAudio(p)"
+              :disabled="loading"
+            >{{ p.label }}</UButton>
+          </div>
+          <UTextarea v-model="audioPrompt" placeholder="Or describe the audio..." :rows="2" autoresize :disabled="loading" class="w-full" size="sm" />
         </UFormField>
+
         <UFormField label="Negative prompt" size="sm">
           <UTextarea v-model="negativePrompt" :rows="2" autoresize :disabled="loading" class="w-full" size="sm" />
         </UFormField>
@@ -153,3 +210,4 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
     </div>
   </div>
 </template>
+

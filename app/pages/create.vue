@@ -10,6 +10,7 @@ const shared = useCreateShared()
 
 // ─── Tab Management ─────────────────────────────────────────────────────
 const mode = ref<string | number>('text2image')
+const route = useRoute()
 
 const modeTabs: TabsItem[] = [
   { label: 'Text → Image', icon: 'i-lucide-image', value: 'text2image', slot: 'text2image' },
@@ -76,26 +77,30 @@ async function handleI2VGenerate(body: Record<string, any>) {
   }
 }
 
-// ─── Video modal / Lightbox ─────────────────────────────────────────────
-const videoModalOpen = ref(false)
-const videoModalTarget = ref<string | null>(null)
-function openVideoModal(mediaItemId: string) { videoModalTarget.value = mediaItemId; videoModalOpen.value = true }
-function handleVideoGenerate(settings: { numFrames: number; steps: number; cfg: number; width: number; height: number }, imageId?: string) {
-  const target = imageId || videoModalTarget.value
-  if (!target) return
-  gen.makeVideo(target, settings)
-  videoModalOpen.value = false; videoModalTarget.value = null
+// ─── Navigate to create tab (replaces modals) ───────────────────────────
+function goToVideoTab(mediaItemId: string) {
+  mode.value = 'img2video'
+  prefillMediaId.value = mediaItemId
 }
-
 const lightboxOpen = ref(false)
 const lightboxIndex = ref(0)
 function openLightbox(index: number) { lightboxIndex.value = index; lightboxOpen.value = true }
 const lightboxItems = computed(() => gen.completedMedia.value.map(m => ({ id: m.id, url: m.url!, type: m.type })))
 
-// ─── Persist mode ───────────────────────────────────────────────────────
+// ─── Persist mode + query param routing ─────────────────────────────────
+const prefillMediaId = ref<string | null>(null)
+
 onMounted(() => {
-  const s = shared.restoreForm()
-  if (s.mode) mode.value = s.mode
+  // Query params take priority (from gallery navigation)
+  const qTab = route.query.tab as string | undefined
+  const qMedia = route.query.mediaId as string | undefined
+  if (qTab && modeTabs.some(t => t.value === qTab)) {
+    mode.value = qTab
+    if (qMedia) prefillMediaId.value = qMedia
+  } else {
+    const s = shared.restoreForm()
+    if (s.mode) mode.value = s.mode
+  }
 })
 watch(mode, () => shared.persistForm({ mode: mode.value }))
 
@@ -143,7 +148,7 @@ const gridClass = computed(() => {
         <CreateImageToImageTab ref="i2iTab" />
       </template>
       <template #img2video>
-        <CreateImageToVideoTab ref="i2vTab" @generate-i2v="handleI2VGenerate" />
+        <CreateImageToVideoTab ref="i2vTab" :prefill-media-id="prefillMediaId" @generate-i2v="handleI2VGenerate" />
       </template>
       <template #autoVideo>
         <CreateAutoVideoTab ref="autoVideoTab" />
@@ -173,7 +178,7 @@ const gridClass = computed(() => {
       :completed-media="gen.completedMedia.value" :batch-progress="gen.batchProgress.value" :action-loading="gen.actionLoading.value"
       :grid-class="gridClass" :total-for-button="totalCount"
       @generate-more="handleGenerate(true)" @clear="gen.clearResults()" @open-lightbox="openLightbox"
-      @open-video-modal="openVideoModal" @make-audio="gen.makeAudio($event, '')" @upscale="gen.upscale($event)"
+      @open-video-modal="goToVideoTab" @make-audio="gen.makeAudio($event, '')" @upscale="gen.upscale($event)"
     />
   </div>
 
@@ -183,15 +188,11 @@ const gridClass = computed(() => {
       <template #toolbar="{ item }">
         <UButton variant="ghost" size="xs" icon="i-lucide-sparkles" class="text-white/60 hover:text-white" :loading="gen.actionLoading.value[`upscale-${item.id}`]" @click="gen.upscale(item.id)">Enhance</UButton>
         <template v-if="item.type === 'image'">
-          <UButton variant="ghost" size="xs" icon="i-lucide-film" class="text-white/60 hover:text-white" :loading="gen.actionLoading.value[`video-${item.id}`]" @click="openVideoModal(item.id)">Video</UButton>
+          <UButton variant="ghost" size="xs" icon="i-lucide-film" class="text-white/60 hover:text-white" @click="goToVideoTab(item.id)">Video</UButton>
           <UButton variant="ghost" size="xs" icon="i-lucide-music" class="text-white/60 hover:text-white" :loading="gen.actionLoading.value[`audio-${item.id}`]" @click="gen.makeAudio(item.id, '')">Audio</UButton>
         </template>
       </template>
     </AppLightbox>
   </ClientOnly>
 
-  <!-- Video Settings Modal -->
-  <ClientOnly>
-    <VideoSettingsModal :open="videoModalOpen" :media-item-id="videoModalTarget" :loading="videoModalTarget ? gen.actionLoading.value[`video-${videoModalTarget}`] : false" @close="videoModalOpen = false" @generate="handleVideoGenerate" />
-  </ClientOnly>
 </template>

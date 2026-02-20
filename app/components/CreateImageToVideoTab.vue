@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { VIDEO_MODELS } from '~/composables/useCreateShared'
 
+const props = defineProps<{ prefillMediaId?: string | null }>()
 const gen = useGeneration()
 const shared = useCreateShared()
+const pickerRef = ref<InstanceType<typeof ImagePicker> | null>(null)
 
 // ─── Source Image ───────────────────────────────────────────────────────
 const selectedMediaId = ref<string | null>(null)
 const uploadedBase64 = ref('')
+
+// Auto-select prefilled media from gallery navigation
+watch(() => props.prefillMediaId, (id) => {
+  if (id) selectedMediaId.value = id
+}, { immediate: true })
 
 function onImageSelect(payload: { mediaItemId?: string; base64?: string; url: string }) {
   selectedMediaId.value = payload.mediaItemId || null

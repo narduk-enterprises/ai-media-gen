@@ -194,21 +194,13 @@ function generationMedia(gen: GenerationResult): MediaItemResult[] {
 const totalMedia = computed(() => allMedia.value.length)
 const totalGenerations = computed(() => (generations.value || []).length)
 
-// ─── Video modal ────────────────────────────────────────────────────────
-const videoModalOpen = ref(false)
-const videoModalTarget = ref<string | null>(null)
-const videoError = computed(() => gen.error.value)
-
-function openVideoModal(mediaItemId: string) {
-  videoModalTarget.value = mediaItemId
-  videoModalOpen.value = true
+// ─── Navigate to create page (replaces modals) ─────────────────────────
+function goToVideo(mediaItemId: string) {
+  navigateTo({ path: '/create', query: { tab: 'img2video', mediaId: mediaItemId } })
 }
 
-function handleVideoGenerate(settings: { model: string; numFrames: number; steps: number; cfg: number; width: number; height: number; fps?: number; loraStrength?: number; imageStrength?: number }, imageId?: string) {
-  const target = imageId || videoModalTarget.value
-  if (!target) return
-  gen.makeVideo(target, settings)
-  videoModalOpen.value = false
+function goToReimagine(mediaItemId: string) {
+  navigateTo({ path: '/create', query: { tab: 'img2img', mediaId: mediaItemId } })
 }
 
 const activeVideoCount = computed(() => {
@@ -232,33 +224,6 @@ function recreateFromImage(img: GalleryMedia) {
   const query: Record<string, string> = { prompt: img.prompt }
   if (img.settings) query.settings = JSON.stringify(img.settings)
   navigateTo({ path: '/create', query })
-}
-
-// ─── Reimagine (Image to Image) ─────────────────────────────────────
-const reimagineModalOpen = ref(false)
-const reimagineTarget = ref<GalleryMedia | null>(null)
-const reimagineLoading = ref(false)
-
-function openReimaginModal(item: GalleryMedia) {
-  reimagineTarget.value = item
-  reimagineModalOpen.value = true
-}
-
-function openReimaginByItemId(itemId: string) {
-  const item = allMedia.value.find(m => m.id === itemId)
-  if (item) openReimaginModal(item)
-}
-
-async function handleReimagine(payload: { image: string; prompt: string; cfg: number; steps: number; width: number; height: number; negativePrompt: string; denoise: number }) {
-  reimagineLoading.value = true
-  try {
-    await gen.generateImage2Image(payload)
-    reimagineModalOpen.value = false
-  } catch (e: any) {
-    // Error handled inside modal
-  } finally {
-    reimagineLoading.value = false
-  }
 }
 
 // ─── Upscale (Enhance) ───────────────────────────────────────────────
@@ -327,8 +292,7 @@ async function upscaleImage(mediaItemId: string) {
         description="Videos will appear in the gallery when complete. This may take a few minutes."
       />
 
-      <!-- Video error -->
-      <UAlert v-if="videoError" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="videoError" :close="true" class="mb-4" @update:open="videoError = ''" />
+
 
       <!-- Loading -->
       <GallerySkeletonGrid v-if="pending && !generations.length" />
@@ -383,11 +347,11 @@ async function upscaleImage(mediaItemId: string) {
           >
             <template #actions>
               <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-image-plus"
-                @click.stop="openReimaginModal(item)" title="Reimagine" />
+                @click.stop="goToReimagine(item.id)" title="Reimagine" />
               <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-sparkles"
                 :loading="actionLoading[`upscale-${item.id}`]" @click.stop="upscaleImage(item.id)" title="Enhance 2x" />
               <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-film"
-                :loading="actionLoading[`video-${item.id}`]" @click.stop="openVideoModal(item.id)" title="Animate" />
+                @click.stop="goToVideo(item.id)" title="Animate" />
               <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="downloadMedia(item.url, index, item.type)" />
             </template>
           </MediaThumbnail>
@@ -403,8 +367,8 @@ async function upscaleImage(mediaItemId: string) {
           :filtered-media="filteredMedia"
           @toggle="toggleGeneration"
           @open-lightbox="openLightbox"
-          @open-video-modal="openVideoModal"
-          @open-reimagine="openReimaginByItemId"
+          @open-video-modal="goToVideo"
+          @open-reimagine="goToReimagine"
           @upscale="upscaleImage"
           @download-media="downloadMedia"
           @copy-prompt="copyPrompt"
@@ -439,9 +403,9 @@ async function upscaleImage(mediaItemId: string) {
             :loading="actionLoading[`upscale-${item.id}`]" @click="upscaleImage(item.id)">Enhance</UButton>
         <template v-if="item.type === 'image'">
           <UButton variant="ghost" size="xs" icon="i-lucide-image-plus" class="text-white/60 hover:text-white"
-            @click="openReimaginByItemId(item.id)">Reimagine</UButton>
+            @click="goToReimagine(item.id)">Reimagine</UButton>
           <UButton variant="ghost" size="xs" icon="i-lucide-film" class="text-white/60 hover:text-white"
-            :loading="actionLoading[`video-${item.id}`]" @click="openVideoModal(item.id)">Video</UButton>
+            @click="goToVideo(item.id)">Video</UButton>
         </template>
         <UButton variant="ghost" size="xs" icon="i-lucide-info" class="text-white/60 hover:text-white" @click="showLightboxInfo = !showLightboxInfo">Info</UButton>
         <UButton variant="ghost" size="xs" icon="i-lucide-refresh-cw" class="text-white/60 hover:text-white" @click="currentItem && recreateFromImage(currentItem)">Recreate</UButton>
@@ -484,24 +448,6 @@ async function upscaleImage(mediaItemId: string) {
         </Transition>
       </template>
     </AppLightbox>
-
-    <!-- Video Settings Modal -->
-    <VideoSettingsModal
-      :open="videoModalOpen"
-      :media-item-id="videoModalTarget"
-      :loading="videoModalTarget ? actionLoading[`video-${videoModalTarget}`] : false"
-      @close="videoModalOpen = false"
-      @generate="handleVideoGenerate"
-    />
-
-    <!-- Reimagine Modal -->
-    <ReimagineModal
-      :open="reimagineModalOpen"
-      :target="reimagineTarget"
-      :loading="reimagineLoading"
-      @update:open="reimagineModalOpen = $event"
-      @submit="handleReimagine"
-    />
   </div>
 </template>
 

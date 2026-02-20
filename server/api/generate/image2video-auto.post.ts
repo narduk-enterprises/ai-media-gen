@@ -91,7 +91,10 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 500, message: result.error })
     }
 
-    const output = result.output || {}
+    const rawOutput = result.output || {}
+    // Handler returns {status, output: {type, caption, jobs, ...}}
+    // So the actual data is at rawOutput.output
+    const output = rawOutput.output || rawOutput
     const jobs = output.jobs || []
     const caption = output.caption || ''
 
