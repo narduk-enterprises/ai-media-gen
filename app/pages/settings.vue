@@ -1,5 +1,5 @@
 <script setup lang="ts">
-definePageMeta({ middleware: 'auth' })
+definePageMeta({ middleware: 'auth', ssr: false })
 useSeoMeta({ title: 'Settings' })
 
 const { user, logout } = useAuth()
@@ -113,11 +113,9 @@ async function handleLogout() {
       </div>
     </UCard>
 
-    <ClientOnly>
-      <SettingsProjectPresets />
+    <SettingsProjectPresets />
 
     <SettingsPersons />
-    </ClientOnly>
 
     <!-- Danger zone -->
     <UCard class="border-red-100" variant="outline">

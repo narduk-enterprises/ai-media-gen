@@ -1,5 +1,5 @@
 <script setup lang="ts">
-definePageMeta({ middleware: 'auth' })
+definePageMeta({ middleware: 'auth', ssr: false })
 useSeoMeta({ title: 'Personas & Scenes' })
 </script>
 
@@ -14,12 +14,7 @@ useSeoMeta({ title: 'Personas & Scenes' })
       </p>
     </div>
 
-    <ClientOnly>
-      <PersonaManager />
-      <SceneManager />
-      <template #fallback>
-        <div class="flex items-center justify-center py-20 text-slate-400"><UIcon name="i-lucide-loader-2" class="animate-spin mr-2" /> Loading...</div>
-      </template>
-    </ClientOnly>
+    <PersonaManager />
+    <SceneManager />
   </div>
 </template>
