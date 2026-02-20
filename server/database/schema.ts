@@ -46,6 +46,7 @@ export const mediaItems = sqliteTable('media_items', {
   prompt: text('prompt'), // per-item prompt (may differ from generation prompt in "vary per image" mode)
   qualityScore: real('quality_score'), // AI aesthetic score (1-10)
   submittedAt: text('submitted_at'), // when the item was actually sent to RunPod (null while queued)
+  dismissedAt: text('dismissed_at'), // when the user dismissed this from the queue sidebar (null = visible)
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 })
 

@@ -30,12 +30,11 @@ const t2vResolutionPresets: Record<string, { label: string; w: number; h: number
   ],
   ltx2: [
     { label: '1280 × 720 → 2560×1440', w: 1280, h: 720 },
+    { label: '1920 × 1088 → 3840×2176', w: 1920, h: 1088 },
     { label: '1024 × 576 → 2048×1152', w: 1024, h: 576 },
     { label: '768 × 432 → 1536×864', w: 768, h: 432 },
     { label: '720 × 1280 → 1440×2560 (Portrait)', w: 720, h: 1280 },
     { label: '576 × 1024 → 1152×2048 (Portrait)', w: 576, h: 1024 },
-    { label: '432 × 768 → 864×1536 (Portrait)', w: 432, h: 768 },
-    { label: '832 × 480 → 1664×960 (Wide)', w: 832, h: 480 },
     { label: '768 × 768 → 1536×1536 (Square)', w: 768, h: 768 },
   ],
 }
@@ -51,7 +50,7 @@ const durationPresets: Record<string, { label: string; value: number; descriptio
   ],
   ltx2: [
     { label: '~2.7s', value: 65, description: 'Quick' },
-    { label: '~4s', value: 97, description: 'Standard' },
+    { label: '~4s', value: 97, description: 'Standard (recommended)' },
     { label: '~5s', value: 121, description: 'Long' },
     { label: '~6.7s', value: 161, description: 'Extended' },
     { label: '~10s', value: 241, description: 'Extra Long' },

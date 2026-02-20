@@ -31,7 +31,7 @@ const numFrames = ref<number[]>([81])
 const steps = ref(20)
 const cfg = ref(3.5)
 const fps = ref(24)
-const loraStrength = ref(0.7)
+const loraStrength = ref(1.0)
 const imageStrength = ref(1.0)
 const resolutionIndex = ref(0)
 
@@ -43,9 +43,9 @@ const wan22Presets = [
 ]
 
 const ltx2Presets = [
+  { label: '1280 × 720 → 2560×1440', w: 1280, h: 720 },
+  { label: '1920 × 1088 → 3840×2176', w: 1920, h: 1088 },
   { label: '768 × 432 → 1536×864', w: 768, h: 432 },
-  { label: '1024 × 576 → 2048×1152', w: 1024, h: 576 },
-  { label: '432 × 768 → 864×1536', w: 432, h: 768 },
   { label: '768 × 768 → 1536×1536', w: 768, h: 768 },
 ]
 
