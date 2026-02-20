@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
+import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl, callRunPodAsync } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
@@ -32,12 +33,7 @@ export default defineEventHandler(async (event) => {
   const apiUrl = resolveApiUrl(endpoint)
 
   const settings = JSON.stringify({
-    negativePrompt,
-    steps,
-    width,
-    height,
-    seed,
-    model,
+    negativePrompt, steps, width, height, seed, model,
     attributes: attributes || {},
   })
   const db = useDatabase()
@@ -54,11 +50,9 @@ export default defineEventHandler(async (event) => {
     createdAt: now,
   })
 
-  // Insert all items as 'queued' — the cron will submit them to RunPod
   const items = Array.from({ length: count }, (_, i) => {
     const itemId = crypto.randomUUID()
     const imagePrompt = prompts?.[i] || prompt
-    // Generate unique random seed per image when seed is -1
     const itemSeed = seed < 0 ? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER) : seed
 
     return {
@@ -74,9 +68,7 @@ export default defineEventHandler(async (event) => {
           action: 'text2image',
           prompt: imagePrompt,
           negative_prompt: negativePrompt,
-          width,
-          height,
-          steps,
+          width, height, steps,
           lora_strength: loraStrength,
           model,
           seed: itemSeed,
@@ -86,31 +78,33 @@ export default defineEventHandler(async (event) => {
     }
   })
 
-  // Batch insert
   for (const item of items) {
     await db.insert(mediaItems).values(item)
   }
 
   console.log(`[Image] ${count} items queued for generation ${generationId.slice(0, 8)}`)
 
-  // Immediately submit to RunPod (fire-and-forget — cron is safety net)
-  for (const item of items) {
-    try {
-      const meta = JSON.parse(item.metadata!)
-      const result = await callRunPodAsync(meta.runpodInput, meta.apiUrl)
-      await db.update(mediaItems)
-        .set({
-          status: 'processing',
-          runpodJobId: result.jobId,
-          submittedAt: new Date().toISOString(),
-          metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl }),
-        })
-        .where(eq(mediaItems.id, item.id))
-      console.log(`[Image] ✅ Immediately submitted ${item.id.slice(0, 8)} → job ${result.jobId}`)
-    } catch (e: any) {
-      console.warn(`[Image] ⚠️ Immediate submit failed for ${item.id.slice(0, 8)}, cron will retry:`, e.message)
+  // Submit to RunPod in background via waitUntil — response returns immediately
+  // This prevents CF Worker timeouts from killing the connection mid-submit
+  waitUntil((async () => {
+    for (const item of items) {
+      try {
+        const meta = JSON.parse(item.metadata!)
+        const result = await callRunPodAsync(meta.runpodInput, meta.apiUrl)
+        await db.update(mediaItems)
+          .set({
+            status: 'processing',
+            runpodJobId: result.jobId,
+            submittedAt: new Date().toISOString(),
+            metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl }),
+          })
+          .where(eq(mediaItems.id, item.id))
+        console.log(`[Image] ✅ Submitted ${item.id.slice(0, 8)} → job ${result.jobId}`)
+      } catch (e: any) {
+        console.warn(`[Image] ⚠️ Submit failed for ${item.id.slice(0, 8)}, cron will retry:`, e.message)
+      }
     }
-  }
+  })())
 
   return {
     generation: {

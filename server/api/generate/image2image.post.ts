@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
+import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl, callRunPodAsync } from '../../utils/ai'
 import { generations, mediaItems } from '../../database/schema'
@@ -67,21 +68,23 @@ export default defineEventHandler(async (event) => {
     createdAt: now,
   })
 
-  // Immediately submit to RunPod
-  try {
-    const result = await callRunPodAsync(runpodInput, apiUrl)
-    await db.update(mediaItems)
-      .set({
-        status: 'processing',
-        runpodJobId: result.jobId,
-        submittedAt: new Date().toISOString(),
-        metadata: JSON.stringify({ apiUrl: result.apiUrl, runpodInput }),
-      })
-      .where(eq(mediaItems.id, itemId))
-    console.log(`[I2I] ✅ Submitted ${itemId.slice(0, 8)} → job ${result.jobId}`)
-  } catch (e: any) {
-    console.warn(`[I2I] ⚠️ Immediate submit failed, cron will retry:`, e.message)
-  }
+  // Submit to RunPod in background — response returns immediately
+  waitUntil((async () => {
+    try {
+      const result = await callRunPodAsync(runpodInput, apiUrl)
+      await db.update(mediaItems)
+        .set({
+          status: 'processing',
+          runpodJobId: result.jobId,
+          submittedAt: new Date().toISOString(),
+          metadata: JSON.stringify({ apiUrl: result.apiUrl, runpodInput }),
+        })
+        .where(eq(mediaItems.id, itemId))
+      console.log(`[I2I] ✅ Submitted ${itemId.slice(0, 8)} → job ${result.jobId}`)
+    } catch (e: any) {
+      console.warn(`[I2I] ⚠️ Submit failed, cron will retry:`, e.message)
+    }
+  })())
 
   return {
     generation: {
