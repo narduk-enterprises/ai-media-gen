@@ -165,7 +165,7 @@ function openVideoModal(mediaItemId: string) {
   videoModalOpen.value = true
 }
 
-function handleVideoGenerate(settings: { numFrames: number; steps: number; cfg: number; width: number; height: number }) {
+function handleVideoGenerate(settings: { model: string; numFrames: number; steps: number; cfg: number; width: number; height: number; fps?: number; loraStrength?: number; imageStrength?: number }) {
   if (!videoModalTarget.value) return
   makeVideoFromGallery(videoModalTarget.value, settings)
   videoModalOpen.value = false
@@ -177,9 +177,24 @@ async function makeVideoFromGallery(mediaItemId: string, settings?: Record<strin
   actionLoading.value[loadingKey] = true
   videoError.value = ''
   try {
+    const body: Record<string, any> = {
+      mediaItemId,
+      model: settings?.model || 'wan22',
+      numFrames: settings?.numFrames || 81,
+      steps: settings?.steps || 20,
+      cfg: settings?.cfg || 3.5,
+      width: settings?.width || 768,
+      height: settings?.height || 768,
+      endpoint: effectiveEndpoint.value,
+    }
+    if (settings?.model === 'ltx2') {
+      body.fps = settings.fps || 24
+      body.loraStrength = settings.loraStrength ?? 0.7
+      body.imageStrength = settings.imageStrength ?? 1.0
+    }
     const result = await $fetch<{ item: { id: string; status: string } }>('/api/generate/video', {
       method: 'POST',
-      body: { mediaItemId, numFrames: settings?.numFrames || 81, steps: settings?.steps || 20, cfg: settings?.cfg || 3.5, width: settings?.width || 768, height: settings?.height || 768, endpoint: effectiveEndpoint.value },
+      body,
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
     if (result.item) {

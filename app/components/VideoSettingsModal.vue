@@ -10,37 +10,70 @@ const emit = defineEmits<{
 }>()
 
 export interface VideoSettings {
+  model: string
   numFrames: number
   steps: number
   cfg: number
   width: number
   height: number
+  fps?: number
+  loraStrength?: number
+  imageStrength?: number
 }
 
+const models = [
+  { id: 'ltx2', label: 'LTX-2', description: '19B + upscaler → 2x output', icon: 'i-lucide-film', defaultSteps: 20 },
+  { id: 'wan22', label: 'Wan 2.2', description: '14B I2V, 20 steps', icon: 'i-lucide-brain', defaultSteps: 20 },
+]
+
+const selectedModel = ref('ltx2')
 const numFrames = ref<number[]>([81])
 const steps = ref(20)
 const cfg = ref(3.5)
-const resolutionIndex = ref(1)
+const fps = ref(24)
+const loraStrength = ref(0.7)
+const imageStrength = ref(1.0)
+const resolutionIndex = ref(0)
 
-const resolutionPresets = [
-  { label: '512 × 512', w: 512, h: 512 },
+const wan22Presets = [
   { label: '768 × 768', w: 768, h: 768 },
-  { label: '512 × 768', w: 512, h: 768 },
+  { label: '512 × 512', w: 512, h: 512 },
   { label: '768 × 512', w: 768, h: 512 },
-  { label: '1024 × 576', w: 1024, h: 576 },
-  { label: '576 × 1024', w: 576, h: 1024 },
+  { label: '512 × 768', w: 512, h: 768 },
 ]
 
-const currentResolution = computed(() => resolutionPresets[resolutionIndex.value]!)
+const ltx2Presets = [
+  { label: '768 × 432 → 1536×864', w: 768, h: 432 },
+  { label: '1024 × 576 → 2048×1152', w: 1024, h: 576 },
+  { label: '432 × 768 → 864×1536', w: 432, h: 768 },
+  { label: '768 × 768 → 1536×1536', w: 768, h: 768 },
+]
+
+const activePresets = computed(() => selectedModel.value === 'ltx2' ? ltx2Presets : wan22Presets)
+const currentResolution = computed(() => activePresets.value[resolutionIndex.value] ?? activePresets.value[0]!)
+const isLtx2 = computed(() => selectedModel.value === 'ltx2')
+
+watch(selectedModel, (m) => {
+  resolutionIndex.value = 0
+  const model = models.find(x => x.id === m)
+  if (model) steps.value = model.defaultSteps
+})
 
 function submit() {
-  emit('generate', {
+  const s: VideoSettings = {
+    model: selectedModel.value,
     numFrames: numFrames.value[0] ?? 81,
     steps: steps.value,
     cfg: cfg.value,
     width: currentResolution.value.w,
     height: currentResolution.value.h,
-  })
+  }
+  if (isLtx2.value) {
+    s.fps = fps.value
+    s.loraStrength = loraStrength.value
+    s.imageStrength = imageStrength.value
+  }
+  emit('generate', s)
 }
 
 function handleBackdropClick() {
@@ -73,8 +106,8 @@ onUnmounted(() => {
                 <UIcon name="i-lucide-film" class="w-5 h-5 text-cyan-600" />
               </div>
               <div>
-                <h3 class="text-sm font-semibold text-slate-800">Generate Video</h3>
-                <p class="text-[10px] text-slate-400">Configure settings before generating</p>
+                <h3 class="text-sm font-semibold text-slate-800">Image → Video</h3>
+                <p class="text-[10px] text-slate-400">Animate this image into a video</p>
               </div>
             </div>
             <UButton v-if="!loading" variant="ghost" color="neutral" icon="i-lucide-x" size="sm" @click="emit('close')" />
@@ -82,30 +115,68 @@ onUnmounted(() => {
 
           <!-- Settings -->
           <div class="px-5 py-4 space-y-5">
-            <DurationPicker v-model="numFrames" :multi-select="false" />
+            <!-- Model selector -->
+            <section>
+              <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Model</label>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  v-for="m in models" :key="m.id"
+                  class="relative rounded-xl border px-3 py-2.5 text-left transition-all text-xs"
+                  :class="selectedModel === m.id
+                    ? 'border-cyan-400 bg-cyan-50 ring-1 ring-cyan-200'
+                    : 'border-slate-200 hover:border-slate-300'"
+                  @click="selectedModel = m.id"
+                >
+                  <div class="font-semibold text-slate-800 flex items-center gap-1.5">
+                    <UIcon :name="m.icon" class="w-3.5 h-3.5" />
+                    {{ m.label }}
+                  </div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">{{ m.description }}</div>
+                </button>
+              </div>
+            </section>
 
+            <DurationPicker v-model="numFrames" :multi-select="false" />
             <StepsSlider v-model="steps" :min="10" :max="50" />
 
-            <!-- CFG Scale -->
-            <section>
+            <!-- CFG Scale — only for Wan 2.2 -->
+            <section v-if="!isLtx2">
               <div class="flex items-center justify-between mb-2">
                 <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">CFG Scale</label>
                 <span class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{{ cfg }}</span>
               </div>
               <USlider v-model="cfg" :min="1" :max="10" :step="0.5" class="w-full" size="xs" />
-              <div class="flex justify-between text-[9px] text-slate-400 mt-1">
-                <span>More creative</span>
-                <span>More faithful</span>
+            </section>
+
+            <!-- LTX-2 specific: Image Strength + LoRA -->
+            <section v-if="isLtx2" class="space-y-3">
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Image Strength</label>
+                  <span class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{{ imageStrength.toFixed(2) }}</span>
+                </div>
+                <USlider v-model="imageStrength" :min="0.3" :max="1" :step="0.05" class="w-full" size="xs" />
+                <div class="flex justify-between text-[9px] text-slate-400 mt-1">
+                  <span>More creative</span>
+                  <span>Exact match</span>
+                </div>
+              </div>
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">LoRA Strength</label>
+                  <span class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{{ loraStrength.toFixed(1) }}</span>
+                </div>
+                <USlider v-model="loraStrength" :min="0.3" :max="1" :step="0.1" class="w-full" size="xs" />
               </div>
             </section>
 
-            <ResolutionPicker v-model="resolutionIndex" :presets="resolutionPresets" />
+            <ResolutionPicker v-model="resolutionIndex" :presets="activePresets" />
           </div>
 
           <!-- Footer -->
           <div class="px-5 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
             <p class="text-[10px] text-slate-400">
-              {{ numFrames[0] }} frames · {{ steps }} steps · {{ currentResolution.w }}×{{ currentResolution.h }}
+              {{ selectedModel === 'ltx2' ? 'LTX-2' : 'Wan 2.2' }} · {{ numFrames[0] }} frames · {{ steps }} steps · {{ currentResolution.w }}×{{ currentResolution.h }}
             </p>
             <div class="flex items-center gap-2">
               <UButton v-if="!loading" variant="ghost" color="neutral" size="sm" @click="emit('close')">Cancel</UButton>

@@ -29,14 +29,14 @@ const t2vResolutionPresets: Record<string, { label: string; w: number; h: number
     { label: '480 × 832', w: 480, h: 832 },
   ],
   ltx2: [
-    { label: '768 × 432 (16:9)', w: 768, h: 432 },
-    { label: '432 × 768 (9:16 Portrait)', w: 432, h: 768 },
-    { label: '832 × 480 (Widescreen)', w: 832, h: 480 },
-    { label: '480 × 832 (Portrait)', w: 480, h: 832 },
-    { label: '640 × 480 (4:3)', w: 640, h: 480 },
-    { label: '480 × 640 (3:4 Portrait)', w: 480, h: 640 },
-    { label: '768 × 448 (Wide)', w: 768, h: 448 },
-    { label: '512 × 512 (Square)', w: 512, h: 512 },
+    { label: '1280 × 720 → 2560×1440', w: 1280, h: 720 },
+    { label: '1024 × 576 → 2048×1152', w: 1024, h: 576 },
+    { label: '768 × 432 → 1536×864', w: 768, h: 432 },
+    { label: '720 × 1280 → 1440×2560 (Portrait)', w: 720, h: 1280 },
+    { label: '576 × 1024 → 1152×2048 (Portrait)', w: 576, h: 1024 },
+    { label: '432 × 768 → 864×1536 (Portrait)', w: 432, h: 768 },
+    { label: '832 × 480 → 1664×960 (Wide)', w: 832, h: 480 },
+    { label: '768 × 768 → 1536×1536 (Square)', w: 768, h: 768 },
   ],
 }
 

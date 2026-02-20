@@ -8,11 +8,15 @@ import { mediaItems, generations } from '../../database/schema'
 
 const videoSchema = z.object({
   mediaItemId: z.string().uuid('Invalid media item ID'),
-  numFrames: z.number().min(41).max(201).optional(),
+  model: z.enum(['wan22', 'ltx2']).optional().default('wan22'),
+  numFrames: z.number().min(41).max(721).optional(),
   steps: z.number().min(1).max(50).optional(),
   cfg: z.number().min(1).max(10).optional(),
-  width: z.number().min(256).max(1280).optional(),
-  height: z.number().min(256).max(1280).optional(),
+  width: z.number().min(256).max(1920).optional(),
+  height: z.number().min(256).max(1920).optional(),
+  fps: z.number().min(8).max(50).optional(),
+  loraStrength: z.number().min(0).max(2).optional(),
+  imageStrength: z.number().min(0).max(1).optional(),
   endpoint: z.string().optional(),
 })
 
@@ -25,7 +29,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { mediaItemId, numFrames, steps, cfg, width, height, endpoint } = parsed.data
+  const { mediaItemId, model, numFrames, steps, cfg, width, height, fps, loraStrength, imageStrength, endpoint } = parsed.data
   const apiUrl = resolveApiUrl(endpoint)
   const db = useDatabase()
 
@@ -67,8 +71,27 @@ export default defineEventHandler(async (event) => {
 
   const videoId = crypto.randomUUID()
 
+  // Build model-specific RunPod input
+  const isLtx2 = model === 'ltx2'
+  const runpodInput: Record<string, any> = {
+    action: 'image2video',
+    model,
+    prompt,
+    image: imageBase64,
+    width: width || (isLtx2 ? 768 : 768),
+    height: height || (isLtx2 ? 432 : 768),
+    num_frames: numFrames || (isLtx2 ? 121 : 81),
+    steps: steps || 20,
+  }
+  if (isLtx2) {
+    runpodInput.fps = fps || 24
+    runpodInput.lora_strength = loraStrength ?? 0.7
+    runpodInput.image_strength = imageStrength ?? 1.0
+  } else {
+    runpodInput.cfg = cfg || 3.5
+  }
+
   // Insert as 'queued' — the cron will submit to RunPod
-  // We store the image base64 in the RunPod input so the cron can submit it
   await db.insert(mediaItems).values({
     id: videoId,
     generationId: sourceItem.generationId,
@@ -76,19 +99,7 @@ export default defineEventHandler(async (event) => {
     parentId: mediaItemId,
     prompt,
     status: 'queued',
-    metadata: JSON.stringify({
-      apiUrl,
-      runpodInput: {
-        action: 'image2video',
-        prompt,
-        image: imageBase64,
-        width: width || 768,
-        height: height || 768,
-        num_frames: numFrames || 81,
-        steps: steps || 20,
-        cfg: cfg || 3.5,
-      },
-    }),
+    metadata: JSON.stringify({ apiUrl, runpodInput }),
     createdAt: now,
   })
 
@@ -97,8 +108,8 @@ export default defineEventHandler(async (event) => {
   // Submit to RunPod in background — response returns immediately
   waitUntil((async () => {
     try {
-      const meta = JSON.parse(JSON.stringify({ apiUrl, runpodInput: { action: 'image2video', prompt, image: imageBase64, width: width || 768, height: height || 768, num_frames: numFrames || 81, steps: steps || 20, cfg: cfg || 3.5 } }))
-      const result = await callRunPodAsync(meta.runpodInput, apiUrl)
+      const meta = { apiUrl, runpodInput }
+      const result = await callRunPodAsync(runpodInput, apiUrl)
       await db.update(mediaItems)
         .set({
           status: 'processing',
