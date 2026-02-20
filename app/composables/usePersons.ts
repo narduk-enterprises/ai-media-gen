@@ -54,7 +54,18 @@ function persistPersons(persons: Person[]) {
 // ─── Composable ──────────────────────────────────────────────────────────
 
 export function usePersons() {
-  const persons = ref<Person[]>(loadPersons())
+  // useState ensures SSR → client hydration parity (no mismatch)
+  const persons = useState<Person[]>('persons', () => [])
+
+  // Hydrate from localStorage only on the client, after mount
+  if (import.meta.client) {
+    onNuxtReady(() => {
+      if (persons.value.length === 0) {
+        const loaded = loadPersons()
+        if (loaded.length > 0) persons.value = loaded
+      }
+    })
+  }
 
   function _save() {
     persistPersons(persons.value)

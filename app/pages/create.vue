@@ -12,7 +12,7 @@ import {
 } from '~/utils/promptBuilder'
 import type { TabsItem } from '@nuxt/ui'
 
-definePageMeta({ middleware: 'auth', ssr: false })
+definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Create' })
 
 // ─── Composables ────────────────────────────────────────────────────────
@@ -439,10 +439,10 @@ const gridClass = computed(() => {
           <UFormField label="Negative prompt" size="sm">
             <UTextarea v-model="t2vNegativePrompt" placeholder="Things to avoid (optional)..." :rows="2" autoresize :disabled="gen.generating.value" class="w-full" size="sm" />
           </UFormField>
-          <DurationPicker v-model="t2vNumFrames" :presets="shared.durationPresets" />
+          <DurationPicker v-model="t2vNumFrames" :presets="shared.durationPresets.value" />
           <CountSelector v-model="t2vCount" label="Videos per duration" :options="[1, 2, 4]" />
           <StepsSlider v-model="t2vSteps" />
-          <ResolutionPicker v-model="t2vResolutionIndex" :presets="shared.t2vResolutionPresets" />
+          <ResolutionPicker v-model="t2vResolutionIndex" :presets="shared.t2vResolutionPresets.value" />
           <UFormField label="Seed" size="sm" :description="t2vSeed < 0 ? 'Random' : 'Fixed'">
             <div class="flex items-center gap-2"><UInput v-model.number="t2vSeed" type="number" size="sm" class="w-28" /><UButton size="xs" variant="outline" color="neutral" icon="i-lucide-shuffle" square @click="t2vSeed = -1" title="Random seed" /></div>
           </UFormField>
@@ -483,9 +483,9 @@ const gridClass = computed(() => {
               </button>
             </div>
           </div>
-          <DurationPicker v-model="bvNumFrames" :presets="shared.durationPresets" />
+          <DurationPicker v-model="bvNumFrames" :presets="shared.durationPresets.value" />
           <StepsSlider v-model="bvSteps" />
-          <ResolutionPicker v-model="bvResolutionIndex" :presets="shared.t2vResolutionPresets" />
+          <ResolutionPicker v-model="bvResolutionIndex" :presets="shared.t2vResolutionPresets.value" />
           <UFormField label="Seed" size="sm" :description="bvSeed < 0 ? 'Random' : 'Fixed'">
             <div class="flex items-center gap-2"><UInput v-model.number="bvSeed" type="number" size="sm" class="w-28" /><UButton size="xs" variant="outline" color="neutral" icon="i-lucide-shuffle" square @click="bvSeed = -1" title="Random seed" /></div>
           </UFormField>
@@ -576,15 +576,19 @@ const gridClass = computed(() => {
   </div>
 
   <!-- ═══ Lightbox ═══ -->
-  <AppLightbox v-model:open="lightboxOpen" v-model:index="lightboxIndex" :items="lightboxItems">
-    <template #toolbar="{ item }">
-      <template v-if="item.type === 'image'">
-        <UButton variant="ghost" size="xs" icon="i-lucide-film" class="text-white/60 hover:text-white" :loading="gen.actionLoading.value[`video-${item.id}`]" @click="openVideoModal(item.id)">Video</UButton>
-        <UButton variant="ghost" size="xs" icon="i-lucide-music" class="text-white/60 hover:text-white" :loading="gen.actionLoading.value[`audio-${item.id}`]" @click="gen.makeAudio(item.id, freePrompt || basePrompt)">Audio</UButton>
+  <ClientOnly>
+    <AppLightbox v-model:open="lightboxOpen" v-model:index="lightboxIndex" :items="lightboxItems">
+      <template #toolbar="{ item }">
+        <template v-if="item.type === 'image'">
+          <UButton variant="ghost" size="xs" icon="i-lucide-film" class="text-white/60 hover:text-white" :loading="gen.actionLoading.value[`video-${item.id}`]" @click="openVideoModal(item.id)">Video</UButton>
+          <UButton variant="ghost" size="xs" icon="i-lucide-music" class="text-white/60 hover:text-white" :loading="gen.actionLoading.value[`audio-${item.id}`]" @click="gen.makeAudio(item.id, freePrompt || basePrompt)">Audio</UButton>
+        </template>
       </template>
-    </template>
-  </AppLightbox>
+    </AppLightbox>
+  </ClientOnly>
 
   <!-- Video Settings Modal -->
-  <VideoSettingsModal :open="videoModalOpen" :loading="videoModalTarget ? gen.actionLoading.value[`video-${videoModalTarget}`] : false" @close="videoModalOpen = false" @generate="handleVideoGenerate" />
+  <ClientOnly>
+    <VideoSettingsModal :open="videoModalOpen" :loading="videoModalTarget ? gen.actionLoading.value[`video-${videoModalTarget}`] : false" @close="videoModalOpen = false" @generate="handleVideoGenerate" />
+  </ClientOnly>
 </template>

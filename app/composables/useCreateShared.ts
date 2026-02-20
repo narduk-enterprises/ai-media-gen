@@ -29,12 +29,14 @@ const t2vResolutionPresets: Record<string, { label: string; w: number; h: number
     { label: '480 × 832', w: 480, h: 832 },
   ],
   ltx2: [
-    { label: '768 × 512', w: 768, h: 512 },
-    { label: '512 × 768', w: 512, h: 768 },
-    { label: '640 × 480', w: 640, h: 480 },
-    { label: '480 × 640', w: 480, h: 640 },
-    { label: '768 × 448', w: 768, h: 448 },
-    { label: '512 × 512', w: 512, h: 512 },
+    { label: '768 × 432 (16:9)', w: 768, h: 432 },
+    { label: '432 × 768 (9:16 Portrait)', w: 432, h: 768 },
+    { label: '832 × 480 (Widescreen)', w: 832, h: 480 },
+    { label: '480 × 832 (Portrait)', w: 480, h: 832 },
+    { label: '640 × 480 (4:3)', w: 640, h: 480 },
+    { label: '480 × 640 (3:4 Portrait)', w: 480, h: 640 },
+    { label: '768 × 448 (Wide)', w: 768, h: 448 },
+    { label: '512 × 512 (Square)', w: 512, h: 512 },
   ],
 }
 
@@ -52,33 +54,35 @@ const durationPresets: Record<string, { label: string; value: number; descriptio
     { label: '~4s', value: 97, description: 'Standard' },
     { label: '~5s', value: 121, description: 'Long' },
     { label: '~6.7s', value: 161, description: 'Extended' },
-    { label: '~10.7s', value: 257, description: 'Maximum' },
+    { label: '~10s', value: 241, description: 'Extra Long' },
+    { label: '~20s', value: 481, description: '20 seconds' },
+    { label: '~30s', value: 721, description: 'Maximum' },
   ],
 }
 
 const sizeItems = [512, 768, 1024, 1536, 2048].map(v => ({ label: `${v}`, value: v }))
 
 export function useCreateShared() {
-  // ─── Shared settings ──────────────────────────────────────────
-  const steps = ref(20)
-  const imageWidth = ref(1024)
-  const imageHeight = ref(1024)
-  const negativePrompt = ref(DEFAULT_NEG)
-  const loraStrength = ref(1.0)
-  const imageSeed = ref(-1)
-  const showAdvanced = ref(false)
+  // ─── Shared settings (useState for SSR → client hydration safety) ──
+  const steps = useState('create-steps', () => 20)
+  const imageWidth = useState('create-imageWidth', () => 1024)
+  const imageHeight = useState('create-imageHeight', () => 1024)
+  const negativePrompt = useState('create-negativePrompt', () => DEFAULT_NEG)
+  const loraStrength = useState('create-loraStrength', () => 1.0)
+  const imageSeed = useState('create-imageSeed', () => -1)
+  const showAdvanced = useState('create-showAdvanced', () => false)
 
   // ─── Model selection ──────────────────────────────────────────
-  const selectedModels = ref<string[]>(['wan22'])
-  const selectedVideoModel = ref('wan22')
+  const selectedModels = useState<string[]>('create-selectedModels', () => ['wan22'])
+  const selectedVideoModel = useState('create-selectedVideoModel', () => 'wan22')
   const compareMode = computed(() => selectedModels.value.length > 1)
 
   function toggleModel(id: string) {
     const idx = selectedModels.value.indexOf(id)
     if (idx >= 0 && selectedModels.value.length > 1) {
-      selectedModels.value.splice(idx, 1)
+      selectedModels.value = selectedModels.value.filter((_, i) => i !== idx)
     } else if (idx < 0) {
-      selectedModels.value.push(id)
+      selectedModels.value = [...selectedModels.value, id]
     }
     if (selectedModels.value.length === 1) {
       const m = IMAGE_MODELS.find(m => m.id === selectedModels.value[0])

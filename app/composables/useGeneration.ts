@@ -39,6 +39,7 @@ export function useGeneration() {
   const activeGenerationId = ref<string | null>(null)
   const lastSettings = ref<Record<string, any> | null>(null)
   const activePolls = ref(0)
+  const activeTimers = new Set<ReturnType<typeof setInterval>>()
 
   const generating = computed(() => submitting.value || activePolls.value > 0)
   const completed = computed(() => results.value.filter(i => i.status === 'complete'))
@@ -105,6 +106,7 @@ export function useGeneration() {
   // ─── Polling ────────────────────────────────────────────────────────
 
   function startPolling(generationId: string) {
+    if (import.meta.server) return // SSR guard — no timers on the server
     activePolls.value++
 
     const timer = setInterval(async () => {
@@ -123,13 +125,17 @@ export function useGeneration() {
         const genItems = result.items.filter(i => i.type === 'image')
         if (genItems.every(i => i.status === 'complete' || i.status === 'failed' || i.status === 'cancelled')) {
           clearInterval(timer)
+          activeTimers.delete(timer)
           activePolls.value--
         }
       } catch { /* swallow */ }
     }, 2000)
+    activeTimers.add(timer)
   }
 
   function stopAllPolling() {
+    for (const timer of activeTimers) clearInterval(timer)
+    activeTimers.clear()
     activePolls.value = 0
   }
 
@@ -432,6 +438,7 @@ export function useGeneration() {
   }
 
   function startBatchPolling() {
+    if (import.meta.server) return // SSR guard
     activePolls.value++
 
     const timer = setInterval(async () => {
@@ -451,10 +458,12 @@ export function useGeneration() {
       const allDone = results.value.every(i => i.status === 'complete' || i.status === 'failed' || i.status === 'cancelled')
       if (allDone) {
         clearInterval(timer)
+        activeTimers.delete(timer)
         activePolls.value--
         activeGenerationIds.value = []
       }
     }, 2000)
+    activeTimers.add(timer)
   }
 
   // ─── Utilities ──────────────────────────────────────────────────────

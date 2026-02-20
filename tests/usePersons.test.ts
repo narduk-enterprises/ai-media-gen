@@ -11,6 +11,15 @@ import { ref, readonly } from 'vue'
 ;(globalThis as any).ref = ref
 ;(globalThis as any).readonly = readonly
 
+// useState shim: behaves like ref for testing (state is per-call, not shared)
+const useStateStore: Record<string, any> = {}
+;(globalThis as any).useState = (key: string, init: () => any) => {
+  if (!useStateStore[key]) useStateStore[key] = ref(init())
+  return useStateStore[key]
+}
+// onNuxtReady shim: execute callback immediately in tests
+;(globalThis as any).onNuxtReady = (cb: () => void) => cb()
+
 // ─── Mock localStorage ──────────────────────────────────────────────────
 const store: Record<string, string> = {}
 const localStorageMock = {
@@ -34,6 +43,8 @@ import { usePersons, type Person } from '../app/composables/usePersons'
 describe('usePersons', () => {
   beforeEach(() => {
     localStorageMock.clear()
+    // Clear useState store so each test starts fresh
+    for (const k of Object.keys(useStateStore)) delete useStateStore[k]
     vi.clearAllMocks()
   })
 

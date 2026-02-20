@@ -51,7 +51,18 @@ function persistScenes(scenes: Scene[]) {
 // ─── Composable ──────────────────────────────────────────────────────────
 
 export function useScenes() {
-  const scenes = ref<Scene[]>(loadScenes())
+  // useState ensures SSR → client hydration parity (no mismatch)
+  const scenes = useState<Scene[]>('scenes', () => [])
+
+  // Hydrate from localStorage only on the client, after mount
+  if (import.meta.client) {
+    onNuxtReady(() => {
+      if (scenes.value.length === 0) {
+        const loaded = loadScenes()
+        if (loaded.length > 0) scenes.value = loaded
+      }
+    })
+  }
 
   function _save() {
     persistScenes(scenes.value)

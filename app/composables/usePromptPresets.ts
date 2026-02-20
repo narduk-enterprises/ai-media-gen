@@ -96,7 +96,20 @@ function saveStore(store: ProjectStore) {
 // ─── Composable ──────────────────────────────────────────────────────────
 
 export function usePromptPresets() {
-  const store = ref<ProjectStore>(loadStore())
+  // useState ensures SSR → client hydration parity (no mismatch)
+  const store = useState<ProjectStore>('prompt-presets', () => ({ activeProjectId: null, projects: [] }))
+
+  // Hydrate from localStorage only on the client, after mount
+  if (import.meta.client) {
+    onNuxtReady(() => {
+      if (store.value.projects.length === 0) {
+        const loaded = loadStore()
+        if (loaded.projects.length > 0) {
+          store.value = loaded
+        }
+      }
+    })
+  }
 
   const activeProject = computed<Project | null>(() =>
     store.value.projects.find(p => p.id === store.value.activeProjectId) ?? null
