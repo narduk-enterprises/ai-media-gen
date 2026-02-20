@@ -7,10 +7,12 @@ const props = withDefaults(defineProps<{
   showUpload?: boolean
   cols?: string
   label?: string
+  limit?: number
 }>(), {
   showUpload: true,
   cols: 'grid-cols-4 sm:grid-cols-5 lg:grid-cols-6',
   label: 'Select an image',
+  limit: 20,
 })
 
 const emit = defineEmits<{
@@ -18,7 +20,7 @@ const emit = defineEmits<{
   clear: []
 }>()
 
-const { images, loading: loadingImages, fetch: fetchImages } = useRecentImages()
+const { images, loading: loadingImages, fetch: fetchImages } = useRecentImages(props.limit)
 const selectedId = ref<string | null>(null)
 const uploadPreview = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)

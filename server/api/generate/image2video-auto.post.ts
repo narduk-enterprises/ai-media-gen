@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
-import { resolveApiUrl, callRunPod } from '../../utils/ai'
+import { resolveApiUrl, callRunPod, callRunPodAsync } from '../../utils/ai'
+import { useMediaBucket, readBase64FromR2 } from '../../utils/r2'
 import { generations, mediaItems } from '../../database/schema'
 
 const autoVideoSchema = z.object({
@@ -11,13 +12,14 @@ const autoVideoSchema = z.object({
   basePrompt: z.string().optional().default(''),
   audioPrompt: z.string().optional().default(''),
   negativePrompt: z.string().optional().default(''),
-  count: z.number().min(1).max(10).optional().default(5),
+  count: z.number().min(1).max(10).optional().default(1),
   steps: z.number().min(1).max(50).optional().default(20),
-  numFrames: z.number().min(25).max(721).optional().default(97),
+  numFrames: z.number().min(25).max(721).optional().default(241),
   width: z.number().min(256).max(1920).optional().default(1280),
   height: z.number().min(256).max(1080).optional().default(720),
   fps: z.number().min(8).max(50).optional().default(24),
   loraStrength: z.number().min(0).max(2).optional().default(1.0),
+  imageStrength: z.number().min(0).max(1).optional().default(1.0),
   endpoint: z.string().optional(),
 }).refine(d => d.image || d.mediaItemId, { message: 'Either image (base64) or mediaItemId is required' })
 
@@ -30,22 +32,26 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { mediaItemId, basePrompt, audioPrompt, negativePrompt, count, steps, numFrames, width, height, fps, loraStrength, endpoint } = parsed.data
+  const { mediaItemId, basePrompt, audioPrompt, negativePrompt, count, steps, numFrames, width, height, fps, loraStrength, imageStrength, endpoint } = parsed.data
   let image = parsed.data.image || ''
 
-  // If mediaItemId provided, fetch the image from storage
+  // If mediaItemId provided, read image from R2 and get the original prompt
+  let originalPrompt = ''
   if (mediaItemId && !image) {
     const db = useDatabase()
-    const item = await db.select({ url: mediaItems.url }).from(mediaItems).where(eq(mediaItems.id, mediaItemId)).get()
+    const item = await db.select({ url: mediaItems.url, prompt: mediaItems.prompt }).from(mediaItems).where(eq(mediaItems.id, mediaItemId)).get()
     if (!item?.url) throw createError({ statusCode: 404, message: 'Image not found' })
-    // Fetch the image from the URL and convert to base64
-    const resp = await fetch(item.url)
-    if (!resp.ok) throw createError({ statusCode: 500, message: 'Failed to fetch image' })
-    const buf = await resp.arrayBuffer()
-    const uint8 = new Uint8Array(buf)
-    let binary = ''
-    for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]!)
-    image = btoa(binary)
+    originalPrompt = item.prompt || ''
+
+    const base64Match = item.url.match(/^data:image\/\w+;base64,(.+)$/)
+    if (base64Match) {
+      image = base64Match[1]!
+    } else {
+      const bucket = useMediaBucket(event)
+      if (bucket) {
+        image = await readBase64FromR2(bucket, mediaItemId) || ''
+      }
+    }
   }
 
   if (!image) throw createError({ statusCode: 400, message: 'Image is required' })
@@ -64,27 +70,25 @@ export default defineEventHandler(async (event) => {
     createdAt: now,
   })
 
-  // Call pod synchronously — the pipeline captions, generates prompts, and queues T2V jobs
-  // This may take 20-60s for captioning + prompt generation
-  const runpodInput = {
-    action: 'image2video_auto',
-    image,
-    base_prompt: basePrompt,
-    audio_prompt: audioPrompt,
-    negative_prompt: negativePrompt,
-    count,
-    steps,
-    num_frames: numFrames,
-    width,
-    height,
-    fps,
-    lora_strength: loraStrength,
-  }
-
   console.log(`[AutoVideo] Starting pipeline for gen ${genId.slice(0, 8)}, count=${count}`)
 
   try {
-    const result = await callRunPod(runpodInput, apiUrl)
+    // ── Phase 1: Call pod synchronously for caption + prompt generation ──
+    const captionInput = {
+      action: 'image2video_auto',
+      image,
+      base_prompt: basePrompt,
+      original_prompt: originalPrompt,
+      audio_prompt: audioPrompt,
+      negative_prompt: negativePrompt,
+      count,
+      steps,
+      num_frames: numFrames,
+      width, height, fps,
+      lora_strength: loraStrength,
+    }
+
+    const result = await callRunPod(captionInput, apiUrl)
 
     if (result.error) {
       await db.update(generations).set({ status: 'failed' }).where(eq(generations.id, genId))
@@ -92,50 +96,87 @@ export default defineEventHandler(async (event) => {
     }
 
     const rawOutput = result.output || {}
-    // Handler returns {status, output: {type, caption, jobs, ...}}
-    // So the actual data is at rawOutput.output
     const output = rawOutput.output || rawOutput
-    const jobs = output.jobs || []
-    const caption = output.caption || ''
+    const prompts: string[] = output.prompts || []
+    const caption: string = output.caption || ''
 
-    // Create media items for each queued T2V job — they'll be picked up by the polling cron
+    if (prompts.length === 0) {
+      await db.update(generations).set({ status: 'failed' }).where(eq(generations.id, genId))
+      throw createError({ statusCode: 500, message: 'No prompts generated' })
+    }
+
+    // ── Phase 2: Submit each prompt as a proper async I2V job ──
+    // This follows the same pattern as video.post.ts so the cron can track them
     const items: any[] = []
-    for (const job of jobs) {
+    for (const prompt of prompts) {
       const videoId = crypto.randomUUID()
+      const i2vInput = {
+        action: 'image2video' as const,
+        model: 'ltx2',
+        prompt,
+        negative_prompt: negativePrompt,
+        image,
+        width, height,
+        num_frames: numFrames,
+        steps,
+        fps,
+        lora_strength: loraStrength,
+        image_strength: imageStrength,
+        audio_prompt: audioPrompt || undefined,
+        preset: 'random',
+      }
+
       await db.insert(mediaItems).values({
         id: videoId,
         generationId: genId,
         type: 'video',
-        prompt: job.prompt,
-        status: 'processing',
-        runpodJobId: job.prompt_id, // ComfyUI prompt_id, not RunPod job
-        metadata: JSON.stringify({
-          apiUrl,
-          autoGenerated: true,
-          caption,
-          promptIndex: job.index,
-          comfyPromptId: job.prompt_id,
-        }),
+        prompt,
+        status: 'queued',
+        metadata: JSON.stringify({ apiUrl, runpodInput: i2vInput, autoGenerated: true, caption }),
         createdAt: now,
       })
+
       items.push({
         id: videoId,
         generationId: genId,
         type: 'video',
-        prompt: job.prompt,
-        status: 'processing',
-        runpodJobId: job.prompt_id,
+        prompt,
+        status: 'queued',
+        runpodJobId: null,
         url: null,
       })
     }
 
-    console.log(`[AutoVideo] ✅ ${items.length} jobs queued for gen ${genId.slice(0, 8)}`)
+    console.log(`[AutoVideo] ✅ ${items.length} items created for gen ${genId.slice(0, 8)}`)
+
+    // Submit each job asynchronously in the background
+    waitUntil((async () => {
+      for (const item of items) {
+        try {
+          const meta = JSON.parse(
+            (await db.select({ metadata: mediaItems.metadata }).from(mediaItems).where(eq(mediaItems.id, item.id)).get())?.metadata || '{}'
+          )
+          const result = await callRunPodAsync(meta.runpodInput, apiUrl)
+          await db.update(mediaItems)
+            .set({
+              status: 'processing',
+              runpodJobId: result.jobId,
+              submittedAt: new Date().toISOString(),
+              metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl }),
+            })
+            .where(eq(mediaItems.id, item.id))
+          console.log(`[AutoVideo] ✅ Submitted ${item.id.slice(0, 8)} → job ${result.jobId}`)
+        } catch (e: any) {
+          console.warn(`[AutoVideo] ⚠️ Submit failed for ${item.id.slice(0, 8)}, cron will retry:`, e.message)
+        }
+      }
+    })())
 
     return {
       generation: { id: genId, status: 'processing', imageCount: count },
       items,
       caption,
-      prompts: jobs.map((j: any) => j.prompt),
+      prompts,
       timing: {
         captionSeconds: output.caption_seconds,
         promptSeconds: output.prompt_seconds,

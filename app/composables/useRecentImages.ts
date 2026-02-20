@@ -10,7 +10,7 @@ export function useRecentImages(limit = 20) {
     loading.value = true
     try {
       const data = await $fetch<{ generations: { items: { id: string; url: string | null; type: string; status: string; prompt: string | null }[] }[] }>('/api/generations', {
-        params: { limit: 50, type: 'image' },
+        params: { limit: Math.max(50, limit * 2), type: 'image' },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
       const result: { id: string; url: string; prompt: string }[] = []

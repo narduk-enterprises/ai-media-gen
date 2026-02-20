@@ -21,22 +21,31 @@ const audioPresets = [
   { label: '🌊 Ocean', prompt: 'ocean waves crashing, seagulls, coastal breeze, water sounds' },
 ]
 
+const resolutionPresets = [
+  { label: '768×512', w: 768, h: 512, tag: 'Fast' },
+  { label: '1280×720', w: 1280, h: 720, tag: 'HD' },
+  { label: '512×768', w: 512, h: 768, tag: 'Portrait' },
+  { label: '720×1280', w: 720, h: 1280, tag: 'HD Port.' },
+  { label: '768×768', w: 768, h: 768, tag: 'Square' },
+]
+
 // ─── Local State ────────────────────────────────────────────────────────
 const selectedMediaItemId = ref<string | null>(null)
 const selectedBase64 = ref('')
 const basePrompt = ref('')
 const audioPrompt = ref('')
 const negativePrompt = ref('worst quality, blurry, distorted, deformed, disfigured, bad anatomy, watermark, text, logo')
-const count = ref(5)
+const count = ref(1)
 const steps = ref(20)
-const numFrames = ref(97)
+const numFrames = ref(241)
+const width = ref(768)
+const height = ref(512)
+const imageStrength = ref(1.0)
 const loading = ref(false)
 
-// Auto-fill with random presets on mount
+// Auto-fill with random audio preset on mount (direction left empty for I2V fidelity)
 onMounted(() => {
-  const randDir = directionPresets[Math.floor(Math.random() * directionPresets.length)]
   const randAudio = audioPresets.filter(p => p.prompt)[Math.floor(Math.random() * (audioPresets.length - 1))]
-  if (randDir) basePrompt.value = randDir.prompt
   if (randAudio) audioPrompt.value = randAudio.prompt
 })
 
@@ -82,7 +91,9 @@ async function generate() {
     const body: Record<string, any> = {
       basePrompt: basePrompt.value, audioPrompt: audioPrompt.value,
       negativePrompt: negativePrompt.value, count: count.value,
-      steps: steps.value, numFrames: numFrames.value, endpoint,
+      steps: steps.value, numFrames: numFrames.value,
+      width: width.value, height: height.value,
+      imageStrength: imageStrength.value, endpoint,
     }
 
     if (selectedMediaItemId.value) {
@@ -124,7 +135,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
 
 <template>
   <div class="space-y-6 pt-4">
-    <ImagePicker @select="onImageSelect" @clear="onImageClear" />
+    <ImagePicker :limit="100" @select="onImageSelect" @clear="onImageClear" />
 
     <!-- Direction & Audio -->
     <UCard variant="outline">
@@ -177,9 +188,21 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
         </div>
       </UFormField>
 
+      <UFormField label="Resolution" size="sm">
+        <div class="flex flex-wrap gap-1">
+          <UButton v-for="r in resolutionPresets" :key="r.label" size="xs" :variant="width === r.w && height === r.h ? 'soft' : 'ghost'" :color="width === r.w && height === r.h ? 'primary' : 'neutral'" @click="width = r.w; height = r.h">{{ r.label }} <span class="text-[9px] opacity-60 ml-0.5">{{ r.tag }}</span></UButton>
+        </div>
+      </UFormField>
+
       <UFormField label="Steps" size="sm">
         <div class="flex gap-1">
           <UButton v-for="s in [12, 20]" :key="s" size="xs" :variant="steps === s ? 'soft' : 'ghost'" :color="steps === s ? 'primary' : 'neutral'" @click="steps = s">{{ s }}</UButton>
+        </div>
+      </UFormField>
+
+      <UFormField label="Image Fidelity" size="sm" description="How closely video matches source image">
+        <div class="flex gap-1">
+          <UButton v-for="f in [{l:'Creative',v:0.7},{l:'Balanced',v:0.85},{l:'Faithful',v:0.95},{l:'Exact',v:1.0}]" :key="f.v" size="xs" :variant="imageStrength === f.v ? 'soft' : 'ghost'" :color="imageStrength === f.v ? 'primary' : 'neutral'" @click="imageStrength = f.v">{{ f.l }}</UButton>
         </div>
       </UFormField>
     </div>
