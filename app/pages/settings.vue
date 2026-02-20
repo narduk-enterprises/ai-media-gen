@@ -113,11 +113,11 @@ async function handleLogout() {
       </div>
     </UCard>
 
-    <!-- ═══ Projects & Presets ═══ -->
-    <SettingsProjectPresets />
+    <ClientOnly>
+      <SettingsProjectPresets />
 
-    <!-- ═══ Persons ═══ -->
     <SettingsPersons />
+    </ClientOnly>
 
     <!-- Danger zone -->
     <UCard class="border-red-100" variant="outline">

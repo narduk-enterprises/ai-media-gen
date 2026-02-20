@@ -14,7 +14,12 @@ useSeoMeta({ title: 'Personas & Scenes' })
       </p>
     </div>
 
-    <PersonaManager />
-    <SceneManager />
+    <ClientOnly>
+      <PersonaManager />
+      <SceneManager />
+      <template #fallback>
+        <div class="flex items-center justify-center py-20 text-slate-400"><UIcon name="i-lucide-loader-2" class="animate-spin mr-2" /> Loading...</div>
+      </template>
+    </ClientOnly>
   </div>
 </template>

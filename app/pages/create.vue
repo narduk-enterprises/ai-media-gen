@@ -358,6 +358,7 @@ const gridClass = computed(() => {
 </script>
 
 <template>
+  <ClientOnly>
   <div class="max-w-4xl mx-auto px-4 sm:px-6 py-8 pb-32">
     <!-- Header -->
     <div class="flex items-start justify-between mb-6">
@@ -587,4 +588,11 @@ const gridClass = computed(() => {
 
   <!-- Video Settings Modal -->
   <VideoSettingsModal :open="videoModalOpen" :loading="videoModalTarget ? gen.actionLoading.value[`video-${videoModalTarget}`] : false" @close="videoModalOpen = false" @generate="handleVideoGenerate" />
+
+  <template #fallback>
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <div class="flex items-center justify-center py-20 text-slate-400"><UIcon name="i-lucide-loader-2" class="animate-spin mr-2" /> Loading...</div>
+    </div>
+  </template>
+  </ClientOnly>
 </template>
