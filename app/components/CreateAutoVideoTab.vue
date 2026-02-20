@@ -74,8 +74,69 @@ function selectAudio(preset: typeof audioPresets[number]) {
   audioPrompt.value = preset.prompt
 }
 
-// ─── Generate ───────────────────────────────────────────────────────────
-const canGenerate = computed(() => (!!selectedMediaItemId.value || !!selectedBase64.value) && !loading.value)
+// ─── Random Batch ───────────────────────────────────────────────────────
+const randomQty = ref(5)
+const randomProgress = ref({ current: 0, total: 0 })
+const randomRunning = ref(false)
+
+async function generateRandom() {
+  if (randomRunning.value) return
+  randomRunning.value = true
+  randomProgress.value = { current: 0, total: randomQty.value }
+  gen.error.value = ''
+
+  try {
+    const { items } = await $fetch<{ items: { id: string; url: string; prompt: string }[] }>('/api/media/random', {
+      params: { count: randomQty.value },
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+
+    if (!items.length) {
+      gen.error.value = 'No images found in gallery'
+      return
+    }
+
+    randomProgress.value.total = items.length
+    const endpoint = customEndpoint.value || runpodEndpoint.value
+
+    for (const img of items) {
+      try {
+        const body: Record<string, any> = {
+          mediaItemId: img.id,
+          basePrompt: basePrompt.value, audioPrompt: audioPrompt.value,
+          negativePrompt: negativePrompt.value, count: 1,
+          steps: steps.value, numFrames: numFrames.value,
+          width: width.value, height: height.value,
+          imageStrength: imageStrength.value, endpoint,
+        }
+
+        const result = await $fetch<{
+          generation: { id: string; status: string }
+          items: { id: string; type: string; status: string; prompt: string }[]
+          caption: string
+        }>('/api/generate/image2video-auto', {
+          method: 'POST', body,
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+
+        if (result.items?.length) {
+          gen.results.value = [...gen.results.value, ...result.items.map(item => ({
+            ...item, url: null, parentId: null, generationId: result.generation.id,
+          }))] as any
+        }
+      } catch (e: any) {
+        console.warn(`[RandomBatch] Failed for ${img.id}:`, e.message)
+      }
+      randomProgress.value.current++
+    }
+  } catch (e: any) {
+    gen.error.value = e.data?.message || e.message || 'Random batch failed'
+  } finally {
+    randomRunning.value = false
+  }
+}
+
+const canGenerate = computed(() => ((!!selectedMediaItemId.value || !!selectedBase64.value) && !loading.value) || randomRunning.value)
 const totalCount = computed(() => count.value)
 
 async function generate() {
@@ -136,6 +197,37 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
 <template>
   <div class="space-y-6 pt-4">
     <ImagePicker :limit="100" @select="onImageSelect" @clear="onImageClear" />
+
+    <!-- ═══ Random Batch ═══ -->
+    <UCard variant="outline">
+      <div class="flex items-center gap-2 mb-3">
+        <UIcon name="i-lucide-shuffle" class="w-4 h-4 text-violet-500" />
+        <span class="text-sm font-semibold text-slate-700">Random Batch</span>
+        <span class="text-xs text-slate-400">Pick random images from your gallery</span>
+      </div>
+      <div class="flex flex-wrap items-end gap-4">
+        <UFormField label="Quantity" size="sm">
+          <div class="flex gap-1">
+            <UButton v-for="n in [1, 5, 10, 25, 50, 100]" :key="n" size="xs" :variant="randomQty === n ? 'soft' : 'ghost'" :color="randomQty === n ? 'primary' : 'neutral'" @click="randomQty = n">{{ n }}</UButton>
+          </div>
+        </UFormField>
+        <UButton
+          :loading="randomRunning"
+          :disabled="randomRunning"
+          size="sm"
+          color="primary"
+          variant="soft"
+          icon="i-lucide-shuffle"
+          @click="generateRandom"
+        >{{ randomRunning ? `Processing ${randomProgress.current}/${randomProgress.total}…` : `Generate ${randomQty} Random Videos` }}</UButton>
+      </div>
+      <div v-if="randomRunning" class="mt-3">
+        <div class="h-1.5 bg-violet-100 rounded-full overflow-hidden">
+          <div class="h-full bg-violet-500 rounded-full transition-all duration-300" :style="{ width: randomProgress.total ? `${(randomProgress.current / randomProgress.total) * 100}%` : '0%' }" />
+        </div>
+        <p class="text-xs text-violet-600 mt-1">Submitting {{ randomProgress.current }} / {{ randomProgress.total }} images to pipeline…</p>
+      </div>
+    </UCard>
 
     <!-- Direction & Audio -->
     <UCard variant="outline">
