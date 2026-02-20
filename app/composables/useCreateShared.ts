@@ -19,22 +19,42 @@ const VIDEO_MODELS = [
   { id: 'ltx2', label: 'LTX-2', description: '19B + upscaler, 20 steps', icon: 'i-lucide-film', defaultSteps: 20 },
 ] as const
 
-const t2vResolutionPresets = [
-  { label: '640 × 640', w: 640, h: 640 },
-  { label: '512 × 512', w: 512, h: 512 },
-  { label: '768 × 512', w: 768, h: 512 },
-  { label: '512 × 768', w: 512, h: 768 },
-  { label: '832 × 480', w: 832, h: 480 },
-  { label: '480 × 832', w: 480, h: 832 },
-]
+const t2vResolutionPresets: Record<string, { label: string; w: number; h: number }[]> = {
+  wan22: [
+    { label: '640 × 640', w: 640, h: 640 },
+    { label: '512 × 512', w: 512, h: 512 },
+    { label: '768 × 512', w: 768, h: 512 },
+    { label: '512 × 768', w: 512, h: 768 },
+    { label: '832 × 480', w: 832, h: 480 },
+    { label: '480 × 832', w: 480, h: 832 },
+  ],
+  ltx2: [
+    { label: '768 × 512', w: 768, h: 512 },
+    { label: '512 × 768', w: 512, h: 768 },
+    { label: '640 × 480', w: 640, h: 480 },
+    { label: '480 × 640', w: 480, h: 640 },
+    { label: '768 × 448', w: 768, h: 448 },
+    { label: '512 × 512', w: 512, h: 512 },
+  ],
+}
 
-const durationPresets = [
-  { label: '~1.7s', value: 41, description: 'Quick' },
-  { label: '~3.4s', value: 81, description: 'Standard' },
-  { label: '~5s', value: 121, description: 'Long' },
-  { label: '~6.7s', value: 161, description: 'Extended' },
-  { label: '~8.4s', value: 201, description: 'Maximum' },
-]
+// Wan 2.2: any frame count works. LTX-2: must be 8n+1 (65, 97, 121, 161, 201, 257)
+const durationPresets: Record<string, { label: string; value: number; description: string }[]> = {
+  wan22: [
+    { label: '~1.7s', value: 41, description: 'Quick' },
+    { label: '~3.4s', value: 81, description: 'Standard' },
+    { label: '~5s', value: 121, description: 'Long' },
+    { label: '~6.7s', value: 161, description: 'Extended' },
+    { label: '~8.4s', value: 201, description: 'Maximum' },
+  ],
+  ltx2: [
+    { label: '~2.7s', value: 65, description: 'Quick' },
+    { label: '~4s', value: 97, description: 'Standard' },
+    { label: '~5s', value: 121, description: 'Long' },
+    { label: '~6.7s', value: 161, description: 'Extended' },
+    { label: '~10.7s', value: 257, description: 'Maximum' },
+  ],
+}
 
 const sizeItems = [512, 768, 1024, 1536, 2048].map(v => ({ label: `${v}`, value: v }))
 
@@ -116,6 +136,18 @@ export function useCreateShared() {
     imageSeed.value = -1
   }
 
+  // ─── Model-aware video presets ──────────────────────────────
+  const activeVideoResolutionPresets = computed(() =>
+    t2vResolutionPresets[selectedVideoModel.value] ?? t2vResolutionPresets.wan22!
+  )
+  const activeVideoDurationPresets = computed(() =>
+    durationPresets[selectedVideoModel.value] ?? durationPresets.wan22!
+  )
+  const activeVideoDefaultSteps = computed(() => {
+    const m = VIDEO_MODELS.find(m => m.id === selectedVideoModel.value)
+    return m?.defaultSteps ?? 4
+  })
+
   return {
     // Settings
     steps,
@@ -136,9 +168,10 @@ export function useCreateShared() {
     compareMode,
     toggleModel,
 
-    // Video presets
-    t2vResolutionPresets,
-    durationPresets,
+    // Video presets (model-aware)
+    t2vResolutionPresets: activeVideoResolutionPresets,
+    durationPresets: activeVideoDurationPresets,
+    activeVideoDefaultSteps,
 
     // Persistence
     persistForm,

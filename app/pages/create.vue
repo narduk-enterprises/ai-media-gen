@@ -206,7 +206,7 @@ const t2vCount = ref(1)
 const t2vSteps = ref(4)
 const t2vSeed = ref(-1)
 const t2vResolutionIndex = ref(0)
-const t2vCurrentResolution = computed(() => shared.t2vResolutionPresets[t2vResolutionIndex.value]!)
+const t2vCurrentResolution = computed(() => shared.t2vResolutionPresets.value[t2vResolutionIndex.value]!)
 const t2vTotal = computed(() => t2vNumFrames.value.length * t2vCount.value)
 const canGenerateT2V = computed(() => t2vPrompt.value.trim().length > 0)
 
@@ -228,7 +228,21 @@ const bvSteps = ref(4)
 const bvSeed = ref(-1)
 const bvResolutionIndex = ref(0)
 const bvNegativePrompt = ref('')
-const bvCurrentResolution = computed(() => shared.t2vResolutionPresets[bvResolutionIndex.value]!)
+const bvCurrentResolution = computed(() => shared.t2vResolutionPresets.value[bvResolutionIndex.value]!)
+
+// Reset video settings when model changes
+watch(shared.selectedVideoModel, (model) => {
+  const m = shared.VIDEO_MODELS.find(v => v.id === model)
+  const defSteps = m?.defaultSteps ?? 4
+  t2vSteps.value = defSteps
+  bvSteps.value = defSteps
+  t2vResolutionIndex.value = 0
+  bvResolutionIndex.value = 0
+  // Reset frame selections to first preset of new model
+  const firstDuration = shared.durationPresets.value[1]?.value ?? shared.durationPresets.value[0]?.value ?? 81
+  t2vNumFrames.value = [firstDuration]
+  bvNumFrames.value = [firstDuration]
+})
 const bvTotal = computed(() => bvPrompts.value.length * bvNumFrames.value.length)
 const canGenerateBV = computed(() => bvPrompts.value.length > 0)
 
@@ -327,8 +341,10 @@ function resetForm() {
   activePersonId.value = null; selectedSceneIds.value = []; basePrompt.value = ''; countPerScene.value = 1
   freePrompt.value = ''; freeAttributes.value = createEmptyAttributes(); freeCount.value = 1
   batchPrompts.value = []; batchCountPerPrompt.value = 1
-  t2vPrompt.value = ''; t2vNegativePrompt.value = ''; t2vNumFrames.value = [81]; t2vSteps.value = 4; t2vSeed.value = -1; t2vResolutionIndex.value = 0
-  bvPrompts.value = []; bvNumFrames.value = [81]; bvSteps.value = 4; bvSeed.value = -1; bvResolutionIndex.value = 0; bvNegativePrompt.value = ''
+  const defSteps = shared.activeVideoDefaultSteps.value
+  const defDuration = shared.durationPresets.value[1]?.value ?? 81
+  t2vPrompt.value = ''; t2vNegativePrompt.value = ''; t2vNumFrames.value = [defDuration]; t2vSteps.value = defSteps; t2vSeed.value = -1; t2vResolutionIndex.value = 0
+  bvPrompts.value = []; bvNumFrames.value = [defDuration]; bvSteps.value = defSteps; bvSeed.value = -1; bvResolutionIndex.value = 0; bvNegativePrompt.value = ''
   shared.resetShared(); gen.clearResults(); shared.persistForm()
 }
 
