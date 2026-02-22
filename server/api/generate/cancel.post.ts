@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
 import { mediaItems } from '../../database/schema'
-import { updateGenerationStatus } from '../../utils/queueProcessor'
+import { updateGenerationStatus } from '../../utils/completeItem'
 
 /**
  * Cancel a queued or processing item.

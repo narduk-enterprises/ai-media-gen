@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
-import { resolveApiUrl, callRunPodAsync } from '../../utils/ai'
+import { resolveApiUrl } from '../../utils/ai'
+import { submitItemToRunPod } from '../../utils/submitItem'
 import { generations, mediaItems } from '../../database/schema'
 
 const text2videoSchema = z.object({
@@ -92,23 +93,7 @@ export default defineEventHandler(async (event) => {
   console.log(`[T2V] Item queued: ${videoId.slice(0, 8)} → gen ${genId.slice(0, 8)}`)
 
   // Submit to RunPod in background — response returns immediately
-  waitUntil((async () => {
-    try {
-      const meta = { apiUrl, runpodInput: { action: 'text2video', prompt, negative_prompt: negativePrompt, width, height, num_frames: numFrames, steps, lora_strength: loraStrength, model, seed, ...(audioPrompt ? { audio_prompt: audioPrompt } : {}) } }
-      const result = await callRunPodAsync(meta.runpodInput, apiUrl)
-      await db.update(mediaItems)
-        .set({
-          status: 'processing',
-          runpodJobId: result.jobId,
-          submittedAt: new Date().toISOString(),
-          metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl }),
-        })
-        .where(eq(mediaItems.id, videoId))
-      console.log(`[T2V] ✅ Submitted ${videoId.slice(0, 8)} → job ${result.jobId}`)
-    } catch (e: any) {
-      console.warn(`[T2V] ⚠️ Submit failed for ${videoId.slice(0, 8)}, cron will retry:`, e.message)
-    }
-  })())
+  waitUntil(submitItemToRunPod(db, videoId))
 
   return {
     generation: { id: genId, prompt, imageCount: 1, status: 'processing', createdAt: now },

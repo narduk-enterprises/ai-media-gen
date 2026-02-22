@@ -7,7 +7,7 @@
 import { eq, or } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
 import { mediaItems, generations } from '../../database/schema'
-import { updateGenerationStatus } from '../../utils/queueProcessor'
+import { updateGenerationStatus } from '../../utils/completeItem'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)

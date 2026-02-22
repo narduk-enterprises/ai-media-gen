@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
-import { resolveApiUrl, callRunPodAsync } from '../../utils/ai'
+import { resolveApiUrl } from '../../utils/ai'
+import { submitItemToRunPod } from '../../utils/submitItem'
 import { useMediaBucket, readBase64FromR2 } from '../../utils/r2'
 import { mediaItems, generations } from '../../database/schema'
 
@@ -113,23 +114,7 @@ export default defineEventHandler(async (event) => {
   console.log(`[I2V] Item queued: ${videoId.slice(0, 8)}`)
 
   // Submit to RunPod in background — response returns immediately
-  waitUntil((async () => {
-    try {
-      const meta = { apiUrl, runpodInput }
-      const result = await callRunPodAsync(runpodInput, apiUrl)
-      await db.update(mediaItems)
-        .set({
-          status: 'processing',
-          runpodJobId: result.jobId,
-          submittedAt: new Date().toISOString(),
-          metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl }),
-        })
-        .where(eq(mediaItems.id, videoId))
-      console.log(`[I2V] ✅ Submitted ${videoId.slice(0, 8)} → job ${result.jobId}`)
-    } catch (e: any) {
-      console.warn(`[I2V] ⚠️ Submit failed for ${videoId.slice(0, 8)}, cron will retry:`, e.message)
-    }
-  })())
+  waitUntil(submitItemToRunPod(db, videoId))
 
   return {
     item: {

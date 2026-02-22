@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
-import { resolveApiUrl, callRunPodAsync } from '../../utils/ai'
+import { resolveApiUrl } from '../../utils/ai'
+import { submitItemToRunPod } from '../../utils/submitItem'
 import { generations, mediaItems } from '../../database/schema'
 
 const generateSchema = z.object({
@@ -88,25 +89,10 @@ export default defineEventHandler(async (event) => {
 
   console.log(`[Image] ${count} items queued for generation ${generationId.slice(0, 8)}`)
 
-  // Submit to RunPod in background via waitUntil — response returns immediately
-  // This prevents CF Worker timeouts from killing the connection mid-submit
+  // Submit to RunPod in background — response returns immediately
   waitUntil((async () => {
     for (const item of items) {
-      try {
-        const meta = JSON.parse(item.metadata!)
-        const result = await callRunPodAsync(meta.runpodInput, meta.apiUrl)
-        await db.update(mediaItems)
-          .set({
-            status: 'processing',
-            runpodJobId: result.jobId,
-            submittedAt: new Date().toISOString(),
-            metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl }),
-          })
-          .where(eq(mediaItems.id, item.id))
-        console.log(`[Image] ✅ Submitted ${item.id.slice(0, 8)} → job ${result.jobId}`)
-      } catch (e: any) {
-        console.warn(`[Image] ⚠️ Submit failed for ${item.id.slice(0, 8)}, cron will retry:`, e.message)
-      }
+      await submitItemToRunPod(db, item.id)
     }
   })())
 

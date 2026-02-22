@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
-import { resolveApiUrl, callRunPod, callRunPodAsync } from '../../utils/ai'
+import { resolveApiUrl, callRunPod } from '../../utils/ai'
+import { submitItemToRunPod } from '../../utils/submitItem'
 import { useMediaBucket, readBase64FromR2 } from '../../utils/r2'
 import { generations, mediaItems } from '../../database/schema'
 
@@ -152,23 +153,7 @@ export default defineEventHandler(async (event) => {
     // Submit each job asynchronously in the background
     waitUntil((async () => {
       for (const item of items) {
-        try {
-          const meta = JSON.parse(
-            (await db.select({ metadata: mediaItems.metadata }).from(mediaItems).where(eq(mediaItems.id, item.id)).get())?.metadata || '{}'
-          )
-          const result = await callRunPodAsync(meta.runpodInput, apiUrl)
-          await db.update(mediaItems)
-            .set({
-              status: 'processing',
-              runpodJobId: result.jobId,
-              submittedAt: new Date().toISOString(),
-              metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl, runpodInput: meta.runpodInput }),
-            })
-            .where(eq(mediaItems.id, item.id))
-          console.log(`[AutoVideo] ✅ Submitted ${item.id.slice(0, 8)} → job ${result.jobId}`)
-        } catch (e: any) {
-          console.warn(`[AutoVideo] ⚠️ Submit failed for ${item.id.slice(0, 8)}, cron will retry:`, e.message)
-        }
+        await submitItemToRunPod(db, item.id)
       }
     })())
 

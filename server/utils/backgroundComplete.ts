@@ -1,80 +1,54 @@
 /**
  * Background completion utility.
  *
- * Uses `import { waitUntil } from "cloudflare:workers"` to extend the
- * Worker's lifetime and poll RunPod jobs to completion, even after the
- * HTTP response has been sent.
+ * Uses `waitUntil` from `cloudflare:workers` to extend the Worker's lifetime
+ * and poll RunPod jobs to completion after the HTTP response has been sent.
  *
- * The caller just calls `backgroundComplete(event, itemIds)` and this
- * module handles everything: grabbing DB/R2, calling waitUntil, polling,
- * saving results.
+ * Uses shared completeMediaItem() for all completion logic.
  */
 import { eq, inArray, and, isNull, or } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { mediaItems } from '../database/schema'
 import { checkRunPodJob } from './ai'
-import { uploadImageToR2, useMediaBucket } from './r2'
-import { updateGenerationStatus } from './queueProcessor'
+import { completeMediaItem, updateGenerationStatus } from './completeItem'
+import { useMediaBucket } from './r2'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import type { H3Event } from 'h3'
 
-const POLL_INTERVAL_MS = 5_000     // 5s between checks
-const MAX_POLL_MS = 14 * 60 * 1000 // 14 min (stay under CF 15-min limit)
+const POLL_INTERVAL_MS = 5_000
+const MAX_POLL_MS = 14 * 60 * 1000
 
 type DB = DrizzleD1Database<any>
 
 /**
- * Poll a single media item's RunPod job until complete, then save to R2/DB.
+ * Poll a single media item's RunPod job until complete.
  */
-async function completeMediaItem(
+async function pollUntilDone(
   db: DB,
-  mediaBucket: R2Bucket | null,
-  item: { id: string; type: string | null; runpodJobId: string | null; generationId: string | null; metadata: string | null },
+  bucket: R2Bucket | null,
+  item: { id: string; runpodJobId: string | null; metadata: string | null },
   maxMs = MAX_POLL_MS,
 ): Promise<'complete' | 'failed' | 'timeout'> {
   if (!item.runpodJobId) return 'failed'
 
-  const apiUrl = item.metadata ? (() => { try { return JSON.parse(item.metadata!).apiUrl } catch { return undefined } })() : undefined
+  let apiUrl: string | undefined
+  try { apiUrl = item.metadata ? JSON.parse(item.metadata).apiUrl : undefined } catch {}
+
   const startedAt = Date.now()
 
   while (Date.now() - startedAt < maxMs) {
     try {
       const result = await checkRunPodJob(item.runpodJobId, apiUrl)
-
       if (!result) {
         await sleep(POLL_INTERVAL_MS)
         continue
       }
 
-      if (result.status === 'COMPLETED' && result.output?.output?.data) {
-        const base64Data = result.output.output.data
-        const isVideo = item.type === 'video'
+      const outcome = await completeMediaItem(db, bucket, item.id, result)
 
-        let url: string
-        if (mediaBucket) {
-          url = await uploadImageToR2(mediaBucket, item.id, base64Data, isVideo ? 'video/mp4' : 'image/png')
-        } else {
-          const mime = isVideo ? 'video/mp4' : 'image/png'
-          url = `data:${mime};base64,${base64Data}`
-        }
-
-        await db.update(mediaItems)
-          .set({ url, status: 'complete' })
-          .where(eq(mediaItems.id, item.id))
-
-        console.log(`[BG] ✅ ${item.id.slice(0, 8)} complete (${item.type})`)
-        return 'complete'
-      }
-
-      if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(result.status)) {
-        const error = result.error || `RunPod job ${result.status.toLowerCase()}`
-        await db.update(mediaItems)
-          .set({ status: 'failed', error })
-          .where(eq(mediaItems.id, item.id))
-
-        console.log(`[BG] ❌ ${item.id.slice(0, 8)} ${result.status}`)
-        return 'failed'
-      }
+      if (outcome === 'completed') return 'complete'
+      if (outcome === 'failed') return 'failed'
+      if (outcome === 'already_resolved') return 'complete' // Another path got it
 
       await sleep(POLL_INTERVAL_MS)
     } catch (e: any) {
@@ -87,31 +61,19 @@ async function completeMediaItem(
   return 'timeout'
 }
 
-
 /**
  * Schedule background completion for specific item IDs.
- *
- * Uses the `waitUntil` import from `cloudflare:workers` so it can be
- * called from anywhere — no need to pass ctx or event.context.
- *
- * Eagerly captures DB and R2 bucket from the event (still in request
- * context) before handing off to the background promise.
  */
 export function backgroundComplete(event: H3Event, itemIds: string[]) {
   if (!itemIds.length) return
 
-  // Capture DB/R2 while still in request context
   const db = useDatabase()
   const mediaBucket = useMediaBucket(event)
 
   console.log(`[BG] Scheduling background completion for ${itemIds.length} items`)
-
   waitUntil(doBackgroundWork(db, mediaBucket, itemIds))
 }
 
-/**
- * The actual background work promise that runs after the response is sent.
- */
 async function doBackgroundWork(db: DB, mediaBucket: R2Bucket | null, itemIds: string[]) {
   try {
     const items = await db.select().from(mediaItems)
@@ -123,13 +85,8 @@ async function doBackgroundWork(db: DB, mediaBucket: R2Bucket | null, itemIds: s
     console.log(`[BG] Starting background completion for ${processingItems.length} items`)
 
     await Promise.allSettled(
-      processingItems.map(item => completeMediaItem(db, mediaBucket, item))
+      processingItems.map(item => pollUntilDone(db, mediaBucket, item))
     )
-
-    const genIds = [...new Set(processingItems.map(i => i.generationId).filter(Boolean))] as string[]
-    for (const genId of genIds) {
-      await updateGenerationStatus(db, genId)
-    }
 
     console.log(`[BG] Background completion finished for ${processingItems.length} items`)
   } catch (e: any) {
@@ -139,21 +96,16 @@ async function doBackgroundWork(db: DB, mediaBucket: R2Bucket | null, itemIds: s
 
 /**
  * Find and complete ALL recoverable items in the DB.
- * Checks BOTH 'processing' items AND 'failed' items that have a RunPod job ID
- * but no URL (the frontend may have timed them out while the job was still running).
- * Used by the /api/generate/recover endpoint AND the cron trigger.
  */
 export async function recoverOrphanedItems(db: DB, mediaBucket: R2Bucket | null) {
   const recoverable = await db.select().from(mediaItems)
     .where(
       or(
         eq(mediaItems.status, 'processing'),
-        // Failed items that have a job ID but never got a URL — worth re-checking
         and(eq(mediaItems.status, 'failed'), isNull(mediaItems.url))
       )
     )
 
-  // Only consider items that have a RunPod job ID to check
   const withJobId = recoverable.filter(i => i.runpodJobId)
   const withoutJobId = recoverable.filter(i => !i.runpodJobId && i.status === 'processing')
 
@@ -173,12 +125,10 @@ export async function recoverOrphanedItems(db: DB, mediaBucket: R2Bucket | null)
     }
   }
 
-  let recovered = 0
-  let failed = 0
-  let stillProcessing = 0
+  let recovered = 0, failed = 0, stillProcessing = 0
 
   for (const item of withJobId) {
-    const result = await completeMediaItem(db, mediaBucket, item, 10_000)
+    const result = await pollUntilDone(db, mediaBucket, item, 10_000)
     if (result === 'complete') recovered++
     else if (result === 'failed') failed++
     else stillProcessing++
@@ -186,7 +136,7 @@ export async function recoverOrphanedItems(db: DB, mediaBucket: R2Bucket | null)
 
   const genIds = [...new Set(recoverable.map(i => i.generationId).filter(Boolean))] as string[]
   for (const genId of genIds) {
-    await updateGenerationStatus(db, genId as string)
+    await updateGenerationStatus(db, genId)
   }
 
   return { recovered, failed, stillProcessing, total: recoverable.length }
