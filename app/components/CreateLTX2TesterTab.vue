@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const queue = useQueue()
 /**
  * LTX2 Tester — One image, all 10 I2V presets, side-by-side comparison.
  *
@@ -155,6 +156,7 @@ async function generate() {
       if (result.item) {
         entry.itemId = result.item.id
         entry.status = 'processing'
+        queue.refresh()  // Show in sidebar queue
       }
     } catch (e: any) {
       entry.status = 'failed'
