@@ -10,7 +10,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   showUpload: true,
   label: 'Select an image',
-  pageSize: 20,
+  pageSize: 8,
 })
 
 const emit = defineEmits<{
@@ -94,10 +94,10 @@ defineExpose({ previewUrl, selectedId, clear })
         <label class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">{{ label }}</label>
         <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-refresh-cw" :loading="loadingImages" @click="fetchImages" />
       </div>
-      <div v-if="loadingImages && images.length === 0" class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
-        <div v-for="i in 10" :key="i" class="aspect-square rounded-lg bg-gray-100 animate-pulse" />
+      <div v-if="loadingImages && images.length === 0" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        <div v-for="i in 8" :key="i" class="aspect-square rounded-lg bg-gray-100 animate-pulse" />
       </div>
-      <div v-else class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+      <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
         <button v-for="img in images" :key="img.id"
           class="relative aspect-square rounded-lg overflow-hidden border-2 transition-all"
           :class="selectedId === img.id ? 'border-primary-400 ring-2 ring-primary-200' : 'border-transparent hover:border-gray-300'"

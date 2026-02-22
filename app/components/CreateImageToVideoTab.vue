@@ -97,8 +97,8 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
     <!-- Prompts -->
     <UCard variant="outline">
       <div class="space-y-3">
-        <UFormField label="Prompt (+)" size="sm" description="Guide the video motion and style">
-          <UTextarea v-model="prompt" placeholder="Describe the motion, action, or style you want..." :rows="2" autoresize class="w-full" size="sm" />
+        <UFormField label="Prompt (+)" size="sm" description="Leave blank to auto-generate from the image">
+          <UTextarea v-model="prompt" placeholder="Optional — AI will caption your image and create a prompt automatically" :rows="2" autoresize class="w-full" size="sm" />
         </UFormField>
         <UFormField label="Negative Prompt (−)" size="sm">
           <UTextarea v-model="negativePrompt" placeholder="Things to avoid (optional)..." :rows="1" autoresize class="w-full" size="sm" />
