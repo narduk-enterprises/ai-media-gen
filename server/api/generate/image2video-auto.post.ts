@@ -162,7 +162,7 @@ export default defineEventHandler(async (event) => {
               status: 'processing',
               runpodJobId: result.jobId,
               submittedAt: new Date().toISOString(),
-              metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl }),
+              metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl, runpodInput: meta.runpodInput }),
             })
             .where(eq(mediaItems.id, item.id))
           console.log(`[AutoVideo] ✅ Submitted ${item.id.slice(0, 8)} → job ${result.jobId}`)

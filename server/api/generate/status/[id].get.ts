@@ -36,24 +36,28 @@ export default defineEventHandler(async (event) => {
 
       if (result) {
         if (result.status === 'COMPLETED' && result.output?.output?.data) {
-          const base64Data = result.output.output.data
-          const isVideo = item.type === 'video'
-          const mediaBucket = useMediaBucket(event)
+          // Guard against race: re-check item is still processing before writing
+          const [fresh] = await db.select({ status: mediaItems.status }).from(mediaItems).where(eq(mediaItems.id, item.id)).limit(1)
+          if (fresh?.status === 'processing') {
+            const base64Data = result.output.output.data
+            const isVideo = item.type === 'video'
+            const mediaBucket = useMediaBucket(event)
 
-          let url: string
-          if (mediaBucket) {
-            url = await uploadImageToR2(mediaBucket, item.id, base64Data, isVideo ? 'video/mp4' : 'image/png')
-          } else {
-            const mime = isVideo ? 'video/mp4' : 'image/png'
-            url = `data:${mime};base64,${base64Data}`
+            let url: string
+            if (mediaBucket) {
+              url = await uploadImageToR2(mediaBucket, item.id, base64Data, isVideo ? 'video/mp4' : 'image/png')
+            } else {
+              const mime = isVideo ? 'video/mp4' : 'image/png'
+              url = `data:${mime};base64,${base64Data}`
+            }
+
+            await db.update(mediaItems)
+              .set({ url, status: 'complete' })
+              .where(eq(mediaItems.id, item.id))
+
+            item.url = url
+            item.status = 'complete'
           }
-
-          await db.update(mediaItems)
-            .set({ url, status: 'complete' })
-            .where(eq(mediaItems.id, item.id))
-
-          item.url = url
-          item.status = 'complete'
         } else if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(result.status)) {
           const error = result.error || `RunPod job ${result.status.toLowerCase()}`
           await db.update(mediaItems)

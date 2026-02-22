@@ -46,6 +46,10 @@ export default defineEventHandler(async (event) => {
         if (!result) continue // still running
 
         if (result.status === 'COMPLETED' && result.output?.output?.data) {
+          // Guard against race: re-check item is still processing before writing
+          const [fresh] = await db.select({ status: mediaItems.status }).from(mediaItems).where(eq(mediaItems.id, item.id)).limit(1)
+          if (fresh?.status !== 'processing') continue
+
           const base64Data = result.output.output.data
           const isVideo = item.type === 'video'
 
