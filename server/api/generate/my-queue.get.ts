@@ -146,7 +146,7 @@ export default defineEventHandler(async (event) => {
     let height: number | null = null
     if (item.metadata) {
       try {
-        const meta = JSON.parse(item.metadata)
+        const meta = (() => { try { return JSON.parse(item.metadata) } catch { return {} } })()
         // Dimensions may be in runpodInput or at top level
         const src = meta.runpodInput || meta
         width = src.width || null

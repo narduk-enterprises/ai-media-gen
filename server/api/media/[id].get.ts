@@ -31,7 +31,8 @@ export default defineEventHandler(async (event) => {
           .where(eq(mediaItems.id, id))
           .get()
         if (lookupItem?.metadata) {
-          const meta = JSON.parse(lookupItem.metadata)
+          let meta: any = {}
+          try { meta = JSON.parse(lookupItem.metadata) } catch {}
           if (meta.originalR2Key) {
             object = await bucket.get(meta.originalR2Key)
           }
