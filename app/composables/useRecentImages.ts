@@ -7,20 +7,24 @@ export function useRecentImages(pageSize = 20) {
   const loading = ref(false)
   const hasMore = ref(true)
   const seenIds = new Set<string>()
+  // Track how many generations we've consumed (API offset is by generation, not item)
+  let generationsConsumed = 0
 
-  async function fetchPage(offset: number) {
+  async function fetchPage() {
     // Fetch enough generations to hopefully fill `pageSize` images
-    const data = await $fetch<{ generations: { items: { id: string; url: string | null; type: string; status: string; prompt: string | null }[] }[] }>('/api/generations', {
-      params: { limit: Math.max(50, pageSize * 3), offset, type: 'image' },
+    const fetchLimit = Math.max(50, pageSize * 3)
+    const data = await $fetch<{ generations: { items: { id: string; url: string | null; type: string; status: string; prompt: string | null }[] }[]; total: number }>('/api/generations', {
+      params: { limit: fetchLimit, offset: generationsConsumed, type: 'image' },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
 
     const result: { id: string; url: string; prompt: string }[] = []
     const gens = data.generations ?? []
+    generationsConsumed += gens.length
 
     for (const gen of gens) {
       for (const item of gen.items) {
-        if (item.type === 'image' && item.status === 'complete' && item.url && !seenIds.has(item.id)) {
+        if (item.type === 'image' && item.url && !seenIds.has(item.id)) {
           seenIds.add(item.id)
           result.push({ id: item.id, url: item.url, prompt: item.prompt || '' })
           if (result.length >= pageSize) break
@@ -29,8 +33,8 @@ export function useRecentImages(pageSize = 20) {
       if (result.length >= pageSize) break
     }
 
-    // If we got fewer than pageSize, there's no more to load
-    if (result.length < pageSize || gens.length === 0) hasMore.value = false
+    // If we got fewer than pageSize or consumed all generations, there's no more
+    if (result.length < pageSize || gens.length < fetchLimit) hasMore.value = false
 
     return result
   }
@@ -38,8 +42,9 @@ export function useRecentImages(pageSize = 20) {
   async function fetch() {
     loading.value = true
     seenIds.clear()
+    generationsConsumed = 0
     try {
-      const result = await fetchPage(0)
+      const result = await fetchPage()
       images.value = result
     } catch {}
     loading.value = false
@@ -49,7 +54,7 @@ export function useRecentImages(pageSize = 20) {
     if (loading.value || !hasMore.value) return
     loading.value = true
     try {
-      const result = await fetchPage(images.value.length)
+      const result = await fetchPage()
       images.value = [...images.value, ...result]
     } catch {}
     loading.value = false

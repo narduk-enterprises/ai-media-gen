@@ -11,7 +11,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   showUpload: true,
   label: 'Select an image',
-  pageSize: 6,
+  pageSize: 20,
   multi: false,
 })
 
