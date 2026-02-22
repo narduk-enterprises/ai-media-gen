@@ -66,13 +66,7 @@ function onImageClear() {
   generatedPrompts.value = []
 }
 
-function selectDirection(preset: typeof directionPresets[number]) {
-  basePrompt.value = preset.prompt
-}
 
-function selectAudio(preset: typeof audioPresets[number]) {
-  audioPrompt.value = preset.prompt
-}
 
 // ─── Random Batch ───────────────────────────────────────────────────────
 const randomQty = ref(5)
@@ -196,11 +190,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
         <span class="text-xs text-slate-400">Pick random images from your gallery</span>
       </div>
       <div class="flex flex-wrap items-end gap-4">
-        <UFormField label="Quantity" size="sm">
-          <div class="flex gap-1">
-            <UButton v-for="n in [1, 5, 10, 25, 50, 100]" :key="n" size="xs" :variant="randomQty === n ? 'soft' : 'ghost'" :color="randomQty === n ? 'primary' : 'neutral'" @click="randomQty = n">{{ n }}</UButton>
-          </div>
-        </UFormField>
+        <CountSelector v-model="randomQty" label="Quantity" :options="[1, 5, 10, 25, 50, 100]" />
         <UButton
           :loading="randomRunning"
           :disabled="randomRunning"
@@ -216,53 +206,16 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
     <!-- Direction & Audio -->
     <UCard variant="outline">
       <div class="space-y-4">
-        <UFormField label="Direction prompt" size="sm" description="Style and camera guidance for the video">
-          <div class="flex flex-wrap gap-1.5 mb-2">
-            <UButton
-              v-for="p in directionPresets" :key="p.label"
-              size="xs"
-              :variant="basePrompt === p.prompt ? 'soft' : 'ghost'"
-              :color="basePrompt === p.prompt ? 'primary' : 'neutral'"
-              @click="selectDirection(p)"
-              :disabled="loading"
-            >{{ p.label }}</UButton>
-          </div>
-          <UTextarea v-model="basePrompt" placeholder="Or type your own direction..." :rows="2" autoresize :disabled="loading" class="w-full" size="sm" />
-        </UFormField>
-
-        <UFormField label="Audio prompt" size="sm" description="Soundtrack/ambience for the video">
-          <div class="flex flex-wrap gap-1.5 mb-2">
-            <UButton
-              v-for="p in audioPresets" :key="p.label"
-              size="xs"
-              :variant="audioPrompt === p.prompt ? 'soft' : 'ghost'"
-              :color="audioPrompt === p.prompt ? 'primary' : 'neutral'"
-              @click="selectAudio(p)"
-              :disabled="loading"
-            >{{ p.label }}</UButton>
-          </div>
-          <UTextarea v-model="audioPrompt" placeholder="Or describe the audio..." :rows="2" autoresize :disabled="loading" class="w-full" size="sm" />
-        </UFormField>
-
-        <UFormField label="Negative prompt" size="sm">
-          <UTextarea v-model="negativePrompt" :rows="2" autoresize :disabled="loading" class="w-full" size="sm" />
-        </UFormField>
+        <PromptPresetField v-model="basePrompt" label="Direction prompt" description="Style and camera guidance for the video" placeholder="Or type your own direction..." :presets="directionPresets" :disabled="loading" />
+        <PromptPresetField v-model="audioPrompt" label="Audio prompt" description="Soundtrack/ambience for the video" placeholder="Or describe the audio..." :presets="audioPresets" :disabled="loading" />
+        <PromptPresetField v-model="negativePrompt" label="Negative prompt" :disabled="loading" />
       </div>
     </UCard>
 
     <!-- Settings -->
     <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
-      <UFormField label="Variations" size="sm" description="How many videos to generate">
-        <div class="flex gap-1">
-          <UButton v-for="n in [1, 3, 5, 10]" :key="n" size="xs" :variant="count === n ? 'soft' : 'ghost'" :color="count === n ? 'primary' : 'neutral'" @click="count = n">{{ n }}</UButton>
-        </div>
-      </UFormField>
-
-      <UFormField label="Duration" size="sm">
-        <div class="flex flex-wrap gap-1">
-          <UButton v-for="d in [{l:'2s',v:49},{l:'3s',v:81},{l:'5s',v:121},{l:'7s',v:161},{l:'10s',v:241},{l:'15s',v:361},{l:'20s',v:481},{l:'25s',v:601},{l:'30s',v:721}]" :key="d.v" size="xs" :variant="numFrames === d.v ? 'soft' : 'ghost'" :color="numFrames === d.v ? 'primary' : 'neutral'" @click="numFrames = d.v">{{ d.l }}</UButton>
-        </div>
-      </UFormField>
+      <CountSelector v-model="count" label="Variations" :options="[1, 3, 5, 10]" />
+      <CountSelector v-model="numFrames" label="Duration" :options="[49, 81, 121, 161, 241, 361, 481, 601, 721]" />
 
       <UFormField label="Resolution" size="sm">
         <div class="flex flex-wrap gap-1">
@@ -270,11 +223,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
         </div>
       </UFormField>
 
-      <UFormField label="Steps" size="sm">
-        <div class="flex gap-1">
-          <UButton v-for="s in [12, 20]" :key="s" size="xs" :variant="steps === s ? 'soft' : 'ghost'" :color="steps === s ? 'primary' : 'neutral'" @click="steps = s">{{ s }}</UButton>
-        </div>
-      </UFormField>
+      <CountSelector v-model="steps" label="Steps" :options="[12, 20]" />
 
       <UFormField label="Image Fidelity" size="sm" description="How closely video matches source image">
         <div class="flex gap-1">
