@@ -99,8 +99,7 @@ function timeAgo(dateStr: string) {
 <template>
   <!-- Toggle button — always visible -->
   <button
-    class="fixed right-0 z-50 w-8 h-8 rounded-l-lg bg-white border border-r-0 border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
-    :class="open ? 'top-20 lg:top-20' : 'top-20'"
+    class="fixed right-0 z-50 w-10 h-10 sm:w-8 sm:h-8 rounded-l-lg bg-white border border-r-0 border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors shadow-sm top-20"
     @click="open = !open"
     :title="open ? 'Hide queue' : 'Show queue'"
   >
@@ -109,7 +108,7 @@ function timeAgo(dateStr: string) {
       <!-- Badge for active items -->
       <span
         v-if="queue.totalActive.value > 0 && !open"
-        class="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center"
+        class="absolute -top-2.5 -right-2.5 w-5 h-5 sm:w-4 sm:h-4 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center"
       >
         {{ queue.totalActive.value > 9 ? '9+' : queue.totalActive.value }}
       </span>
@@ -127,7 +126,7 @@ function timeAgo(dateStr: string) {
 
   <!-- Sidebar panel -->
   <aside
-    class="fixed right-0 top-16 bottom-0 z-40 w-80 flex flex-col bg-white/95 backdrop-blur-sm border-l border-slate-200 transition-transform duration-200 ease-out"
+    class="fixed right-0 top-16 bottom-0 z-40 w-full sm:w-80 flex flex-col bg-white/95 backdrop-blur-sm border-l border-slate-200 transition-transform duration-200 ease-out"
     :class="open ? 'translate-x-0' : 'translate-x-full lg:translate-x-full'"
   >
     <!-- Header -->
@@ -244,7 +243,7 @@ function timeAgo(dateStr: string) {
 
               <!-- Thumbnail for completed items -->
               <div v-if="item.status === 'complete' && item.url" class="mt-1.5">
-                <video v-if="item.type === 'video'" :src="`${item.url}#t=0.1`" class="w-full rounded-md border border-slate-200" :style="item.width && item.height ? { aspectRatio: `${item.width}/${item.height}` } : {}" preload="auto" muted playsinline />
+                <video v-if="item.type === 'video'" :src="`${item.url}#t=0.1`" class="w-full rounded-md border border-slate-200" :style="item.width && item.height ? { aspectRatio: `${item.width}/${item.height}` } : {}" preload="metadata" muted playsinline />
                 <img v-else :src="item.url" :alt="item.prompt" class="w-full rounded-md border border-slate-200" :style="item.width && item.height ? { aspectRatio: `${item.width}/${item.height}` } : {}" loading="lazy" />
               </div>
 
@@ -257,7 +256,7 @@ function timeAgo(dateStr: string) {
             </NuxtLink>
 
             <!-- Actions -->
-            <div class="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div class="shrink-0 flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
               <UButton
                 v-if="item.status === 'queued' || item.status === 'processing'"
                 variant="ghost"
