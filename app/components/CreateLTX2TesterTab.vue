@@ -14,6 +14,12 @@ const gen = useGeneration()
 
 // ── I2V Presets (exact match with workflow_loader.py I2V_PRESETS) ────────
 const I2V_PRESETS = [
+  // Research-backed quality presets
+  { key: 'quality_res2s', label: '🏆 Quality (res2s)', desc: 'Official best: res2_s + LoRA 0.60', color: 'yellow' },
+  { key: 'quality_euler', label: '🎯 Quality (Euler)', desc: 'High quality euler + LoRA 0.80', color: 'lime' },
+  { key: 'photorealistic', label: '📸 Photorealistic', desc: 'Optimized for photorealism, higher CFG', color: 'sky' },
+  { key: 'max_fidelity', label: '💎 Max Fidelity', desc: 'Maximum quality, slow, best for hero shots', color: 'indigo' },
+  // Motion-focused presets
   { key: 'cinematic_breathe', label: '🎬 Cinematic Breathe', desc: 'Subtle breathing/living motion, very faithful', color: 'violet' },
   { key: 'gentle_wind', label: '🌿 Gentle Wind', desc: 'Soft environmental motion, gentle breeze', color: 'emerald' },
   { key: 'dreamy_drift', label: '🌊 Dreamy Drift', desc: 'Dreamlike subtle movement, very smooth', color: 'blue' },
