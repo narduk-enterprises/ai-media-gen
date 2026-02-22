@@ -49,13 +49,27 @@ function onImageClear() {
 const prompt = ref('')
 const negativePrompt = ref('worst quality, blurry, distorted, deformed, disfigured, bad anatomy, watermark, text, logo')
 const numFrames = ref(97)  // 4s — good for quick comparison
-const steps = ref(20)
-const width = ref(768)
-const height = ref(512)
-const fps = ref(24)
+const steps = ref(30)
+const width = ref(1280)
+const height = ref(720)
+const fps = ref(25)
 const seed = ref(42)  // Fixed seed for fair comparison
-const loraStrength = ref(1.0)
+const loraStrength = ref(0.80)
 const audioPrompt = ref('')
+
+// Advanced controls
+const showAdvanced = ref(false)
+const imageStrength = ref(1.0)
+const cfg = ref(1.0)
+const maxShift = ref(2.05)
+const baseShift = ref(0.95)
+const terminal = ref(0.1)
+const cameraLora = ref('none')
+
+const cameraLoraOptions = [
+  { label: 'None', value: 'none' },
+  { label: 'Dolly Left', value: 'dolly-left' },
+]
 
 const durationPresets = [
   { label: '2s', value: 49, desc: 'Ultra quick' },
@@ -65,9 +79,10 @@ const durationPresets = [
 ]
 
 const resPresets = [
-  { label: '768×512', w: 768, h: 512 },
   { label: '1280×720', w: 1280, h: 720 },
+  { label: '768×512', w: 768, h: 512 },
   { label: '512×768', w: 512, h: 768 },
+  { label: '720×1280', w: 720, h: 1280 },
 ]
 
 // ── Test Run State ───────────────────────────────────────────────────────
@@ -147,10 +162,15 @@ async function generate() {
         height: height.value,
         fps: fps.value,
         loraStrength: loraStrength.value,
-        imageStrength: 1.0,
+        imageStrength: imageStrength.value,
         seed: seed.value,
         preset: preset.key,
         audioPrompt: audioPrompt.value.trim() || undefined,
+        cfg: cfg.value !== 1.0 ? cfg.value : undefined,
+        maxShift: maxShift.value !== 2.05 ? maxShift.value : undefined,
+        baseShift: baseShift.value !== 0.95 ? baseShift.value : undefined,
+        terminal: terminal.value !== 0.1 ? terminal.value : undefined,
+        cameraLora: cameraLora.value !== 'none' ? cameraLora.value : undefined,
         endpoint,
       }
 
@@ -314,6 +334,87 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
         <UFormField label="Audio Prompt (optional)" size="sm">
           <UTextarea v-model="audioPrompt" placeholder="Soundscape description..." :rows="1" autoresize class="w-full" size="sm" />
         </UFormField>
+
+        <!-- Advanced Settings Toggle -->
+        <button
+          class="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-700 transition-colors mt-1"
+          @click="showAdvanced = !showAdvanced"
+        >
+          <UIcon :name="showAdvanced ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="w-3.5 h-3.5" />
+          Advanced Settings
+        </button>
+
+        <!-- Advanced Settings Panel -->
+        <div v-if="showAdvanced" class="border border-slate-200 rounded-lg p-3 space-y-3 bg-slate-50/50">
+          <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
+            <!-- FPS -->
+            <UFormField label="FPS" size="sm" hint="Model native: 25">
+              <div class="flex items-center gap-2">
+                <input type="range" v-model.number="fps" min="12" max="50" step="1" class="w-24 accent-blue-500" />
+                <span class="text-xs text-slate-600 font-mono w-6 text-right">{{ fps }}</span>
+              </div>
+            </UFormField>
+
+            <!-- LoRA Strength -->
+            <UFormField label="LoRA Strength" size="sm" hint="0.80 recommended">
+              <div class="flex items-center gap-2">
+                <input type="range" v-model.number="loraStrength" min="0" max="1" step="0.05" class="w-24 accent-blue-500" />
+                <span class="text-xs text-slate-600 font-mono w-8 text-right">{{ loraStrength.toFixed(2) }}</span>
+              </div>
+            </UFormField>
+
+            <!-- Image Strength -->
+            <UFormField label="Image Strength" size="sm" hint="1.0 = exact match">
+              <div class="flex items-center gap-2">
+                <input type="range" v-model.number="imageStrength" min="0" max="1" step="0.05" class="w-24 accent-blue-500" />
+                <span class="text-xs text-slate-600 font-mono w-8 text-right">{{ imageStrength.toFixed(2) }}</span>
+              </div>
+            </UFormField>
+
+            <!-- CFG -->
+            <UFormField label="CFG Scale" size="sm" hint="1.0 default">
+              <div class="flex items-center gap-2">
+                <input type="range" v-model.number="cfg" min="0.5" max="3" step="0.1" class="w-24 accent-blue-500" />
+                <span class="text-xs text-slate-600 font-mono w-6 text-right">{{ cfg.toFixed(1) }}</span>
+              </div>
+            </UFormField>
+
+            <!-- Camera LoRA -->
+            <UFormField label="Camera Motion" size="sm">
+              <USelect v-model="cameraLora" :items="cameraLoraOptions" value-key="value" size="sm" class="w-32" />
+            </UFormField>
+          </div>
+
+          <!-- Scheduler -->
+          <div class="border-t border-slate-200 pt-3">
+            <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Scheduler (noise curve)</p>
+            <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
+              <UFormField label="Max Shift" size="sm">
+                <div class="flex items-center gap-2">
+                  <input type="range" v-model.number="maxShift" min="1.0" max="3.0" step="0.05" class="w-24 accent-violet-500" />
+                  <span class="text-xs text-slate-600 font-mono w-8 text-right">{{ maxShift.toFixed(2) }}</span>
+                </div>
+              </UFormField>
+              <UFormField label="Base Shift" size="sm">
+                <div class="flex items-center gap-2">
+                  <input type="range" v-model.number="baseShift" min="0.5" max="2.0" step="0.05" class="w-24 accent-violet-500" />
+                  <span class="text-xs text-slate-600 font-mono w-8 text-right">{{ baseShift.toFixed(2) }}</span>
+                </div>
+              </UFormField>
+              <UFormField label="Terminal" size="sm">
+                <div class="flex items-center gap-2">
+                  <input type="range" v-model.number="terminal" min="0.01" max="0.3" step="0.01" class="w-24 accent-violet-500" />
+                  <span class="text-xs text-slate-600 font-mono w-8 text-right">{{ terminal.toFixed(2) }}</span>
+                </div>
+              </UFormField>
+            </div>
+          </div>
+
+          <!-- Negative Prompt -->
+          <UFormField label="Negative Prompt" size="sm">
+            <UTextarea v-model="negativePrompt" :rows="1" autoresize class="w-full" size="sm" />
+          </UFormField>
+        </div>
       </div>
     </UCard>
 
