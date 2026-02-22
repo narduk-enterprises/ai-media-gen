@@ -59,7 +59,7 @@ export default defineEventHandler(async (event) => {
     .limit(limit)
     .offset(offset)
 
-  // Fetch media items for each generation
+  // Fetch media items for each generation — only include complete items with URLs
   const results = await Promise.all(
     gens.map(async (gen) => {
       const items = await db
@@ -67,17 +67,22 @@ export default defineEventHandler(async (event) => {
         .from(mediaItems)
         .where(eq(mediaItems.generationId, gen.id))
 
-      // Transform base64 data URIs to serving paths to reduce payload
-      const transformedItems = items.map((item) => ({
-        ...item,
-        url: item.url?.startsWith('data:')
-          ? `/api/media/${item.id}`
-          : item.url,
-      }))
+      // Only return complete items with valid URLs for the gallery
+      const visibleItems = items
+        .filter(item => item.status === 'complete' && item.url && item.url !== '')
+        .map((item) => ({
+          ...item,
+          url: item.url?.startsWith('data:')
+            ? `/api/media/${item.id}`
+            : item.url,
+        }))
 
-      return { ...gen, items: transformedItems }
+      return { ...gen, items: visibleItems }
     }),
   )
 
-  return { generations: results, total, limit, offset }
+  // Filter out generations with no visible items (can happen if all items are non-complete)
+  const visibleResults = results.filter(r => r.items.length > 0)
+
+  return { generations: visibleResults, total, limit, offset }
 })

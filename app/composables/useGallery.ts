@@ -1,13 +1,12 @@
 import type { GenerationResult, MediaItemResult } from '~/types/gallery'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 50
 
 /**
- * Gallery composable — simple client-only fetch.
+ * Gallery composable — client-only fetch.
  *
- * Fetches images and videos as two separate requests so that images
- * always load even when the most recent 1000 generations are videos.
- * Results are merged and deduplicated by generation ID.
+ * Fetches all generations (with completed media) in a single request,
+ * ordered newest-first. Infinite scroll loads more pages.
  */
 export function useGallery() {
   const generations = ref<GenerationResult[]>([])
@@ -22,39 +21,13 @@ export function useGallery() {
     pending.value = true
     error.value = null
     try {
-      // Fetch images and videos in parallel so both types always appear
-      const [imageResult, videoResult] = await Promise.all([
-        $fetch<{ generations: GenerationResult[]; total: number }>('/api/generations', {
-          params: { limit: PAGE_SIZE, offset: 0, type: 'image' },
-          headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        }),
-        $fetch<{ generations: GenerationResult[]; total: number }>('/api/generations', {
-          params: { limit: PAGE_SIZE, offset: 0, type: 'video' },
-          headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        }),
-      ])
+      const result = await $fetch<{ generations: GenerationResult[]; total: number }>('/api/generations', {
+        params: { limit: PAGE_SIZE, offset: 0 },
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
 
-      // Merge and deduplicate by generation ID, sort newest first
-      const merged = new Map<string, GenerationResult>()
-      for (const gen of [...(imageResult.generations ?? []), ...(videoResult.generations ?? [])]) {
-        const existing = merged.get(gen.id)
-        if (existing) {
-          // Merge items from both fetches (a generation can have both images and videos)
-          const existingIds = new Set(existing.items.map(i => i.id))
-          const newItems = gen.items.filter(i => !existingIds.has(i.id))
-          existing.items = [...existing.items, ...newItems]
-        } else {
-          merged.set(gen.id, { ...gen })
-        }
-      }
-
-      // Sort by createdAt descending
-      const sorted = Array.from(merged.values()).sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )
-
-      generations.value = sorted
-      total.value = Math.max(imageResult.total ?? 0, videoResult.total ?? 0, sorted.length)
+      generations.value = result.generations ?? []
+      total.value = result.total ?? 0
     } catch (e: any) {
       error.value = e
     } finally {
@@ -70,7 +43,11 @@ export function useGallery() {
         params: { limit: PAGE_SIZE, offset: generations.value.length },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
-      generations.value = [...generations.value, ...(result.generations ?? [])]
+
+      // Deduplicate in case items shifted between pages
+      const existingIds = new Set(generations.value.map(g => g.id))
+      const newGens = (result.generations ?? []).filter(g => !existingIds.has(g.id))
+      generations.value = [...generations.value, ...newGens]
       total.value = result.total ?? total.value
     } catch (e: any) {
       error.value = e
