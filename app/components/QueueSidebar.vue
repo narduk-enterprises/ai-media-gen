@@ -2,13 +2,13 @@
 /**
  * QueueSidebar — persistent collapsible panel showing the user's job queue.
  *
- * Shows queued, processing, completed, and failed items with actions
- * (cancel, dismiss, view). Auto-collapses when empty.
+ * Desktop (lg+): fixed sidebar, always visible, content pushed via margin.
+ * Mobile (<lg): slide-out drawer with backdrop overlay, tap outside to close.
  */
 import { useQueue, type QueueItem } from '~/composables/useQueue'
 
 const queue = useQueue()
-const collapsed = ref(false)
+const open = ref(false)
 const activeFilter = ref<'all' | 'active' | 'complete' | 'failed'>('active')
 
 // Initialize queue on component mount
@@ -16,9 +16,23 @@ onMounted(() => {
   queue.init()
 })
 
-// Auto-expand when new items appear
+// Auto-open on mobile when new items appear
 watch(() => queue.totalActive.value, (active) => {
-  if (active > 0) collapsed.value = false
+  if (active > 0) open.value = true
+})
+
+// Lock body scroll when drawer is open on mobile
+watch(open, (isOpen) => {
+  if (import.meta.server) return
+  if (isOpen && window.innerWidth < 1024) {
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = ''
+  }
+})
+
+onBeforeUnmount(() => {
+  if (import.meta.client) document.body.style.overflow = ''
 })
 
 // Filtered items based on active filter
@@ -86,185 +100,190 @@ function timeAgo(dateStr: string) {
 </script>
 
 <template>
-  <aside
-    class="fixed right-0 top-16 bottom-0 z-40 flex flex-col transition-all duration-200 ease-out"
-    :class="collapsed ? 'w-12' : 'w-72'"
+  <!-- Toggle button — always visible -->
+  <button
+    class="fixed right-0 z-50 w-8 h-8 rounded-l-lg bg-white border border-r-0 border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+    :class="open ? 'top-20 lg:top-20' : 'top-20'"
+    @click="open = !open"
+    :title="open ? 'Hide queue' : 'Show queue'"
   >
-    <!-- Toggle button -->
-    <button
-      class="absolute -left-8 top-4 w-8 h-8 rounded-l-lg bg-white border border-r-0 border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
-      @click="collapsed = !collapsed"
-      :title="collapsed ? 'Show queue' : 'Hide queue'"
-    >
-      <div class="relative">
-        <UIcon :name="collapsed ? 'i-lucide-panel-left-open' : 'i-lucide-panel-right-open'" class="w-4 h-4" />
-        <!-- Badge for active items -->
-        <span
-          v-if="queue.totalActive.value > 0 && collapsed"
-          class="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center"
-        >
-          {{ queue.totalActive.value > 9 ? '9+' : queue.totalActive.value }}
-        </span>
-      </div>
-    </button>
+    <div class="relative">
+      <UIcon :name="open ? 'i-lucide-panel-right-open' : 'i-lucide-panel-left-open'" class="w-4 h-4" />
+      <!-- Badge for active items -->
+      <span
+        v-if="queue.totalActive.value > 0 && !open"
+        class="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center"
+      >
+        {{ queue.totalActive.value > 9 ? '9+' : queue.totalActive.value }}
+      </span>
+    </div>
+  </button>
 
-    <!-- Panel content -->
+  <!-- Backdrop (mobile only) -->
+  <Transition name="fade">
     <div
-      v-show="!collapsed"
-      class="flex-1 flex flex-col bg-white/95 backdrop-blur-sm border-l border-slate-200 overflow-hidden"
-    >
-      <!-- Header -->
-      <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
-        <div class="flex items-center gap-2">
-          <UIcon name="i-lucide-list-ordered" class="w-4 h-4 text-slate-400" />
-          <span class="text-sm font-semibold text-slate-700">Queue</span>
-        </div>
-        <div class="flex items-center gap-1">
-          <UButton
-            v-if="queue.totalActive.value > 0"
-            variant="ghost"
-            size="xs"
-            color="error"
-            icon="i-lucide-ban"
-            title="Cancel all active"
-            @click="queue.cancelAll()"
-          />
-          <UButton
-            v-if="queue.completedItems.value.length > 0 || queue.failedItems.value.length > 0"
-            variant="ghost"
-            size="xs"
-            color="neutral"
-            icon="i-lucide-check-check"
-            title="Dismiss completed & failed"
-            @click="queue.clearCompleted()"
-          />
-          <UButton
-            v-if="queue.totalItems.value > 0"
-            variant="ghost"
-            size="xs"
-            color="error"
-            icon="i-lucide-trash-2"
-            title="Permanently delete all jobs"
-            @click="queue.deleteAll()"
-          />
-          <UButton
-            variant="ghost"
-            size="xs"
-            color="neutral"
-            icon="i-lucide-refresh-cw"
-            title="Refresh queue"
-            @click="queue.refresh()"
-          />
-        </div>
+      v-if="open"
+      class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
+      @click="open = false"
+    />
+  </Transition>
+
+  <!-- Sidebar panel -->
+  <aside
+    class="fixed right-0 top-16 bottom-0 z-40 w-80 flex flex-col bg-white/95 backdrop-blur-sm border-l border-slate-200 transition-transform duration-200 ease-out"
+    :class="open ? 'translate-x-0' : 'translate-x-full lg:translate-x-full'"
+  >
+    <!-- Header -->
+    <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-2">
+        <UIcon name="i-lucide-list-ordered" class="w-4 h-4 text-slate-400" />
+        <span class="text-sm font-semibold text-slate-700">Queue</span>
+      </div>
+      <div class="flex items-center gap-1">
+        <UButton
+          v-if="queue.totalActive.value > 0"
+          variant="ghost"
+          size="xs"
+          color="error"
+          icon="i-lucide-ban"
+          title="Cancel all active"
+          @click="queue.cancelAll()"
+        />
+        <UButton
+          v-if="queue.completedItems.value.length > 0 || queue.failedItems.value.length > 0"
+          variant="ghost"
+          size="xs"
+          color="neutral"
+          icon="i-lucide-check-check"
+          title="Dismiss completed & failed"
+          @click="queue.clearCompleted()"
+        />
+        <UButton
+          v-if="queue.totalItems.value > 0"
+          variant="ghost"
+          size="xs"
+          color="error"
+          icon="i-lucide-trash-2"
+          title="Permanently delete all jobs"
+          @click="queue.deleteAll()"
+        />
+        <UButton
+          variant="ghost"
+          size="xs"
+          color="neutral"
+          icon="i-lucide-refresh-cw"
+          title="Refresh queue"
+          @click="queue.refresh()"
+        />
+      </div>
+    </div>
+
+    <!-- Filter tabs -->
+    <div class="flex border-b border-slate-100 shrink-0">
+      <button
+        v-for="tab in filterTabs"
+        :key="tab.key"
+        class="flex-1 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider transition-colors relative"
+        :class="activeFilter === tab.key
+          ? `${tab.color} bg-slate-50`
+          : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50/50'"
+        @click="activeFilter = tab.key"
+      >
+        {{ tab.label }}
+        <span v-if="tab.count > 0" class="ml-0.5">({{ tab.count }})</span>
+        <div
+          v-if="activeFilter === tab.key"
+          class="absolute bottom-0 left-2 right-2 h-0.5 rounded-full"
+          :class="tab.color.replace('text-', 'bg-')"
+        />
+      </button>
+    </div>
+
+    <!-- Items list -->
+    <div class="flex-1 overflow-y-auto">
+      <div v-if="filteredItems.length === 0" class="flex flex-col items-center justify-center h-full text-slate-400 px-4">
+        <UIcon name="i-lucide-inbox" class="w-8 h-8 mb-2 opacity-40" />
+        <p class="text-xs text-center">
+          <template v-if="queue.totalItems.value === 0">No items in queue.<br />Generate something to get started!</template>
+          <template v-else>No {{ activeFilter }} items.</template>
+        </p>
       </div>
 
-      <!-- Filter tabs -->
-      <div class="flex border-b border-slate-100 shrink-0">
-        <button
-          v-for="tab in filterTabs"
-          :key="tab.key"
-          class="flex-1 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider transition-colors relative"
-          :class="activeFilter === tab.key
-            ? `${tab.color} bg-slate-50`
-            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50/50'"
-          @click="activeFilter = tab.key"
+      <TransitionGroup name="queue-item" tag="div" class="divide-y divide-slate-50">
+        <div
+          v-for="item in filteredItems"
+          :key="item.id"
+          class="px-3 py-2.5 hover:bg-slate-50/80 transition-colors group"
         >
-          {{ tab.label }}
-          <span v-if="tab.count > 0" class="ml-0.5">({{ tab.count }})</span>
-          <div
-            v-if="activeFilter === tab.key"
-            class="absolute bottom-0 left-2 right-2 h-0.5 rounded-full"
-            :class="tab.color.replace('text-', 'bg-')"
-          />
-        </button>
-      </div>
+          <div class="flex items-start gap-2.5">
+            <!-- Status icon -->
+            <div class="mt-0.5 shrink-0">
+              <UIcon
+                :name="statusIcon(item.status)"
+                class="w-4 h-4"
+                :class="[
+                  statusColor(item.status),
+                  item.status === 'processing' ? 'animate-spin' : '',
+                ]"
+              />
+            </div>
 
-      <!-- Items list -->
-      <div class="flex-1 overflow-y-auto">
-        <div v-if="filteredItems.length === 0" class="flex flex-col items-center justify-center h-full text-slate-400 px-4">
-          <UIcon name="i-lucide-inbox" class="w-8 h-8 mb-2 opacity-40" />
-          <p class="text-xs text-center">
-            <template v-if="queue.totalItems.value === 0">No items in queue.<br />Generate something to get started!</template>
-            <template v-else>No {{ activeFilter }} items.</template>
-          </p>
-        </div>
-
-        <TransitionGroup name="queue-item" tag="div" class="divide-y divide-slate-50">
-          <div
-            v-for="item in filteredItems"
-            :key="item.id"
-            class="px-3 py-2.5 hover:bg-slate-50/80 transition-colors group"
-          >
-            <div class="flex items-start gap-2.5">
-              <!-- Status icon -->
-              <div class="mt-0.5 shrink-0">
-                <UIcon
-                  :name="statusIcon(item.status)"
-                  class="w-4 h-4"
-                  :class="[
-                    statusColor(item.status),
-                    item.status === 'processing' ? 'animate-spin' : '',
-                  ]"
-                />
+            <!-- Content -->
+            <NuxtLink :to="`/job/${item.id}`" class="flex-1 min-w-0 cursor-pointer" @click="open = false">
+              <div class="flex items-center gap-1.5">
+                <UIcon :name="typeIcon(item.type)" class="w-3 h-3 text-slate-400 shrink-0" />
+                <span class="text-xs font-medium text-slate-700 truncate">
+                  {{ truncate(item.prompt || 'Untitled', 35) }}
+                </span>
               </div>
 
-              <!-- Content -->
-              <NuxtLink :to="`/job/${item.id}`" class="flex-1 min-w-0 cursor-pointer">
-                <div class="flex items-center gap-1.5">
-                  <UIcon :name="typeIcon(item.type)" class="w-3 h-3 text-slate-400 shrink-0" />
-                  <span class="text-xs font-medium text-slate-700 truncate">
-                    {{ truncate(item.prompt || 'Untitled', 35) }}
-                  </span>
-                </div>
-
-                <!-- Thumbnail for completed items -->
-                <div v-if="item.status === 'complete' && item.url" class="mt-1.5">
-                  <video v-if="item.type === 'video'" :src="`${item.url}#t=0.1`" class="w-full rounded-md border border-slate-200" :style="item.width && item.height ? { aspectRatio: `${item.width}/${item.height}` } : {}" preload="auto" muted playsinline />
-                  <img v-else :src="item.url" :alt="item.prompt" class="w-full rounded-md border border-slate-200" :style="item.width && item.height ? { aspectRatio: `${item.width}/${item.height}` } : {}" loading="lazy" />
-                </div>
-
-                <!-- Error message for failed items -->
-                <p v-if="item.error" class="text-[10px] text-red-400 mt-0.5 truncate">
-                  {{ item.error }}
-                </p>
-
-                <span class="text-[10px] text-slate-400 mt-0.5 block">{{ timeAgo(item.createdAt) }}</span>
-              </NuxtLink>
-
-              <!-- Actions -->
-              <div class="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                <UButton
-                  v-if="item.status === 'queued' || item.status === 'processing'"
-                  variant="ghost"
-                  size="xs"
-                  color="error"
-                  icon="i-lucide-x"
-                  title="Cancel"
-                  @click="queue.cancel(item.id)"
-                />
-                <UButton
-                  v-if="item.status === 'complete' || item.status === 'failed' || item.status === 'cancelled'"
-                  variant="ghost"
-                  size="xs"
-                  color="neutral"
-                  icon="i-lucide-x"
-                  title="Dismiss"
-                  @click="queue.dismiss(item.id)"
-                />
-                <UButton
-                  v-if="item.status === 'complete' || item.status === 'failed' || item.status === 'cancelled'"
-                  variant="ghost"
-                  size="xs"
-                  color="error"
-                  icon="i-lucide-trash-2"
-                  title="Delete permanently"
-                  @click="queue.deleteItem(item.id)"
-                />
+              <!-- Thumbnail for completed items -->
+              <div v-if="item.status === 'complete' && item.url" class="mt-1.5">
+                <video v-if="item.type === 'video'" :src="`${item.url}#t=0.1`" class="w-full rounded-md border border-slate-200" :style="item.width && item.height ? { aspectRatio: `${item.width}/${item.height}` } : {}" preload="auto" muted playsinline />
+                <img v-else :src="item.url" :alt="item.prompt" class="w-full rounded-md border border-slate-200" :style="item.width && item.height ? { aspectRatio: `${item.width}/${item.height}` } : {}" loading="lazy" />
               </div>
+
+              <!-- Error message for failed items -->
+              <p v-if="item.error" class="text-[10px] text-red-400 mt-0.5 truncate">
+                {{ item.error }}
+              </p>
+
+              <span class="text-[10px] text-slate-400 mt-0.5 block">{{ timeAgo(item.createdAt) }}</span>
+            </NuxtLink>
+
+            <!-- Actions -->
+            <div class="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <UButton
+                v-if="item.status === 'queued' || item.status === 'processing'"
+                variant="ghost"
+                size="xs"
+                color="error"
+                icon="i-lucide-x"
+                title="Cancel"
+                @click="queue.cancel(item.id)"
+              />
+              <UButton
+                v-if="item.status === 'complete' || item.status === 'failed' || item.status === 'cancelled'"
+                variant="ghost"
+                size="xs"
+                color="neutral"
+                icon="i-lucide-x"
+                title="Dismiss"
+                @click="queue.dismiss(item.id)"
+              />
+              <UButton
+                v-if="item.status === 'complete' || item.status === 'failed' || item.status === 'cancelled'"
+                variant="ghost"
+                size="xs"
+                color="error"
+                icon="i-lucide-trash-2"
+                title="Delete permanently"
+                @click="queue.deleteItem(item.id)"
+              />
             </div>
           </div>
-        </TransitionGroup>
-      </div>
+        </div>
+      </TransitionGroup>
     </div>
   </aside>
 </template>
@@ -284,5 +303,13 @@ function timeAgo(dateStr: string) {
 }
 .queue-item-move {
   transition: transform 0.2s ease;
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

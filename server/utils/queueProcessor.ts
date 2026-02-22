@@ -68,6 +68,24 @@ async function submitPhase(db: DB) {
       const { runpodInput, apiUrl } = meta
 
       if (!runpodInput) {
+        // Batch items with pendingCaptioning are still being processed in the background
+        if (meta.pendingCaptioning) {
+          const createdAt = item.createdAt ? new Date(item.createdAt).getTime() : 0
+          const ageMs = Date.now() - createdAt
+          if (ageMs < 5 * 60 * 1000) {
+            // Less than 5 min old — background worker may still be captioning, skip for now
+            console.log(`[Queue] ${item.id.slice(0, 8)} still pending captioning (${Math.round(ageMs / 1000)}s old), skipping`)
+            return false
+          }
+          // Stale — background task probably died
+          console.error(`[Queue] ${item.id.slice(0, 8)} pending captioning for ${Math.round(ageMs / 1000)}s — marking failed`)
+          await db.update(mediaItems)
+            .set({ status: 'failed', error: 'Background captioning timed out — please retry' })
+            .where(eq(mediaItems.id, item.id))
+          await updateGenerationStatus(db, item.generationId)
+          return false
+        }
+
         console.error(`[Queue] ${item.id.slice(0, 8)} has no runpodInput in metadata — marking failed`)
         await db.update(mediaItems)
           .set({ status: 'failed', error: 'No RunPod input payload — corrupt queue entry' })

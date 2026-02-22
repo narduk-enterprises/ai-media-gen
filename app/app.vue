@@ -108,7 +108,7 @@ useHead({
       </header>
 
       <!-- Main content -->
-      <main class="flex-1" :class="loggedIn ? 'mr-0 lg:mr-72' : ''">
+      <main class="flex-1">
         <NuxtPage />
       </main>
 

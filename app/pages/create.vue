@@ -121,7 +121,7 @@ const gridClass = computed(() => {
 </script>
 
 <template>
-  <div class="max-w-4xl mx-auto px-4 sm:px-6 py-8 pb-32">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-8 pb-32">
     <!-- Header -->
     <div class="flex items-start justify-between mb-6">
       <div>
@@ -160,7 +160,7 @@ const gridClass = computed(() => {
 
     <!-- ═══ Generate Button (sticky) ═══ -->
     <div class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 py-3 px-4 z-10">
-      <div class="max-w-4xl mx-auto flex items-center justify-between gap-3">
+      <div class="max-w-6xl mx-auto flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <UButton variant="outline" color="neutral" size="sm" icon="i-lucide-rotate-ccw" @click="resetForm">Start Over</UButton>
           <UButton v-if="gen.results.value.length > 0" variant="ghost" color="error" size="sm" icon="i-lucide-trash-2" @click="gen.clearResults()">Clear Results</UButton>
