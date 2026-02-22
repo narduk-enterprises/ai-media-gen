@@ -17,7 +17,8 @@ import type { DrizzleD1Database } from 'drizzle-orm/d1'
 type DB = DrizzleD1Database<any>
 
 const MAX_CONCURRENT = 10          // max RunPod jobs in-flight at once
-const STALE_THRESHOLD_MS = 30 * 60 * 1000 // 30 min — mark as failed if no RunPod response
+const STALE_THRESHOLD_MS = 15 * 60 * 1000 // 15 min — re-queue for retry if no RunPod response
+const MAX_RETRIES = 2               // auto-retry stale items up to N times before permanent failure
 const POLL_TIMEOUT_MS = 10_000     // 10s per item during poll phase (single check, not long-poll)
 
 /**
@@ -211,6 +212,7 @@ async function cleanupPhase(db: DB) {
 
   const now = Date.now()
   let staleMarked = 0
+  let retried = 0
 
   for (const item of processing) {
     const submittedTime = item.submittedAt
@@ -218,15 +220,38 @@ async function cleanupPhase(db: DB) {
       : new Date(item.createdAt).getTime()
 
     if (now - submittedTime > STALE_THRESHOLD_MS) {
-      await db.update(mediaItems)
-        .set({ status: 'failed', error: `Stale — no RunPod response after ${STALE_THRESHOLD_MS / 60000} min` })
-        .where(eq(mediaItems.id, item.id))
-      console.log(`[Queue] 🕐 ${item.id.slice(0, 8)} stale after ${Math.round((now - submittedTime) / 60000)}min`)
-      await updateGenerationStatus(db, item.generationId)
-      staleMarked++
+      // Check retry count from metadata
+      let meta: any = {}
+      try { meta = item.metadata ? JSON.parse(item.metadata) : {} } catch {}
+      const retryCount = meta._retryCount || 0
+
+      if (retryCount < MAX_RETRIES && meta.runpodInput) {
+        // Auto-retry: re-queue the item
+        const updatedMeta = { ...meta, _retryCount: retryCount + 1 }
+        await db.update(mediaItems)
+          .set({
+            status: 'queued',
+            runpodJobId: null,
+            submittedAt: null,
+            error: null,
+            metadata: JSON.stringify(updatedMeta),
+          })
+          .where(eq(mediaItems.id, item.id))
+        console.log(`[Queue] ♻️ ${item.id.slice(0, 8)} stale → re-queued (retry ${retryCount + 1}/${MAX_RETRIES})`)
+        retried++
+      } else {
+        // Max retries exhausted — permanently fail
+        await db.update(mediaItems)
+          .set({ status: 'failed', error: `Stale — no response after ${STALE_THRESHOLD_MS / 60000}min (${retryCount} retries)` })
+          .where(eq(mediaItems.id, item.id))
+        console.log(`[Queue] 🕐 ${item.id.slice(0, 8)} stale after ${Math.round((now - submittedTime) / 60000)}min — max retries exhausted`)
+        await updateGenerationStatus(db, item.generationId)
+        staleMarked++
+      }
     }
   }
 
+  if (retried > 0) console.log(`[Queue] Cleanup: ${retried} retried, ${staleMarked} permanently failed`)
   return { staleMarked }
 }
 
