@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl } from '../../utils/ai'
-import { submitItemToRunPod } from '../../utils/submitItem'
+import { submitItemToComfyUI } from '../../utils/submitItem'
 import { useMediaBucket, readBase64FromR2 } from '../../utils/r2'
 import { mediaItems, generations } from '../../database/schema'
 
@@ -75,9 +75,9 @@ export default defineEventHandler(async (event) => {
 
   const videoId = crypto.randomUUID()
 
-  // Build model-specific RunPod input
+  // Build model-specific input payload
   const isLtx2 = model === 'ltx2'
-  const runpodInput: Record<string, any> = {
+  const inputPayload: Record<string, any> = {
     action: 'image2video',
     model,
     prompt,
@@ -89,17 +89,17 @@ export default defineEventHandler(async (event) => {
     steps: steps || 20,
   }
   if (isLtx2) {
-    runpodInput.fps = fps || 24
-    runpodInput.lora_strength = loraStrength ?? 0.7
-    runpodInput.image_strength = imageStrength ?? 1.0
-    if (body.preset) runpodInput.preset = body.preset
-    if (body.audioPrompt) runpodInput.audio_prompt = body.audioPrompt
-    if (body.cameraLora) runpodInput.camera_lora = body.cameraLora
+    inputPayload.fps = fps || 24
+    inputPayload.lora_strength = loraStrength ?? 0.7
+    inputPayload.image_strength = imageStrength ?? 1.0
+    if (body.preset) inputPayload.preset = body.preset
+    if (body.audioPrompt) inputPayload.audio_prompt = body.audioPrompt
+    if (body.cameraLora) inputPayload.camera_lora = body.cameraLora
   } else {
-    runpodInput.cfg = cfg || 3.5
+    inputPayload.cfg = cfg || 3.5
   }
 
-  // Insert as 'queued' — the cron will submit to RunPod
+  // Insert as 'queued'
   await db.insert(mediaItems).values({
     id: videoId,
     generationId: sourceItem.generationId,
@@ -107,14 +107,14 @@ export default defineEventHandler(async (event) => {
     parentId: mediaItemId,
     prompt,
     status: 'queued',
-    metadata: JSON.stringify({ apiUrl, runpodInput }),
+    metadata: JSON.stringify({ comfyInput: inputPayload }),
     createdAt: now,
   })
 
   console.log(`[I2V] Item queued: ${videoId.slice(0, 8)}`)
 
-  // Submit to RunPod in background — response returns immediately
-  waitUntil(submitItemToRunPod(db, videoId))
+  // Submit to ComfyUI in background
+  waitUntil(submitItemToComfyUI(db, videoId))
 
   return {
     item: {

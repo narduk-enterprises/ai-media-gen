@@ -31,9 +31,19 @@ watch(sentinelRef, (el) => {
   if (el) observer?.observe(el)
 })
 
+// Re-check intersection after data loads (fixes race where sentinel is
+// already visible when observer first fires during pending state)
+watch([pending, loadingMore], () => {
+  if (!pending.value && !loadingMore.value && hasMore.value && sentinelRef.value) {
+    // Re-observe to trigger a fresh intersection check
+    observer?.disconnect()
+    observer?.observe(sentinelRef.value)
+  }
+})
+
 // ─── View modes ────────────────────────────────────────────────────────
 type ViewMode = 'grid' | 'grouped' | 'wall'
-const viewMode = ref<ViewMode>('grouped')
+const viewMode = ref<ViewMode>('wall')
 const searchQuery = ref('')
 const sortOrder = ref<'newest' | 'oldest' | 'best'>('newest')
 type TypeFilter = 'all' | 'image' | 'video'

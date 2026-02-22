@@ -3,7 +3,7 @@ import { DIRECTION_PRESETS, AUDIO_PRESETS, useVideoSettings, randomAudioPrompt }
 
 const gen = useGeneration()
 const queue = useQueue()
-const { customEndpoint, runpodEndpoint } = useAppSettings()
+const { effectiveEndpoint } = useAppSettings()
 
 // ─── Shared video settings ──────────────────────────────────
 const vs = useVideoSettings()
@@ -25,7 +25,7 @@ async function generate() {
   gen.error.value = ''
 
   try {
-    const endpoint = customEndpoint.value || runpodEndpoint.value
+    const endpoint = effectiveEndpoint.value
     const result = await $fetch<{
       generation: { id: string; status: string; imageCount: number }
       items: { id: string; generationId: string; type: string; prompt: string; status: string; url: null }[]

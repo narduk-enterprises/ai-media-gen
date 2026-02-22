@@ -295,8 +295,7 @@ function openCompareAt(entry: SweepResultEntry) {
     <!-- ═══ GRID MODE ═══ -->
     <div v-if="viewMode === 'grid'" :class="['grid gap-2', gridCols]">
       <div
-        v-for="(entry, i) in entries"
-        :key="i"
+        v-for="(entry, i) in entries" :key="i"
         class="relative rounded-lg overflow-hidden border transition-all cursor-pointer group"
         :class="entry.status === 'complete'
           ? 'border-slate-200 hover:border-amber-300 hover:shadow-sm'

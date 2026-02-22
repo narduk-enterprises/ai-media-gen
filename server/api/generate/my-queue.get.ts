@@ -82,7 +82,7 @@ export default defineEventHandler(async (event) => {
     if (item.metadata) {
       try {
         const meta = JSON.parse(item.metadata)
-        const src = meta.runpodInput || meta
+        const src = meta.comfyInput || meta
         width = src.width || null
         height = src.height || null
       } catch {}

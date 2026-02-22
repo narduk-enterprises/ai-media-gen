@@ -1,24 +1,11 @@
 <script setup lang="ts">
 import { VIDEO_MODELS } from '~/composables/useCreateShared'
-import { DIRECTION_PRESETS, AUDIO_PRESETS, DEFAULT_NEGATIVE_PROMPT, randomAudioPrompt } from '~/composables/useVideoDefaults'
+import { I2V_MOTION_PRESETS, DIRECTION_PRESETS, AUDIO_PRESETS, DEFAULT_NEGATIVE_PROMPT, randomAudioPrompt } from '~/composables/useVideoDefaults'
 
 const props = defineProps<{ prefillMediaId?: string | null }>()
 const gen = useGeneration()
 const shared = useCreateShared()
 
-// ─── I2V Workflow Presets (unique to this tab) ──────────────
-const I2V_PRESETS = [
-  { key: 'cinematic_breathe', label: '🎬 Cinematic Breathe', desc: 'Subtle breathing/living motion, very faithful' },
-  { key: 'gentle_wind', label: '🌿 Gentle Wind', desc: 'Soft environmental motion, like a gentle breeze' },
-  { key: 'dreamy_drift', label: '🌊 Dreamy Drift', desc: 'Dreamlike subtle movement, very smooth' },
-  { key: 'natural_motion', label: '🌲 Natural Motion', desc: 'Realistic natural movement, balanced' },
-  { key: 'vivid_action', label: '⚡ Vivid Action', desc: 'More dynamic motion, slightly more creative' },
-  { key: 'soft_focus', label: '📷 Soft Focus', desc: 'Soft cinematic feel, gentle transitions' },
-  { key: 'fluid_motion', label: '💧 Fluid Motion', desc: 'Smooth, flowing movement like water or silk' },
-  { key: 'tight_hold', label: '🔒 Tight Hold', desc: 'Max image fidelity, minimal but precise motion' },
-  { key: 'warm_glow', label: '🔥 Warm Glow', desc: 'Warm living quality, gentle light shifts' },
-  { key: 'dynamic_subtle', label: '✨ Dynamic Subtle', desc: 'Balanced between faithful and interesting' },
-]
 
 // ─── Source Image ───────────────────────────────────────────
 const selectedMediaId = ref<string | null>(null)
@@ -105,7 +92,7 @@ async function runAllPresets() {
   if (!canGenerate.value || !selectedMediaId.value || runningAllPresets.value) return
   runningAllPresets.value = true
   try {
-    for (const preset of I2V_PRESETS) {
+    for (const preset of I2V_MOTION_PRESETS) {
       await gen.makeVideo(selectedMediaId.value!, buildVideoOpts(preset.key))
     }
   } finally {
@@ -139,7 +126,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
         </div>
         <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
           <button
-            v-for="p in I2V_PRESETS" :key="p.key"
+            v-for="p in I2V_MOTION_PRESETS" :key="p.key"
             class="text-left px-2 py-1.5 rounded-lg border text-xs transition-all"
             :class="selectedPreset === p.key
               ? 'border-cyan-400 bg-cyan-50 text-cyan-700 ring-1 ring-cyan-300'

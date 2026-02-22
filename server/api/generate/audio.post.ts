@@ -79,7 +79,7 @@ export default defineEventHandler(async (event) => {
     status: 'queued',
     metadata: JSON.stringify({
       apiUrl,
-      runpodInput: {
+      comfyInput: {
         action: 'image2video_audio',
         prompt: videoPrompt,
         image: imageBase64,

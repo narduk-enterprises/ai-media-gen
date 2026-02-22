@@ -2,14 +2,14 @@
  * Background completion utility.
  *
  * Uses `waitUntil` from `cloudflare:workers` to extend the Worker's lifetime
- * and poll RunPod jobs to completion after the HTTP response has been sent.
+ * and poll GPU Pod jobs to completion after the HTTP response has been sent.
  *
  * Uses shared completeMediaItem() for all completion logic.
  */
 import { eq, inArray, and, isNull, or } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { mediaItems } from '../database/schema'
-import { checkRunPodJob } from './ai'
+import { checkJobStatus } from './podClient'
 import { completeMediaItem, updateGenerationStatus } from './completeItem'
 import { useMediaBucket } from './r2'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
@@ -21,7 +21,7 @@ const MAX_POLL_MS = 14 * 60 * 1000
 type DB = DrizzleD1Database<any>
 
 /**
- * Poll a single media item's RunPod job until complete.
+ * Poll a single media item's pod job until complete.
  */
 async function pollUntilDone(
   db: DB,
@@ -31,14 +31,11 @@ async function pollUntilDone(
 ): Promise<'complete' | 'failed' | 'timeout'> {
   if (!item.runpodJobId) return 'failed'
 
-  let apiUrl: string | undefined
-  try { apiUrl = item.metadata ? JSON.parse(item.metadata).apiUrl : undefined } catch {}
-
   const startedAt = Date.now()
 
   while (Date.now() - startedAt < maxMs) {
     try {
-      const result = await checkRunPodJob(item.runpodJobId, apiUrl)
+      const result = await checkJobStatus(item.runpodJobId)
       if (!result) {
         await sleep(POLL_INTERVAL_MS)
         continue
@@ -48,7 +45,7 @@ async function pollUntilDone(
 
       if (outcome === 'completed') return 'complete'
       if (outcome === 'failed') return 'failed'
-      if (outcome === 'already_resolved') return 'complete' // Another path got it
+      if (outcome === 'already_resolved') return 'complete'
 
       await sleep(POLL_INTERVAL_MS)
     } catch (e: any) {
@@ -120,7 +117,7 @@ export async function recoverOrphanedItems(db: DB, mediaBucket: R2Bucket | null)
     const age = Date.now() - new Date(item.createdAt).getTime()
     if (age > 10 * 60 * 1000) {
       await db.update(mediaItems)
-        .set({ status: 'failed', error: 'No RunPod job ID — lost in submission' })
+        .set({ status: 'failed', error: 'No pod job ID — lost in submission' })
         .where(eq(mediaItems.id, item.id))
     }
   }

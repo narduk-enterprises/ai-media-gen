@@ -42,8 +42,7 @@ function toggle(value: number) {
     </label>
     <div class="flex flex-wrap gap-1.5">
       <button
-        v-for="preset in presets"
-        :key="preset.value"
+        v-for="preset in presets" :key="preset.value"
         class="py-2 px-1 rounded-lg text-center transition-all border"
         :class="modelValue.includes(preset.value)
           ? 'bg-cyan-50 border-cyan-300 text-cyan-700 ring-1 ring-cyan-200'

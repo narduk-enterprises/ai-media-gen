@@ -78,8 +78,8 @@ export function useWebLLM() {
    */
   async function remixPromptServer(prompt: string): Promise<string> {
     // Use the custom endpoint if set, otherwise the selected named endpoint
-    const { runpodEndpoint, customEndpoint } = useAppSettings()
-    const endpoint = customEndpoint.value || runpodEndpoint.value
+    const { effectiveEndpoint } = useAppSettings()
+    const endpoint = effectiveEndpoint.value
 
     const response = await $fetch<{ prompts: string[]; elapsed: number }>('/api/generate/remix', {
       method: 'POST',

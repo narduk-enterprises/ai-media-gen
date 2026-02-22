@@ -199,8 +199,7 @@ function selectPreset(preset: VideoPreset) {
     <div class="flex items-center gap-2 flex-wrap">
       <div class="flex gap-1">
         <UButton
-          v-for="[key, label] in categories"
-          :key="key"
+          v-for="[key, label] in categories" :key="key"
           size="xs"
           :variant="selectedCategory === key ? 'soft' : 'ghost'"
           :color="selectedCategory === key ? 'primary' : 'neutral'"
@@ -221,8 +220,7 @@ function selectPreset(preset: VideoPreset) {
     <!-- Preset cards grid -->
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
       <button
-        v-for="preset in filteredPresets"
-        :key="preset.id"
+        v-for="preset in filteredPresets" :key="preset.prompt"
         class="group text-left p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-primary-400 hover:bg-primary-50/50 dark:hover:bg-primary-950/20 transition-all duration-150 cursor-pointer"
         @click="selectPreset(preset)"
       >

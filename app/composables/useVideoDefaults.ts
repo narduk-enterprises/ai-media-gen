@@ -40,6 +40,32 @@ export const FIDELITY_PRESETS = [
 
 export const DEFAULT_NEGATIVE_PROMPT = 'worst quality, blurry, distorted, deformed, disfigured, bad anatomy, watermark, text, logo'
 
+// ─── I2V Workflow Presets (matched with workflow_loader.py) ──
+
+export const I2V_PRESETS = [
+  // Research-backed quality presets
+  { key: 'quality_res2s', label: '🏆 Quality (res2s)', desc: 'Official best: res2_s + LoRA 0.60', color: 'yellow' },
+  { key: 'quality_euler', label: '🎯 Quality (Euler)', desc: 'High quality euler + LoRA 0.80', color: 'lime' },
+  { key: 'photorealistic', label: '📸 Photorealistic', desc: 'Optimized for photorealism, higher CFG', color: 'sky' },
+  { key: 'max_fidelity', label: '💎 Max Fidelity', desc: 'Maximum quality, slow, best for hero shots', color: 'indigo' },
+  // Motion-focused presets
+  { key: 'cinematic_breathe', label: '🎬 Cinematic Breathe', desc: 'Subtle breathing/living motion, very faithful', color: 'violet' },
+  { key: 'gentle_wind', label: '🌿 Gentle Wind', desc: 'Soft environmental motion, gentle breeze', color: 'emerald' },
+  { key: 'dreamy_drift', label: '🌊 Dreamy Drift', desc: 'Dreamlike subtle movement, very smooth', color: 'blue' },
+  { key: 'natural_motion', label: '🌲 Natural Motion', desc: 'Realistic natural movement, balanced', color: 'green' },
+  { key: 'vivid_action', label: '⚡ Vivid Action', desc: 'More dynamic motion, slightly creative', color: 'amber' },
+  { key: 'soft_focus', label: '📷 Soft Focus', desc: 'Soft cinematic feel, gentle transitions', color: 'rose' },
+  { key: 'fluid_motion', label: '💧 Fluid Motion', desc: 'Smooth, flowing like water or silk', color: 'cyan' },
+  { key: 'tight_hold', label: '🔒 Tight Hold', desc: 'Max fidelity, minimal but precise motion', color: 'slate' },
+  { key: 'warm_glow', label: '🔥 Warm Glow', desc: 'Warm living quality, gentle light shifts', color: 'orange' },
+  { key: 'dynamic_subtle', label: '✨ Dynamic Subtle', desc: 'Balanced between faithful and interesting', color: 'purple' },
+] as const
+
+/** Motion-only subset (excludes the 4 quality-focused presets) */
+export const I2V_MOTION_PRESETS = I2V_PRESETS.filter(p =>
+  !['quality_res2s', 'quality_euler', 'photorealistic', 'max_fidelity'].includes(p.key)
+)
+
 // ─── Reactive Video Settings Factory ─────────────────────────
 
 export function useVideoSettings(defaults?: {

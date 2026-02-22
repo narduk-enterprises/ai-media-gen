@@ -1,4 +1,4 @@
-import { eq, desc, count, and, inArray, sql } from 'drizzle-orm'
+import { eq, ne, desc, count, and, inArray, sql } from 'drizzle-orm'
 import { requireAuth } from '../utils/auth'
 import { generations, mediaItems } from '../database/schema'
 
@@ -23,7 +23,11 @@ export default defineEventHandler(async (event) => {
   const typeFilter = String(query.type || 'all')
 
   // Build WHERE clause for generations
-  const genConditions = [eq(generations.userId, user.id)]
+  // Exclude failed generations — they have no visible media and clutter pagination
+  const genConditions = [
+    eq(generations.userId, user.id),
+    ne(generations.status, 'failed'),
+  ]
 
   // If filtering by type, restrict to generations that have matching media
   if (typeFilter === 'image' || typeFilter === 'video') {

@@ -28,9 +28,8 @@ export interface GenerationResult {
 const MAX_IMAGES_PER_BATCH = 16
 
 export function useGeneration() {
-  const { runpodEndpoint, customEndpoint } = useAppSettings()
+  const { effectiveEndpoint } = useAppSettings()
   const queue = useQueue()
-  const effectiveEndpoint = computed(() => customEndpoint.value || runpodEndpoint.value)
 
   const submitting = ref(false)
   const error = ref('')

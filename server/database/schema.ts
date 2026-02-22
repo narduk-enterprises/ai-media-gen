@@ -39,7 +39,7 @@ export const mediaItems = sqliteTable('media_items', {
   type: text('type').notNull(), // 'image' | 'video' | 'audio'
   parentId: text('parent_id'), // links video→image, audio→video
   url: text('url'),
-  status: text('status').notNull().default('queued'), // queued | processing | complete | failed | cancelled
+  status: text('status').notNull().default('pending'), // pending | queued | processing | complete | failed | cancelled
   error: text('error'),
   metadata: text('metadata'), // JSON blob: RunPod input payload + apiUrl
   runpodJobId: text('runpod_job_id'), // RunPod job ID (null while queued, set when submitted)

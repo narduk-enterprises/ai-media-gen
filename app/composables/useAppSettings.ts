@@ -5,18 +5,15 @@
  * hydration to client mount to avoid hydration mismatches.
  */
 
-type EndpointType = 'full' | 'slim' | 'eu'
-
 interface AppSettings {
-  runpodEndpoint: EndpointType
-  customEndpoint: string
+  /** GPU pod server URL (e.g. https://xxx.proxy.runpod.net) */
+  gpuServerUrl: string
 }
 
 const STORAGE_KEY = 'app-settings'
 
 const defaults: AppSettings = {
-  runpodEndpoint: 'full',
-  customEndpoint: '',
+  gpuServerUrl: '',
 }
 
 function save(settings: AppSettings) {
@@ -35,30 +32,40 @@ export function useAppSettings() {
         const raw = localStorage.getItem(STORAGE_KEY)
         if (raw) {
           const parsed = JSON.parse(raw)
+
+          // Migrate from old format: prefer comfyuiServer > customEndpoint
+          if (parsed.comfyuiServer && !parsed.gpuServerUrl) {
+            parsed.gpuServerUrl = parsed.comfyuiServer
+          } else if (parsed.customEndpoint && !parsed.gpuServerUrl) {
+            parsed.gpuServerUrl = parsed.customEndpoint
+          }
+
           state.value = { ...defaults, ...parsed }
         }
       } catch {}
     })
   }
 
-  const runpodEndpoint = computed({
-    get: () => state.value.runpodEndpoint,
-    set: (val: EndpointType) => {
-      state.value = { ...state.value, runpodEndpoint: val }
+  const gpuServerUrl = computed({
+    get: () => state.value.gpuServerUrl,
+    set: (val: string) => {
+      state.value = { ...state.value, gpuServerUrl: val }
       save(state.value)
     },
   })
 
-  const customEndpoint = computed({
-    get: () => state.value.customEndpoint,
-    set: (val: string) => {
-      state.value = { ...state.value, customEndpoint: val }
-      save(state.value)
-    },
+  /** The effective endpoint URL sent to API routes */
+  const effectiveEndpoint = computed(() => {
+    return state.value.gpuServerUrl?.replace(/\/+$/, '') || ''
   })
 
   return {
-    runpodEndpoint,
-    customEndpoint,
+    gpuServerUrl,
+    effectiveEndpoint,
+    // Backward-compatible aliases for code that still references old names
+    comfyuiServer: gpuServerUrl,
+    backendMode: computed(() => 'comfyui' as const),
+    runpodEndpoint: computed(() => '' as const),
+    customEndpoint: computed(() => '' as const),
   }
 }

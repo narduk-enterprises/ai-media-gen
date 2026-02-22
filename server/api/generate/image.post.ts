@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl } from '../../utils/ai'
-import { submitItemToRunPod } from '../../utils/submitItem'
+import { submitItemToComfyUI } from '../../utils/submitItem'
 import { generations, mediaItems } from '../../database/schema'
 
 const generateSchema = z.object({
@@ -69,7 +69,7 @@ export default defineEventHandler(async (event) => {
       metadata: JSON.stringify({
         apiUrl,
         seed: itemSeed,
-        runpodInput: {
+        comfyInput: {
           action: 'text2image',
           prompt: imagePrompt,
           negative_prompt: negativePrompt,
@@ -89,10 +89,10 @@ export default defineEventHandler(async (event) => {
 
   console.log(`[Image] ${count} items queued for generation ${generationId.slice(0, 8)}`)
 
-  // Submit to RunPod in background — response returns immediately
+  // Submit to ComfyUI in background
   waitUntil((async () => {
     for (const item of items) {
-      await submitItemToRunPod(db, item.id)
+      await submitItemToComfyUI(db, item.id)
     }
   })())
 

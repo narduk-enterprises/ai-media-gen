@@ -185,8 +185,7 @@ function timeAgo(dateStr: string) {
     <!-- Filter tabs -->
     <div class="flex border-b border-slate-100 shrink-0">
       <button
-        v-for="tab in filterTabs"
-        :key="tab.key"
+        v-for="tab in filterTabs" :key="tab.key"
         class="flex-1 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider transition-colors relative"
         :class="activeFilter === tab.key
           ? `${tab.color} bg-slate-50`
@@ -215,8 +214,7 @@ function timeAgo(dateStr: string) {
 
       <TransitionGroup name="queue-item" tag="div" class="divide-y divide-slate-50">
         <div
-          v-for="item in filteredItems"
-          :key="item.id"
+          v-for="item in filteredItems" :key="item.id"
           class="px-3 py-2.5 hover:bg-slate-50/80 transition-colors group"
         >
           <div class="flex items-start gap-2.5">

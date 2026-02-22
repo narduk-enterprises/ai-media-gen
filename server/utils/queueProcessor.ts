@@ -2,18 +2,17 @@
  * Server-Side Job Queue Processor.
  *
  * The cron trigger calls `processQueue()` which:
- *   1. SUBMIT — picks up `queued` items and submits them to RunPod (up to MAX_CONCURRENT)
- *   2. POLL   — checks all `processing` items against RunPod, completes them
+ *   1. SUBMIT — picks up `queued` items and submits them to the GPU Pod
+ *   2. POLL   — checks all `processing` items via pod /generate/status
  *   3. CLEAN  — re-queues items stuck processing for >15 min (auto-retry up to 2x)
  *
  * Uses shared utilities:
  *   - completeMediaItem() for all completion logic
- *   - submitItemToRunPod() is NOT used here because submit phase has special
- *     handling for pendingCaptioning and corrupt items that need to be failed immediately
+ *   - podClient for GPU Pod communication
  */
-import { eq, asc, sql } from 'drizzle-orm'
-import { mediaItems, generations } from '../database/schema'
-import { callRunPodAsync, checkRunPodJob } from './ai'
+import { eq, asc } from 'drizzle-orm'
+import { mediaItems } from '../database/schema'
+import { submitJob, checkJobStatus, buildRequestFromMeta } from './podClient'
 import { completeMediaItem, updateGenerationStatus } from './completeItem'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 
@@ -40,7 +39,7 @@ export async function processQueue(db: DB, mediaBucket: R2Bucket | null) {
   }
 }
 
-// ─── Phase 1: Submit queued items to RunPod ─────────────────
+// ─── Phase 1: Submit queued items to GPU Pod ─────────────────
 
 async function submitPhase(db: DB) {
   const processing = await db.select({ id: mediaItems.id })
@@ -64,11 +63,10 @@ async function submitPhase(db: DB) {
 
   const results = await Promise.allSettled(queued.map(async (item) => {
     try {
-      let meta: any = {}
-      try { meta = item.metadata ? JSON.parse(item.metadata) : {} } catch {}
-      const { runpodInput, apiUrl } = meta
+      const meta = parseItemMeta(item)
+      const input = meta.comfyInput
 
-      if (!runpodInput) {
+      if (!input) {
         // Items still being captioned in the background
         if (meta.pendingCaptioning) {
           const createdAt = item.createdAt ? new Date(item.createdAt).getTime() : 0
@@ -85,31 +83,33 @@ async function submitPhase(db: DB) {
           return false
         }
 
-        console.error(`[Queue] ${item.id.slice(0, 8)} has no runpodInput — marking failed`)
+        console.error(`[Queue] ${item.id.slice(0, 8)} has no comfyInput — marking failed`)
         await db.update(mediaItems)
-          .set({ status: 'failed', error: 'No RunPod input payload — corrupt queue entry' })
+          .set({ status: 'failed', error: 'No input payload — corrupt queue entry' })
           .where(eq(mediaItems.id, item.id))
         await updateGenerationStatus(db, item.generationId)
         return false
       }
 
-      const result = await callRunPodAsync(runpodInput, apiUrl)
+      // Build pod request from stored metadata and submit
+      const request = buildRequestFromMeta(meta)
+      const response = await submitJob(request)
 
       await db.update(mediaItems)
         .set({
           status: 'processing',
-          runpodJobId: result.jobId,
+          runpodJobId: response.job_id,
           submittedAt: new Date().toISOString(),
-          metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl }),
+          metadata: JSON.stringify({ ...meta, podJobId: response.job_id }),
         })
         .where(eq(mediaItems.id, item.id))
 
-      console.log(`[Queue] ✅ Submitted ${item.id.slice(0, 8)} → job ${result.jobId}`)
+      console.log(`[Queue] ✅ Submitted ${item.id.slice(0, 8)} → Pod job ${response.job_id}`)
       return true
     } catch (e: any) {
       console.error(`[Queue] ❌ Failed to submit ${item.id.slice(0, 8)}:`, e.message)
       await db.update(mediaItems)
-        .set({ status: 'failed', error: `RunPod submit failed: ${e.message}` })
+        .set({ status: 'failed', error: `Pod submit failed: ${e.message}` })
         .where(eq(mediaItems.id, item.id))
       await updateGenerationStatus(db, item.generationId)
       return false
@@ -132,7 +132,6 @@ async function pollPhase(db: DB, mediaBucket: R2Bucket | null) {
   const processing = await db.select().from(mediaItems)
     .where(eq(mediaItems.status, 'processing'))
 
-  // Only check items with a RunPod job ID
   const pollable = processing.filter(i => i.runpodJobId)
 
   if (!pollable.length) {
@@ -143,13 +142,9 @@ async function pollPhase(db: DB, mediaBucket: R2Bucket | null) {
 
   const results = await Promise.allSettled(pollable.map(async (item) => {
     try {
-      let apiUrl: string | undefined
-      try { apiUrl = item.metadata ? JSON.parse(item.metadata).apiUrl : undefined } catch {}
-
-      const result = await checkRunPodJob(item.runpodJobId!, apiUrl)
+      const result = await checkJobStatus(item.runpodJobId!)
       if (!result) return 'processing' as const
 
-      // Use shared completion utility — handles race guard, R2 upload, DB update
       const outcome = await completeMediaItem(db, mediaBucket, item.id, result)
 
       if (outcome === 'completed') return 'completed' as const
@@ -191,11 +186,10 @@ async function cleanupPhase(db: DB) {
       : new Date(item.createdAt).getTime()
 
     if (now - submittedTime > STALE_THRESHOLD_MS) {
-      let meta: any = {}
-      try { meta = item.metadata ? JSON.parse(item.metadata) : {} } catch {}
+      const meta = parseItemMeta(item)
       const retryCount = meta._retryCount || 0
 
-      if (retryCount < MAX_RETRIES && meta.runpodInput) {
+      if (retryCount < MAX_RETRIES && meta.comfyInput) {
         await db.update(mediaItems)
           .set({
             status: 'queued',

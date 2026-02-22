@@ -26,8 +26,7 @@ const modelValue = defineModel<number>({ default: 0 })
     <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2 block">Resolution</label>
     <div class="grid grid-cols-3 gap-1.5">
       <button
-        v-for="(preset, i) in presets"
-        :key="i"
+        v-for="(preset, i) in presets" :key="i"
         class="py-1.5 px-2 rounded-lg text-[11px] font-medium text-center transition-all border"
         :class="modelValue === i
           ? 'bg-cyan-50 border-cyan-300 text-cyan-700 ring-1 ring-cyan-200'

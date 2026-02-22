@@ -61,8 +61,7 @@ const emit = defineEmits<{
     <!-- Grid -->
     <div :class="['grid gap-3', gridClass]">
       <MediaResultCard
-        v-for="(item, index) in results"
-        :key="item.id"
+        v-for="(item, index) in results" :key="item.id"
         :item="item"
         :index="index"
         :action-loading="actionLoading"

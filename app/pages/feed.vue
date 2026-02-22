@@ -324,8 +324,7 @@ function formatTime(dateStr: string): string {
 
       <!-- Video slides -->
       <div
-        v-for="(video, index) in videos"
-        :key="video.id"
+        v-for="(video, index) in videos" :key="video.id || index"
         class="feed-slide"
         @touchstart.passive="onTouchStart"
         @touchend="onTouchEnd($event, index)"

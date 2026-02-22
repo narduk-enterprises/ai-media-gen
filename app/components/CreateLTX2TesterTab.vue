@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { I2V_PRESETS, DEFAULT_NEGATIVE_PROMPT } from '~/composables/useVideoDefaults'
+
 const queue = useQueue()
 /**
  * LTX2 Tester — One image, all 10 I2V presets, side-by-side comparison.
@@ -12,25 +14,6 @@ const queue = useQueue()
  */
 const gen = useGeneration()
 
-// ── I2V Presets (exact match with workflow_loader.py I2V_PRESETS) ────────
-const I2V_PRESETS = [
-  // Research-backed quality presets
-  { key: 'quality_res2s', label: '🏆 Quality (res2s)', desc: 'Official best: res2_s + LoRA 0.60', color: 'yellow' },
-  { key: 'quality_euler', label: '🎯 Quality (Euler)', desc: 'High quality euler + LoRA 0.80', color: 'lime' },
-  { key: 'photorealistic', label: '📸 Photorealistic', desc: 'Optimized for photorealism, higher CFG', color: 'sky' },
-  { key: 'max_fidelity', label: '💎 Max Fidelity', desc: 'Maximum quality, slow, best for hero shots', color: 'indigo' },
-  // Motion-focused presets
-  { key: 'cinematic_breathe', label: '🎬 Cinematic Breathe', desc: 'Subtle breathing/living motion, very faithful', color: 'violet' },
-  { key: 'gentle_wind', label: '🌿 Gentle Wind', desc: 'Soft environmental motion, gentle breeze', color: 'emerald' },
-  { key: 'dreamy_drift', label: '🌊 Dreamy Drift', desc: 'Dreamlike subtle movement, very smooth', color: 'blue' },
-  { key: 'natural_motion', label: '🌲 Natural Motion', desc: 'Realistic natural movement, balanced', color: 'green' },
-  { key: 'vivid_action', label: '⚡ Vivid Action', desc: 'More dynamic motion, slightly creative', color: 'amber' },
-  { key: 'soft_focus', label: '📷 Soft Focus', desc: 'Soft cinematic feel, gentle transitions', color: 'rose' },
-  { key: 'fluid_motion', label: '💧 Fluid Motion', desc: 'Smooth, flowing like water or silk', color: 'cyan' },
-  { key: 'tight_hold', label: '🔒 Tight Hold', desc: 'Max fidelity, minimal but precise motion', color: 'slate' },
-  { key: 'warm_glow', label: '🔥 Warm Glow', desc: 'Warm living quality, gentle light shifts', color: 'orange' },
-  { key: 'dynamic_subtle', label: '✨ Dynamic Subtle', desc: 'Balanced between faithful and interesting', color: 'purple' },
-] as const
 
 // ── Source Image ─────────────────────────────────────────────────────────
 const selectedMediaId = ref<string | null>(null)
@@ -47,7 +30,7 @@ function onImageClear() {
 
 // ── Settings ─────────────────────────────────────────────────────────────
 const prompt = ref('')
-const negativePrompt = ref('worst quality, blurry, distorted, deformed, disfigured, bad anatomy, watermark, text, logo')
+const negativePrompt = ref(DEFAULT_NEGATIVE_PROMPT)
 const numFrames = ref(97)  // 4s — good for quick comparison
 const steps = ref(30)
 const width = ref(1280)
@@ -140,8 +123,8 @@ async function generate() {
     error: null,
   }))
 
-  const { runpodEndpoint, customEndpoint } = useAppSettings()
-  const endpoint = customEndpoint.value || runpodEndpoint.value
+  const { effectiveEndpoint } = useAppSettings()
+  const endpoint = effectiveEndpoint.value
 
   // Submit each preset sequentially (to avoid overwhelming the queue)
   for (let i = 0; i < activePresets.length; i++) {

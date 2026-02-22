@@ -1,8 +1,8 @@
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
-import { resolveApiUrl, callRunPodAsync } from '../../utils/ai'
+import { resolveApiUrl } from '../../utils/ai'
+import { submitItemToComfyUI } from '../../utils/submitItem'
 import { generations, mediaItems } from '../../database/schema'
 
 const schema = z.object({
@@ -16,7 +16,6 @@ const schema = z.object({
   cfg: z.number().min(1).max(20).default(7.0),
   denoise: z.number().min(0).max(1).default(0.75),
   seed: z.number().int().default(-1),
-  endpoint: z.string().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -28,8 +27,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, negativePrompt, image, model, steps, width, height, cfg, denoise, seed, endpoint } = parsed.data
-  const apiUrl = resolveApiUrl(endpoint)
+  const { prompt, negativePrompt, image, model, steps, width, height, cfg, denoise, seed } = parsed.data
+  const apiUrl = resolveApiUrl()
 
   const db = useDatabase()
   const generationId = crypto.randomUUID()
@@ -48,69 +47,33 @@ export default defineEventHandler(async (event) => {
     createdAt: now,
   })
 
-  const runpodInput = {
-    action: 'image2image',
-    prompt,
-    negative_prompt: negativePrompt,
-    image,
-    model,
-    width,
-    height,
-    steps,
-    cfg,
-    denoise,
-    seed,
-  }
-
   await db.insert(mediaItems).values({
     id: itemId,
     generationId,
     type: 'image',
     prompt,
     status: 'queued',
-    metadata: JSON.stringify({ apiUrl, runpodInput }),
+    metadata: JSON.stringify({
+      apiUrl,
+      comfyInput: {
+        action: 'image2image',
+        prompt, negative_prompt: negativePrompt, image, model,
+        width, height, steps, cfg, denoise, seed,
+      },
+    }),
     createdAt: now,
   })
 
-  // Submit to RunPod in background — response returns immediately
-  waitUntil((async () => {
-    try {
-      const result = await callRunPodAsync(runpodInput, apiUrl)
-      await db.update(mediaItems)
-        .set({
-          status: 'processing',
-          runpodJobId: result.jobId,
-          submittedAt: new Date().toISOString(),
-          metadata: JSON.stringify({ apiUrl: result.apiUrl, runpodInput }),
-        })
-        .where(eq(mediaItems.id, itemId))
-      console.log(`[I2I] ✅ Submitted ${itemId.slice(0, 8)} → job ${result.jobId}`)
-    } catch (e: any) {
-      console.warn(`[I2I] ⚠️ Submit failed, cron will retry:`, e.message)
-    }
-  })())
+  console.log(`[I2I] Item queued: ${itemId.slice(0, 8)}`)
+
+  waitUntil(submitItemToComfyUI(db, itemId))
 
   return {
-    generation: {
-      id: generationId,
-      prompt,
-      imageCount: 1,
-      status: 'processing',
-      settings,
-      createdAt: now,
-    },
+    generation: { id: generationId, prompt, imageCount: 1, status: 'processing', settings, createdAt: now },
     items: [{
-      id: itemId,
-      generationId,
-      type: 'image',
-      prompt,
-      runpodJobId: null,
-      parentId: null,
-      url: null,
-      status: 'queued',
-      error: null,
-      metadata: null,
-      createdAt: now,
+      id: itemId, generationId, type: 'image', prompt,
+      runpodJobId: null, parentId: null, url: null,
+      status: 'queued', error: null, metadata: null, createdAt: now,
     }],
   }
 })

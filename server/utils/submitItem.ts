@@ -1,27 +1,30 @@
 /**
- * submitItem.ts — Single source of truth for submitting a queued item to RunPod.
+ * submitItem.ts — Submit queued items to the GPU Pod.
+ *
+ * Reads comfyInput from stored metadata, builds a MultiSegmentRequest,
+ * and submits to the pod's /generate/multi-segment endpoint.
  *
  * Used by:
- * - waitUntil blocks in submit endpoints (image, video, text2video, image2video-auto)
+ * - waitUntil blocks in submit endpoints
  * - queueProcessor cron submit phase
  */
 import { eq } from 'drizzle-orm'
 import { mediaItems } from '../database/schema'
-import { callRunPodAsync } from './ai'
+import { submitJob, buildRequestFromMeta, getPodUrl } from './podClient'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 
 type DB = DrizzleD1Database<any>
 
 /**
- * Submit a single queued item to RunPod.
+ * Submit a single queued item to the GPU Pod.
  *
- * Reads runpodInput from metadata, calls RunPod async API,
- * updates status to 'processing' with jobId and submittedAt.
+ * Reads input from metadata, builds a pod request, and submits it.
+ * Updates status to 'processing' with the pod job ID.
  *
  * On failure: logs warning, leaves item as 'queued' for cron retry.
  * Returns the jobId on success, null on failure.
  */
-export async function submitItemToRunPod(
+export async function submitItemToPod(
   db: DB,
   itemId: string,
 ): Promise<string | null> {
@@ -34,33 +37,43 @@ export async function submitItemToRunPod(
       return null
     }
 
-    let meta: any
-    try { meta = JSON.parse(item.metadata) } catch {
-      console.warn(`[Submit] ${itemId.slice(0, 8)} has corrupt metadata — skipping`)
+    const meta = parseItemMeta(item)
+    const input = meta.comfyInput
+    if (!input) {
+      console.warn(`[Submit] ${itemId.slice(0, 8)} has no comfyInput — skipping`)
       return null
     }
 
-    const { runpodInput, apiUrl } = meta
-    if (!runpodInput) {
-      console.warn(`[Submit] ${itemId.slice(0, 8)} has no runpodInput — skipping`)
+    // Build pod request from stored metadata
+    const request = buildRequestFromMeta(meta)
+
+    // Extract pod URL from metadata (stored when generation was created)
+    const podUrl = meta.apiUrl || meta.podUrl || getPodUrl()
+    if (!podUrl) {
+      console.warn(`[Submit] ${itemId.slice(0, 8)} has no apiUrl in metadata — skipping`)
       return null
     }
 
-    const result = await callRunPodAsync(runpodInput, apiUrl)
+    // Submit to GPU Pod
+    const response = await submitJob(request, podUrl)
 
     await db.update(mediaItems)
       .set({
         status: 'processing',
-        runpodJobId: result.jobId,
+        runpodJobId: response.job_id,
         submittedAt: new Date().toISOString(),
-        metadata: JSON.stringify({ ...meta, apiUrl: result.apiUrl }),
+        metadata: JSON.stringify({ ...meta, podJobId: response.job_id }),
       })
       .where(eq(mediaItems.id, itemId))
 
-    console.log(`[Submit] ✅ ${itemId.slice(0, 8)} → job ${result.jobId}`)
-    return result.jobId
+    console.log(`[Submit] ✅ ${itemId.slice(0, 8)} → Pod job ${response.job_id}`)
+    return response.job_id
   } catch (e: any) {
     console.warn(`[Submit] ⚠️ ${itemId.slice(0, 8)} failed, cron will retry: ${e.message}`)
     return null
   }
 }
+
+// Backward-compatible aliases
+export const submitItemToComfyUI = submitItemToPod
+export const submitItemToRunPod = submitItemToPod

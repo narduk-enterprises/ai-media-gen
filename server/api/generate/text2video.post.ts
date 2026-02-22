@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl } from '../../utils/ai'
-import { submitItemToRunPod } from '../../utils/submitItem'
+import { submitItemToComfyUI } from '../../utils/submitItem'
 import { generations, mediaItems } from '../../database/schema'
 
 const text2videoSchema = z.object({
@@ -66,34 +66,35 @@ export default defineEventHandler(async (event) => {
 
   const videoId = crypto.randomUUID()
 
-  // Insert as 'queued' — the cron will submit to RunPod
+  // Insert as 'queued' — the cron/background will submit
+  const isLtx2 = model === 'ltx2'
+  const inputPayload: Record<string, any> = {
+    action: 'text2video',
+    prompt,
+    negative_prompt: negativePrompt,
+    width, height,
+    num_frames: numFrames,
+    steps,
+    lora_strength: loraStrength,
+    model, seed,
+    ...(audioPrompt ? { audio_prompt: audioPrompt } : {}),
+    ...(body.cameraLora ? { camera_lora: body.cameraLora } : {}),
+  }
+
   await db.insert(mediaItems).values({
     id: videoId,
     generationId: genId,
     type: 'video',
     prompt,
     status: 'queued',
-    metadata: JSON.stringify({
-      apiUrl,
-      runpodInput: {
-        action: 'text2video',
-        prompt,
-        negative_prompt: negativePrompt,
-        width, height,
-        num_frames: numFrames,
-        steps,
-        lora_strength: loraStrength,
-        model, seed,
-        ...(audioPrompt ? { audio_prompt: audioPrompt } : {}),
-      },
-    }),
+    metadata: JSON.stringify({ apiUrl, comfyInput: inputPayload }),
     createdAt: now,
   })
 
   console.log(`[T2V] Item queued: ${videoId.slice(0, 8)} → gen ${genId.slice(0, 8)}`)
 
-  // Submit to RunPod in background — response returns immediately
-  waitUntil(submitItemToRunPod(db, videoId))
+  // Submit to ComfyUI in background
+  waitUntil(submitItemToComfyUI(db, videoId))
 
   return {
     generation: { id: genId, prompt, imageCount: 1, status: 'processing', createdAt: now },

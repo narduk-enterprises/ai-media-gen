@@ -3,7 +3,48 @@ definePageMeta({ middleware: 'auth', ssr: false })
 useSeoMeta({ title: 'Settings' })
 
 const { user, logout } = useAuth()
-const { runpodEndpoint, customEndpoint } = useAppSettings()
+const { gpuServerUrl } = useAppSettings()
+
+// ─── Health Check ────────────────────────────────────────────────
+const healthStatus = ref<'idle' | 'checking' | 'ok' | 'error'>('idle')
+const healthInfo = ref('')
+
+async function checkHealth() {
+  const url = gpuServerUrl.value?.trim()
+  if (!url) return
+  healthStatus.value = 'checking'
+  healthInfo.value = ''
+  try {
+    const result = await $fetch<{ ok: boolean; vram?: string; version?: string; mode?: string; devices?: string[]; error?: string }>('/api/generate/comfyui-health', {
+      params: { url },
+    })
+    if (result.ok) {
+      healthStatus.value = 'ok'
+      const parts: string[] = []
+      if (result.mode === 'pod_server') parts.push(`Pod Server v${result.version || '?'}`)
+      if (result.vram) parts.push(result.vram)
+      if (result.devices?.length) parts.push(result.devices[0]!)
+      healthInfo.value = parts.join(' · ') || 'Connected'
+    } else {
+      healthStatus.value = 'error'
+      healthInfo.value = result.error || 'Unreachable'
+    }
+  } catch (e: any) {
+    healthStatus.value = 'error'
+    healthInfo.value = e?.data?.message || e?.message || 'Check failed'
+  }
+}
+
+// Auto-check on URL change (debounced)
+let healthTimer: ReturnType<typeof setTimeout> | null = null
+watch(gpuServerUrl, (val) => {
+  healthStatus.value = 'idle'
+  healthInfo.value = ''
+  if (healthTimer) clearTimeout(healthTimer)
+  if (val?.trim()) {
+    healthTimer = setTimeout(() => checkHealth(), 1200)
+  }
+})
 
 // ─── Recovery ───────────────────────────────────────────────────────────
 const recovering = ref(false)
@@ -49,45 +90,55 @@ async function handleLogout() {
       </div>
     </UCard>
 
-    <!-- ═══ AI Backend ═══ -->
+    <!-- ═══ GPU Server ═══ -->
     <UCard class="mb-6" variant="outline">
       <template #header>
-        <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">AI Backend</h2>
+        <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">GPU Server</h2>
       </template>
 
       <p class="text-xs text-slate-500 mb-4">
-        Choose a RunPod serverless endpoint. The active endpoint is used for all image and video generation.
+        Enter the URL of your GPU pod running
+        <code class="bg-slate-100 px-1 rounded text-[11px]">pod_server.py</code>.
+        All image and video generation will use this server.
       </p>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <UButton
-          v-for="ep in [
-            { id: '', label: 'Default', desc: 'Uses built-in endpoint' },
-            { id: 'https://api.runpod.ai/v2/yvk1vz61cjhvlc', label: 'RunPod GPU A', desc: 'yvk1vz61cjhvlc' },
-            { id: 'https://api.runpod.ai/v2/nsfh5rqe7bvdl7', label: 'RunPod GPU B', desc: 'nsfh5rqe7bvdl7' },
-          ]"
-          :key="ep.id"
-          :variant="runpodEndpoint === ep.id ? 'soft' : 'outline'"
-          :color="runpodEndpoint === ep.id ? 'primary' : 'neutral'"
-          block
-          @click="runpodEndpoint = ep.id as any"
+      <UFormField label="Server URL" size="sm">
+        <div class="flex gap-2">
+          <UInput
+            v-model="gpuServerUrl"
+            placeholder="https://your-pod-url.proxy.runpod.net"
+            size="sm"
+            class="flex-1"
+          />
+          <UButton
+            size="sm"
+            variant="outline"
+            :color="healthStatus === 'ok' ? 'success' : healthStatus === 'error' ? 'error' : 'neutral'"
+            :loading="healthStatus === 'checking'"
+            @click="checkHealth"
+          >
+            {{ healthStatus === 'ok' ? '✓ Online' : healthStatus === 'error' ? '✕ Offline' : 'Check' }}
+          </UButton>
+        </div>
+      </UFormField>
+
+      <!-- Health status -->
+      <div v-if="healthInfo" class="mt-2">
+        <div
+          class="px-3 py-2 rounded-lg text-xs flex items-center gap-2"
+          :class="{
+            'bg-emerald-50 text-emerald-700': healthStatus === 'ok',
+            'bg-red-50 text-red-600': healthStatus === 'error',
+          }"
         >
-          <div class="text-left">
-            <p class="text-xs font-medium">{{ ep.label }}</p>
-            <p class="text-[10px] opacity-60">{{ ep.desc }}</p>
-          </div>
-        </UButton>
+          <span v-if="healthStatus === 'ok'" class="inline-block w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+          <span v-if="healthStatus === 'error'" class="inline-block w-2 h-2 bg-red-500 rounded-full" />
+          {{ healthInfo }}
+        </div>
       </div>
 
-      <!-- Custom endpoint URL -->
-      <div class="mt-4">
-        <UFormField label="Custom Endpoint URL" description="Override with a direct URL (e.g. a temporary RunPod pod). Leave empty to use the selected endpoint above." size="sm">
-          <UInput v-model="customEndpoint" placeholder="https://your-pod-url/api" size="sm" />
-        </UFormField>
-        <div v-if="customEndpoint" class="mt-1 flex items-center gap-2">
-          <span class="text-[10px] text-emerald-600">Custom endpoint active</span>
-          <UButton variant="link" color="error" size="xs" @click="customEndpoint = ''">Clear</UButton>
-        </div>
+      <div v-if="gpuServerUrl" class="mt-1">
+        <UButton variant="link" color="error" size="xs" @click="gpuServerUrl = ''; healthStatus = 'idle'; healthInfo = ''">Clear</UButton>
       </div>
 
       <!-- Recovery -->

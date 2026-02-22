@@ -56,8 +56,7 @@ useHead({
             <!-- Desktop nav -->
             <nav class="hidden md:flex items-center gap-1">
               <NuxtLink
-                v-for="item in navItems"
-                :key="item.to"
+                v-for="item in navItems" :key="item.to"
                 :to="item.to"
                 class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
                 :class="route.path === item.to
@@ -91,8 +90,7 @@ useHead({
           <Transition name="slide-down">
             <nav v-if="mobileMenuOpen" class="md:hidden pb-4 flex flex-col gap-1">
               <NuxtLink
-                v-for="item in navItems"
-                :key="item.to"
+                v-for="item in navItems" :key="item.to"
                 :to="item.to"
                 class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3"
                 :class="route.path === item.to

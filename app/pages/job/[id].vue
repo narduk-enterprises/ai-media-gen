@@ -166,8 +166,8 @@ async function makeVideo() {
   if (!item.value || makingVideo.value) return
   makingVideo.value = true
   try {
-    const { customEndpoint, runpodEndpoint } = useAppSettings()
-    const endpoint = customEndpoint.value || runpodEndpoint.value
+    const { effectiveEndpoint } = useAppSettings()
+    const endpoint = effectiveEndpoint.value
 
     const result = await $fetch<any>('/api/generate/image2video-auto-batch', {
       method: 'POST',

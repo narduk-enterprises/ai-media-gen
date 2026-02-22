@@ -2,14 +2,13 @@ import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
-import { resolveApiUrl, callRunPodAsync } from '../../utils/ai'
+import { submitItemToComfyUI } from '../../utils/submitItem'
 import { useMediaBucket, readBase64FromR2 } from '../../utils/r2'
 import { mediaItems, generations } from '../../database/schema'
 
 const upscaleSchema = z.object({
   mediaItemId: z.string().uuid('Invalid media item ID'),
   scale: z.number().min(2).max(4).optional().default(2),
-  endpoint: z.string().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -21,8 +20,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { mediaItemId, scale, endpoint } = parsed.data
-  const apiUrl = resolveApiUrl(endpoint)
+  const { mediaItemId, scale } = parsed.data
   const db = useDatabase()
 
   const source = await db
@@ -47,7 +45,6 @@ export default defineEventHandler(async (event) => {
   let mediaBase64: string | null = null
 
   if (!isVideo) {
-    // Image: check for inline base64 or R2
     const base64Match = sourceItem.url.match(/^data:image\/\w+;base64,(.+)$/)
     if (base64Match) {
       mediaBase64 = base64Match[1]!
@@ -58,7 +55,6 @@ export default defineEventHandler(async (event) => {
       }
     }
   } else {
-    // Video: fetch from URL
     try {
       const resp = await fetch(sourceItem.url)
       if (resp.ok) {
@@ -80,11 +76,10 @@ export default defineEventHandler(async (event) => {
   const now = new Date().toISOString()
   const enhancedId = crypto.randomUUID()
 
-  const runpodInput = isVideo
+  const comfyInput = isVideo
     ? { action: 'upscale_video' as const, video: mediaBase64, scale, fps: 24 }
     : { action: 'upscale' as const, image: mediaBase64, scale }
 
-  // Insert as queued
   await db.insert(mediaItems).values({
     id: enhancedId,
     generationId: sourceItem.generationId,
@@ -92,29 +87,13 @@ export default defineEventHandler(async (event) => {
     parentId: mediaItemId,
     prompt: sourceItem.prompt || source[0].generations.prompt || '',
     status: 'queued',
-    metadata: JSON.stringify({ apiUrl, runpodInput, isUpscale: true, scale }),
+    metadata: JSON.stringify({ comfyInput, isUpscale: true, scale }),
     createdAt: now,
   })
 
   console.log(`[Upscale] Item queued: ${enhancedId.slice(0, 8)} (${scale}x ${isVideo ? 'video' : 'image'})`)
 
-  // Submit in background
-  waitUntil((async () => {
-    try {
-      const result = await callRunPodAsync(runpodInput, apiUrl)
-      await db.update(mediaItems)
-        .set({
-          status: 'processing',
-          runpodJobId: result.jobId,
-          submittedAt: new Date().toISOString(),
-          metadata: JSON.stringify({ apiUrl: result.apiUrl, runpodInput, isUpscale: true, scale }),
-        })
-        .where(eq(mediaItems.id, enhancedId))
-      console.log(`[Upscale] ✅ Submitted ${enhancedId.slice(0, 8)} → job ${result.jobId}`)
-    } catch (e: any) {
-      console.warn(`[Upscale] ⚠️ Submit failed for ${enhancedId.slice(0, 8)}, cron will retry:`, e.message)
-    }
-  })())
+  waitUntil(submitItemToComfyUI(db, enhancedId))
 
   return {
     item: {
@@ -128,4 +107,3 @@ export default defineEventHandler(async (event) => {
     },
   }
 })
-

@@ -30,10 +30,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: `Cannot retry item with status '${item.status}'` })
   }
 
-  // Verify it has runpodInput to re-submit
+  // Verify it has comfyInput to re-submit
   let meta: any = null
   try { meta = item.metadata ? JSON.parse(item.metadata) : null } catch {}
-  if (!meta?.runpodInput) {
+  if (!meta?.comfyInput) {
     throw createError({ statusCode: 400, message: 'Item has no RunPod input — cannot retry' })
   }
 

@@ -48,8 +48,7 @@ function toggle(id: string) {
     </div>
     <div class="grid grid-cols-2 gap-3" :class="models.length > 2 ? 'lg:grid-cols-4' : ''">
       <button
-        v-for="m in models"
-        :key="m.id"
+        v-for="m in models" :key="m.id"
         class="flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all duration-150"
         :class="isSelected(m.id)
           ? `border-${activeColor}-400 bg-${activeColor}-50/60 shadow-sm`

@@ -40,11 +40,8 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    // AI generation API (RunPod)
-    aiApiKey: process.env.AI_API_KEY || '',
-    aiApiUrl: process.env.AI_API_URL || 'https://api.runpod.ai/v2/6f2qydxrgdmrym',
-    aiApiUrlSlim: process.env.AI_API_URL_SLIM || 'https://api.runpod.ai/v2/ejbg3jla5k2e7d',
-    aiApiUrlEu: process.env.AI_API_URL_EU || 'https://api.runpod.ai/v2/u1ni81it5lbrwg',
+    // ComfyUI direct connection
+    comfyUrl: process.env.COMFY_URL || '',
     webhookSecret: process.env.WEBHOOK_SECRET || '',
 
     // Apple Sign-In
