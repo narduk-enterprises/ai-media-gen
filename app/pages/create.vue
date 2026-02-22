@@ -19,6 +19,7 @@ const modeTabs: TabsItem[] = [
   { label: 'Image → Video', icon: 'i-lucide-clapperboard', value: 'img2video', slot: 'img2video' },
   { label: 'Auto Video', icon: 'i-lucide-wand-sparkles', value: 'autoVideo', slot: 'autoVideo' },
   { label: 'Sweep', icon: 'i-lucide-test-tubes', value: 'sweep', slot: 'sweep' },
+  { label: 'LTX2 Tester', icon: 'i-lucide-flask-conical', value: 'ltx2test', slot: 'ltx2test' },
 ]
 
 // ─── Tab Refs ───────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ const i2iTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalC
 const i2vTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const autoVideoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const sweepTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
+const ltx2TestTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 
 const activeTab = computed(() => {
   if (mode.value === 'text2image') return t2iTab.value
@@ -36,6 +38,7 @@ const activeTab = computed(() => {
   if (mode.value === 'img2video') return i2vTab.value
   if (mode.value === 'autoVideo') return autoVideoTab.value
   if (mode.value === 'sweep') return sweepTab.value
+  if (mode.value === 'ltx2test') return ltx2TestTab.value
   return null
 })
 
@@ -155,6 +158,9 @@ const gridClass = computed(() => {
       </template>
       <template #sweep>
         <CreateSweepTab ref="sweepTab" />
+      </template>
+      <template #ltx2test>
+        <CreateLTX2TesterTab ref="ltx2TestTab" />
       </template>
     </UTabs>
 
