@@ -28,7 +28,7 @@ function onImageClear() {
 // ─── Video Settings ─────────────────────────────────────────────────────
 const prompt = ref('')
 const negativePrompt = ref('')
-const selectedModel = ref('wan22')
+const selectedModel = ref('ltx2')
 const steps = ref(4)
 const cfg = ref(3.5)
 const resolutionIndex = ref(0)

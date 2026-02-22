@@ -2,11 +2,12 @@
  * POST /api/generate/cancel-all
  *
  * Cancel all queued/processing items for the current user.
- * Marks them as cancelled in D1 and attempts to cancel RunPod jobs.
+ * Marks them as cancelled in D1, cancels RunPod jobs, AND clears ComfyUI queue on all pods.
  */
 import { eq, or } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
 import { mediaItems, generations } from '../../database/schema'
+import { updateGenerationStatus } from '../../utils/queueProcessor'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
@@ -45,6 +46,9 @@ export default defineEventHandler(async (event) => {
   const apiKey = config.aiApiKey
   const defaultApiUrl = config.aiApiUrl
 
+  // Collect unique API URLs to clear ComfyUI queues on all pods
+  const apiUrls = new Set<string>()
+
   const runpodCancels = userActive
     .filter(item => item.runpodJobId)
     .map(async (item) => {
@@ -52,6 +56,7 @@ export default defineEventHandler(async (event) => {
         const apiUrl = item.metadata
           ? (() => { try { return JSON.parse(item.metadata!).apiUrl } catch { return defaultApiUrl } })()
           : defaultApiUrl
+        apiUrls.add(apiUrl)
         await fetch(`${apiUrl}/cancel/${item.runpodJobId}`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${apiKey}` },
@@ -62,8 +67,28 @@ export default defineEventHandler(async (event) => {
       }
     })
 
-  // Fire RunPod cancels in parallel (don't await — let them settle in background)
-  Promise.allSettled(runpodCancels)
+  // Fire RunPod cancels in parallel
+  await Promise.allSettled(runpodCancels)
+
+  // Step 4b: Clear ComfyUI queue on all pods (stops currently running jobs too)
+  if (apiUrls.size === 0) apiUrls.add(defaultApiUrl)
+  const clearPromises = [...apiUrls].map(async (apiUrl) => {
+    try {
+      await fetch(`${apiUrl}/runsync`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ input: { action: 'clear_queue' } }),
+        signal: AbortSignal.timeout(5_000),
+      })
+      console.log(`[CancelAll] ✅ Cleared ComfyUI queue on ${apiUrl}`)
+    } catch (e: any) {
+      console.warn(`[CancelAll] ⚠️ Failed to clear ComfyUI queue on ${apiUrl}:`, e.message)
+    }
+  })
+  await Promise.allSettled(clearPromises)
 
   // Step 5: Mark all as cancelled in D1
   for (const item of userActive) {
@@ -72,7 +97,13 @@ export default defineEventHandler(async (event) => {
       .where(eq(mediaItems.id, item.id))
   }
 
-  console.log(`[Queue] 🚫 Cancelled ${userActive.length} items for user ${user.id.slice(0, 8)}`)
+  // Step 6: Update parent generation statuses
+  const affectedGenIds = new Set(userActive.map(i => i.generationId))
+  for (const genId of affectedGenIds) {
+    await updateGenerationStatus(db, genId)
+  }
+
+  console.log(`[Queue] 🚫 Cancelled ${userActive.length} items for user ${user.id.slice(0, 8)} (${affectedGenIds.size} generations)`)
 
   return { cancelled: userActive.length }
 })
