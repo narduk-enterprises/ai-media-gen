@@ -218,13 +218,9 @@ function timeAgo(dateStr: string) {
                 </div>
 
                 <!-- Thumbnail for completed items -->
-                <div v-if="item.status === 'complete' && item.url && item.type === 'image'" class="mt-1.5">
-                  <img
-                    :src="item.url"
-                    :alt="item.prompt"
-                    class="w-full h-16 object-cover rounded-md border border-slate-200"
-                    loading="lazy"
-                  />
+                <div v-if="item.status === 'complete' && item.url" class="mt-1.5">
+                  <video v-if="item.type === 'video'" :src="item.url" class="w-full rounded-md border border-slate-200" :style="item.width && item.height ? { aspectRatio: `${item.width}/${item.height}` } : {}" preload="metadata" muted />
+                  <img v-else :src="item.url" :alt="item.prompt" class="w-full rounded-md border border-slate-200" :style="item.width && item.height ? { aspectRatio: `${item.width}/${item.height}` } : {}" loading="lazy" />
                 </div>
 
                 <!-- Error message for failed items -->

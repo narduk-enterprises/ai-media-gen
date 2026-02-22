@@ -42,26 +42,26 @@ export const IMAGE_MODEL_PARAMS: Record<string, ModelParams> = {
   wan22: {
     steps: { min: 1, max: 50, default: 20 },
     lora: { min: 0, max: 2, default: 1.0, step: 0.05 },
-    sizes: [512, 768, 1024, 1536, 2048],
-    defaultWidth: 1024, defaultHeight: 1024,
+    sizes: [512, 720, 768, 1024, 1280, 1536, 2048],
+    defaultWidth: 1280, defaultHeight: 720,
   },
   qwen_image: {
     steps: { min: 1, max: 50, default: 50 },
     lora: { min: 0, max: 2, default: 1.0, step: 0.05 },
-    sizes: [512, 768, 1024, 1536],
-    defaultWidth: 1024, defaultHeight: 1024,
+    sizes: [512, 720, 768, 1024, 1280, 1536],
+    defaultWidth: 1280, defaultHeight: 720,
   },
   flux2_turbo: {
     steps: { min: 1, max: 10, default: 4 },
     lora: { min: 0, max: 2, default: 1.0, step: 0.05 },
-    sizes: [512, 768, 1024, 1536, 2048],
-    defaultWidth: 1024, defaultHeight: 1024,
+    sizes: [512, 720, 768, 1024, 1280, 1536, 2048],
+    defaultWidth: 1280, defaultHeight: 720,
   },
   flux2_dev: {
     steps: { min: 1, max: 50, default: 20 },
     lora: { min: 0, max: 2, default: 1.0, step: 0.05 },
-    sizes: [512, 768, 1024, 1536, 2048],
-    defaultWidth: 1024, defaultHeight: 1024,
+    sizes: [512, 720, 768, 1024, 1280, 1536, 2048],
+    defaultWidth: 1280, defaultHeight: 720,
   },
 }
 

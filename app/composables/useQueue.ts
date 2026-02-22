@@ -24,6 +24,9 @@ export interface QueueItem {
   parentId: string | null
   error: string | null
   createdAt: string
+  submittedAt: string | null
+  width: number | null
+  height: number | null
 }
 
 export interface QueueStats {

@@ -109,7 +109,7 @@ function prettyJson(obj: any) {
           <div v-if="data.parent" class="mt-4">
             <p class="text-xs font-medium text-slate-500 mb-2">Source {{ data.parent.type }}</p>
             <NuxtLink :to="`/job/${data.parent.id}`" class="block rounded-lg overflow-hidden border border-slate-200 hover:border-violet-300 transition-colors">
-              <img v-if="data.parent.url" :src="data.parent.url" :alt="data.parent.prompt" class="w-full h-32 object-cover" loading="lazy" />
+              <img v-if="data.parent.url" :src="data.parent.url" :alt="data.parent.prompt" class="w-full rounded-lg" loading="lazy" />
             </NuxtLink>
           </div>
         </div>
