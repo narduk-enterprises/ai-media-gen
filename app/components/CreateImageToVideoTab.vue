@@ -89,7 +89,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
 
 <template>
   <div class="space-y-6 pt-4">
-    <ImagePicker cols="grid-cols-5" label="Source Image" @select="onImageSelect" @clear="onImageClear" />
+    <ImagePicker label="Source Image" @select="onImageSelect" @clear="onImageClear" />
 
     <!-- Model Selector -->
     <ModelSelector :models="VIDEO_MODELS" :selected="selectedModel" color="cyan" @update:selected="selectedModel = $event as string" />

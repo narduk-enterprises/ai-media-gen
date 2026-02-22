@@ -106,7 +106,7 @@ function close() { if (!props.loading) emit('close') }
 
     <template #body>
       <div class="space-y-5">
-        <ImagePicker ref="pickerRef" :show-upload="false" cols="grid-cols-5" label="Source Image" @select="onImageSelect" />
+        <ImagePicker ref="pickerRef" :show-upload="false" label="Source Image" @select="onImageSelect" />
 
         <!-- Model selector -->
         <section>

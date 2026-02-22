@@ -186,7 +186,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
 
 <template>
   <div class="space-y-6 pt-4">
-    <ImagePicker :limit="100" @select="onImageSelect" @clear="onImageClear" />
+    <ImagePicker @select="onImageSelect" @clear="onImageClear" />
 
     <!-- ═══ Random Batch ═══ -->
     <UCard variant="outline">

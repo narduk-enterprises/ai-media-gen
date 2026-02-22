@@ -5,14 +5,12 @@
  */
 const props = withDefaults(defineProps<{
   showUpload?: boolean
-  cols?: string
   label?: string
-  limit?: number
+  pageSize?: number
 }>(), {
   showUpload: true,
-  cols: 'grid-cols-4 sm:grid-cols-5 lg:grid-cols-6',
   label: 'Select an image',
-  limit: 20,
+  pageSize: 20,
 })
 
 const emit = defineEmits<{
@@ -20,7 +18,7 @@ const emit = defineEmits<{
   clear: []
 }>()
 
-const { images, loading: loadingImages, fetch: fetchImages } = useRecentImages(props.limit)
+const { images, loading: loadingImages, hasMore, fetch: fetchImages, loadMore } = useRecentImages(props.pageSize)
 const selectedId = ref<string | null>(null)
 const uploadPreview = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -96,19 +94,25 @@ defineExpose({ previewUrl, selectedId, clear })
         <label class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">{{ label }}</label>
         <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-refresh-cw" :loading="loadingImages" @click="fetchImages" />
       </div>
-      <div v-if="loadingImages" class="grid grid-cols-5 gap-1.5">
+      <div v-if="loadingImages && images.length === 0" class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
         <div v-for="i in 10" :key="i" class="aspect-square rounded-lg bg-gray-100 animate-pulse" />
       </div>
-      <div v-else :class="['grid gap-1.5', cols]">
+      <div v-else class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
         <button v-for="img in images" :key="img.id"
           class="relative aspect-square rounded-lg overflow-hidden border-2 transition-all"
           :class="selectedId === img.id ? 'border-primary-400 ring-2 ring-primary-200' : 'border-transparent hover:border-gray-300'"
           @click="selectImage(img)">
-          <NuxtImg :src="img.url" :alt="img.prompt" width="100" class="w-full h-full object-cover" loading="lazy" />
+          <NuxtImg :src="img.url" :alt="img.prompt" width="180" class="w-full h-full object-cover" loading="lazy" />
           <div v-if="selectedId === img.id" class="absolute inset-0 bg-primary-400/20 flex items-center justify-center">
-            <UIcon name="i-lucide-check" class="w-5 h-5 text-white drop-shadow-md" />
+            <UIcon name="i-lucide-check" class="w-6 h-6 text-white drop-shadow-md" />
           </div>
         </button>
+      </div>
+      <!-- Load More -->
+      <div v-if="hasMore && images.length > 0" class="flex justify-center mt-3">
+        <UButton size="sm" variant="soft" color="neutral" icon="i-lucide-chevrons-down" :loading="loadingImages" @click="loadMore">
+          Load More
+        </UButton>
       </div>
       <p v-if="!loadingImages && images.length === 0" class="text-xs text-gray-400 py-2">No images found yet.</p>
     </section>
