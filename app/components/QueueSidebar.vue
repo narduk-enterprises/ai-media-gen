@@ -8,7 +8,7 @@
 import { useQueue, type QueueItem } from '~/composables/useQueue'
 
 const queue = useQueue()
-const open = ref(false)
+const open = useState('queue-sidebar-open', () => false)
 const activeFilter = ref<'all' | 'active' | 'complete' | 'failed'>('active')
 
 // Initialize queue on component mount
