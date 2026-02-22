@@ -16,10 +16,7 @@ onMounted(() => {
   queue.init()
 })
 
-// Auto-open on mobile when new items appear
-watch(() => queue.totalActive.value, (active) => {
-  if (active > 0) open.value = true
-})
+// No auto-open — queue stays hidden until user explicitly clicks the toggle button
 
 // Lock body scroll when drawer is open on mobile
 watch(open, (isOpen) => {
@@ -174,6 +171,14 @@ function timeAgo(dateStr: string) {
           icon="i-lucide-refresh-cw"
           title="Refresh queue"
           @click="queue.refresh()"
+        />
+        <UButton
+          variant="ghost"
+          size="xs"
+          color="neutral"
+          icon="i-lucide-x"
+          title="Close queue"
+          @click="open = false"
         />
       </div>
     </div>
