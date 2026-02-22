@@ -4,7 +4,7 @@
  * The cron trigger calls `processQueue()` which:
  *   1. SUBMIT — picks up `queued` items and submits them to RunPod (up to MAX_CONCURRENT)
  *   2. POLL   — checks all `processing` items against RunPod, saves completed ones
- *   3. CLEAN  — marks items stuck processing for >30 min as failed
+ *   3. CLEAN  — re-queues items stuck processing for >15 min (auto-retry up to 2x)
  *
  * This is the SOLE authority for advancing job state. Status endpoints are read-only.
  */

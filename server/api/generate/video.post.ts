@@ -82,8 +82,8 @@ export default defineEventHandler(async (event) => {
     prompt,
     negative_prompt: negativePrompt,
     image: imageBase64,
-    width: width || (isLtx2 ? 768 : 768),
-    height: height || (isLtx2 ? 432 : 768),
+    width: width || (isLtx2 ? 1280 : 768),
+    height: height || (isLtx2 ? 720 : 768),
     num_frames: numFrames || (isLtx2 ? 121 : 81),
     steps: steps || 20,
   }

@@ -195,12 +195,12 @@ export function useGeneration() {
     try {
       const body: Record<string, any> = {
         mediaItemId,
-        model: opts.model || 'wan22',
-        numFrames: opts.numFrames ?? 81,
+        model: opts.model || 'ltx2',
+        numFrames: opts.numFrames ?? 241,
         steps: opts.steps ?? 20,
         cfg: opts.cfg ?? 3.5,
-        width: opts.width ?? 768,
-        height: opts.height ?? 768,
+        width: opts.width ?? 1280,
+        height: opts.height ?? 720,
         endpoint: effectiveEndpoint.value,
       }
       if (opts.prompt) body.prompt = opts.prompt
@@ -364,7 +364,7 @@ export function useGeneration() {
 
   return {
     MAX_IMAGES_PER_BATCH,
-    generating, submitting, error, results, activeGenerationId,
+    generating, submitting, error, results, activeGenerationId, trackedGenerationIds,
     lastSettings, completedMedia, totalDone, totalFailed, totalPending,
     actionLoading, batchProgress,
     generate, generateImage2Image, generateText2Video,

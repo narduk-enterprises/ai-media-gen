@@ -47,6 +47,8 @@ async function generate() {
         ...item, parentId: null,
       }))] as any
       gen.activeGenerationId.value = result.generation.id
+      // Track this generation so queue sync watcher updates statuses/URLs
+      gen.trackedGenerationIds.value.add(result.generation.id)
       queue.refresh()
     }
   } catch (e: any) {
