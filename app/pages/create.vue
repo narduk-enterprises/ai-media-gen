@@ -18,7 +18,6 @@ const modeTabs: TabsItem[] = [
   { label: 'Image → Image', icon: 'i-lucide-image-plus', value: 'img2img', slot: 'img2img' },
   { label: 'Image → Video', icon: 'i-lucide-clapperboard', value: 'img2video', slot: 'img2video' },
   { label: 'Multi-Image Video', icon: 'i-lucide-images', value: 'multiImgVideo', slot: 'multiImgVideo' },
-  { label: 'Multi-Segment', icon: 'i-lucide-scissors', value: 'multiSeg', slot: 'multiSeg' },
   { label: 'Auto Video', icon: 'i-lucide-wand-sparkles', value: 'autoVideo', slot: 'autoVideo' },
   { label: 'Sweep', icon: 'i-lucide-test-tubes', value: 'sweep', slot: 'sweep' },
   { label: 'LTX2 Tester', icon: 'i-lucide-flask-conical', value: 'ltx2test', slot: 'ltx2test' },
@@ -32,7 +31,6 @@ const i2vTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalC
 const autoVideoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const sweepTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const ltx2TestTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
-const multiSegTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const multiImgVideoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 
 const activeTab = computed(() => {
@@ -44,7 +42,6 @@ const activeTab = computed(() => {
   if (mode.value === 'autoVideo') return autoVideoTab.value
   if (mode.value === 'sweep') return sweepTab.value
   if (mode.value === 'ltx2test') return ltx2TestTab.value
-  if (mode.value === 'multiSeg') return multiSegTab.value
   return null
 })
 
@@ -164,9 +161,6 @@ const gridClass = computed(() => {
       </template>
       <template #autoVideo>
         <CreateAutoVideoTab ref="autoVideoTab" />
-      </template>
-      <template #multiSeg>
-        <CreateMultiSegmentTab ref="multiSegTab" />
       </template>
       <template #sweep>
         <CreateSweepTab ref="sweepTab" />

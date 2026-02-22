@@ -18,6 +18,21 @@ interface Segment {
   preset?: string
 }
 
+const DEFAULT_SEGMENTS: Omit<Segment, 'id'>[] = [
+  {
+    prompt: 'Cinematic drone shot approaching a gorgeous college girl driving a lime green golf cart down a sun-drenched palm tree lined campus road, golden hour lighting, she glances at the camera with a confident grin, wind blowing through her hair, cold beer in hand, shallow depth of field, film grain, 4K cinematic quality',
+  },
+  {
+    prompt: 'Close-up tracking shot of her laughing and chugging a cold beer while steering the golf cart one-handed, condensation dripping off the bottle, aviator sunglasses catching sunlight, bokeh background of lush campus greenery and Spanish colonial buildings, smooth natural motion, photorealistic',
+  },
+  {
+    prompt: 'Low angle side shot of the golf cart cruising past a crowded quad, students turning their heads, she tosses an empty beer can over her shoulder without looking, warm summer afternoon light, motion blur on the background, cinematic depth',
+  },
+  {
+    prompt: 'Wide pullback shot as the golf cart drives away down a tree-canopied campus avenue, she raises a fresh beer triumphantly, long afternoon shadows stretching across the path, dust particles floating in golden light beams, nostalgic summer feeling',
+  },
+]
+
 const segments = ref<Segment[]>([])
 const dragOver = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -75,17 +90,12 @@ const showJsonImport = ref(false)
 const jsonInput = ref('')
 const jsonError = ref('')
 
-const EXAMPLE_JSON = `{
-  "segments": [
-    { "prompt": "Cinematic drone shot approaching a beautiful girl driving a lime green golf cart, golden hour, palm trees, she glances up with a confident smile, wind in her hair" },
-    { "prompt": "Close-up tracking shot of her laughing, steering one-handed, aviator sunglasses catching sunlight, bokeh background of lush campus greenery, natural skin texture" },
-    { "prompt": "Low angle shot from the side, golf cart cruising past Spanish colonial buildings, her hair flowing, warm summer afternoon light, film grain" },
-    { "prompt": "Wide pullback shot, golf cart driving away down a tree-canopied avenue, she waves over her shoulder, long shadows, dust in golden light beams, nostalgic feeling" }
-  ],
-  "targetDuration": 30,
-  "audioPrompt": "upbeat summer indie music, golf cart engine humming softly, birds chirping, warm campus ambience",
-  "model": "ltx2"
-}`
+const EXAMPLE_JSON = JSON.stringify({
+  segments: DEFAULT_SEGMENTS.map(s => ({ prompt: s.prompt })),
+  targetDuration: 30,
+  audioPrompt: 'upbeat summer indie music, golf cart engine humming, beer cans clinking, campus ambience, birds chirping, warm vibes',
+  model: 'ltx2',
+}, null, 2)
 
 function importJson() {
   jsonError.value = ''
@@ -170,7 +180,19 @@ const perSegmentDuration = computed(() => {
   return Math.round(targetDuration.value / segmentCount.value * 10) / 10
 })
 
-onMounted(() => { audioPrompt.value = randomAudioPrompt() })
+function loadDefaults() {
+  segments.value = DEFAULT_SEGMENTS.map(s => ({
+    ...s,
+    id: crypto.randomUUID().slice(0, 8),
+  }))
+  audioPrompt.value = 'upbeat summer indie music, golf cart engine humming, beer cans clinking, campus ambience, birds chirping, warm vibes'
+  targetDuration.value = 30
+  selectedModel.value = 'ltx2'
+}
+
+onMounted(() => {
+  if (segments.value.length === 0) loadDefaults()
+})
 
 const DURATION_OPTIONS = [
   { label: '10s', value: 10, desc: 'Quick' },
@@ -258,6 +280,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
           </div>
         </div>
         <div class="flex items-center gap-2">
+          <UButton size="xs" variant="ghost" color="violet" icon="i-lucide-rotate-ccw" @click="loadDefaults">Defaults</UButton>
           <UBadge v-if="segmentCount" variant="subtle" color="primary" size="xs">{{ segmentCount }} shot{{ segmentCount !== 1 ? 's' : '' }}</UBadge>
           <UBadge v-if="segmentCount >= 1" variant="subtle" color="info" size="xs">~{{ perSegmentDuration }}s each</UBadge>
           <UBadge variant="subtle" color="warning" size="xs">~{{ targetDuration }}s total</UBadge>
