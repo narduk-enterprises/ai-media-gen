@@ -78,7 +78,7 @@ export function useQueue() {
 
   // ─── Adaptive polling ─────────────────────────────────────────
   function _getInterval(): number {
-    if (stats.value.processing > 0) return 5_000
+    if (stats.value.processing > 0) return 3_000
     if (stats.value.queued > 0) return 15_000
     return 0
   }
