@@ -46,6 +46,12 @@ function prettyJson(obj: any) {
   if (!obj) return null
   return JSON.stringify(obj, null, 2)
 }
+
+function copyError() {
+  if (import.meta.client && data.value?.item?.error) {
+    globalThis.navigator?.clipboard?.writeText(data.value.item.error)
+  }
+}
 </script>
 
 <template>
@@ -98,11 +104,14 @@ function prettyJson(obj: any) {
 
           <!-- Failed -->
           <div v-else-if="data.item.status === 'failed'" class="rounded-xl border border-red-200 bg-red-50 p-6">
-            <div class="flex items-center gap-2 mb-2">
-              <UIcon name="i-lucide-x-circle" class="w-5 h-5 text-red-500" />
-              <span class="text-sm font-medium text-red-700">Generation Failed</span>
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <UIcon name="i-lucide-x-circle" class="w-5 h-5 text-red-500" />
+                <span class="text-sm font-medium text-red-700">Generation Failed</span>
+              </div>
+              <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-copy" @click="copyError" title="Copy error" />
             </div>
-            <p class="text-sm text-red-600">{{ data.item.error || 'Unknown error' }}</p>
+            <pre class="text-sm text-red-600 whitespace-pre-wrap break-all select-all bg-red-100/50 rounded-lg p-3 mt-2 font-mono">{{ data.item.error || 'Unknown error' }}</pre>
           </div>
 
           <!-- Parent source image -->
