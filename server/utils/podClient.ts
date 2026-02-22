@@ -53,6 +53,7 @@ export interface GenerationStatus {
   log?: string
   error?: string | null
   video_base64?: string | null
+  image_base64?: string | null
 }
 
 export interface HealthResponse {
@@ -138,6 +139,137 @@ export async function submitJob(
   return response
 }
 
+/**
+ * Submit a text-to-image job.
+ */
+export async function submitText2Image(
+  input: Record<string, any>,
+  podUrl?: string,
+): Promise<{ job_id: string; status: string }> {
+  const url = podUrl || getPodUrl()
+  return await $fetch(`${url}/generate/text2image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      prompt: input.prompt,
+      negative_prompt: input.negative_prompt,
+      width: input.width,
+      height: input.height,
+      steps: input.steps,
+      seed: input.seed,
+      model: input.model || 'wan22',
+      lora_strength: input.lora_strength,
+    },
+    timeout: 30_000,
+  })
+}
+
+/**
+ * Submit an image-to-image job.
+ */
+export async function submitImage2Image(
+  input: Record<string, any>,
+  podUrl?: string,
+): Promise<{ job_id: string; status: string }> {
+  const url = podUrl || getPodUrl()
+  return await $fetch(`${url}/generate/image2image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      image: input.image,
+      prompt: input.prompt,
+      negative_prompt: input.negative_prompt,
+      width: input.width,
+      height: input.height,
+      steps: input.steps,
+      cfg: input.cfg,
+      denoise: input.denoise,
+      seed: input.seed,
+      model: input.model || 'wan22',
+    },
+    timeout: 30_000,
+  })
+}
+
+/**
+ * Submit an image-to-video job.
+ */
+export async function submitImage2Video(
+  input: Record<string, any>,
+  podUrl?: string,
+): Promise<{ job_id: string; status: string }> {
+  const url = podUrl || getPodUrl()
+  return await $fetch(`${url}/generate/image2video`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      image: input.image,
+      prompt: input.prompt,
+      negative_prompt: input.negative_prompt,
+      width: input.width,
+      height: input.height,
+      frames: input.frames || input.num_frames,
+      steps: input.steps,
+      fps: input.fps,
+      seed: input.seed,
+      model: input.model || 'ltx2',
+      camera_lora: input.camera_lora,
+      preset: input.preset,
+    },
+    timeout: 30_000,
+  })
+}
+
+/**
+ * Submit a text-to-video job.
+ */
+export async function submitText2Video(
+  input: Record<string, any>,
+  podUrl?: string,
+): Promise<{ job_id: string; status: string }> {
+  const url = podUrl || getPodUrl()
+  return await $fetch(`${url}/generate/text2video`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      prompt: input.prompt,
+      negative_prompt: input.negative_prompt,
+      width: input.width,
+      height: input.height,
+      frames: input.frames || input.num_frames,
+      steps: input.steps,
+      fps: input.fps,
+      seed: input.seed,
+      model: input.model || 'wan22',
+      lora_strength: input.lora_strength,
+      camera_lora: input.camera_lora,
+      audio_prompt: input.audio_prompt,
+    },
+    timeout: 30_000,
+  })
+}
+
+/**
+ * Submit an upscale job (image or video).
+ */
+export async function submitUpscale(
+  input: Record<string, any>,
+  podUrl?: string,
+): Promise<{ job_id: string; status: string }> {
+  const url = podUrl || getPodUrl()
+  return await $fetch(`${url}/generate/upscale`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      image: input.image,
+      video: input.video,
+      scale: input.scale || 2,
+      fps: input.fps,
+    },
+    timeout: 30_000,
+  })
+}
+
 // ── Job Status ─────────────────────────────────────────────────
 
 /**
@@ -152,21 +284,37 @@ export async function checkJobStatus(
   const url = podUrl || getPodUrl()
 
   try {
-    const status = await $fetch<GenerationStatus>(`${url}/generate/status/${jobId}`, {
+    const status = await $fetch<GenerationStatus & { has_video?: boolean; has_image?: boolean }>(`${url}/generate/status/${jobId}`, {
       timeout: 10_000,
     })
 
-    if (status.status === 'completed' && status.video_base64) {
-      return {
-        status: 'COMPLETED',
-        output: {
+    if (status.status === 'completed') {
+      // Base64 may be inline (image) or stripped (video) — check both
+      let data = status.video_base64 || status.image_base64
+      let type: string = status.video_base64 ? 'video' : 'image'
+
+      // If status stripped the blob, fetch from /generate/result/
+      if (!data && (status.has_video || status.has_image)) {
+        try {
+          const result = await $fetch<{ video_base64?: string; image_base64?: string }>(`${url}/generate/result/${jobId}`, {
+            timeout: 60_000,
+          })
+          data = result.video_base64 || result.image_base64
+          type = result.video_base64 ? 'video' : 'image'
+        } catch (e: any) {
+          console.warn(`[Pod] Failed to fetch result for ${jobId}: ${e.message}`)
+        }
+      }
+
+      if (data) {
+        return {
+          status: 'COMPLETED',
           output: {
-            data: status.video_base64,
-            type: 'video',
+            output: { data, type },
           },
-        },
-        currentSegment: status.segments_total,
-        segmentsTotal: status.segments_total,
+          currentSegment: status.segments_total,
+          segmentsTotal: status.segments_total,
+        }
       }
     }
 
@@ -178,7 +326,6 @@ export async function checkJobStatus(
     }
 
     // Still processing — return null to continue polling
-    // but expose progress for UI updates
     return null
   } catch (e: any) {
     if (e?.response?.status === 404 || e?.status === 404) {

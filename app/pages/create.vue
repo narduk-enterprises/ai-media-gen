@@ -17,6 +17,7 @@ const modeTabs: TabsItem[] = [
   { label: 'Text → Video', icon: 'i-lucide-film', value: 'text2video', slot: 'text2video' },
   { label: 'Image → Image', icon: 'i-lucide-image-plus', value: 'img2img', slot: 'img2img' },
   { label: 'Image → Video', icon: 'i-lucide-clapperboard', value: 'img2video', slot: 'img2video' },
+  { label: 'Multi-Image Video', icon: 'i-lucide-images', value: 'multiImgVideo', slot: 'multiImgVideo' },
   { label: 'Multi-Segment', icon: 'i-lucide-scissors', value: 'multiSeg', slot: 'multiSeg' },
   { label: 'Auto Video', icon: 'i-lucide-wand-sparkles', value: 'autoVideo', slot: 'autoVideo' },
   { label: 'Sweep', icon: 'i-lucide-test-tubes', value: 'sweep', slot: 'sweep' },
@@ -32,12 +33,14 @@ const autoVideoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; 
 const sweepTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const ltx2TestTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const multiSegTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
+const multiImgVideoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 
 const activeTab = computed(() => {
   if (mode.value === 'text2image') return t2iTab.value
   if (mode.value === 'text2video') return t2vTab.value
   if (mode.value === 'img2img') return i2iTab.value
   if (mode.value === 'img2video') return i2vTab.value
+  if (mode.value === 'multiImgVideo') return multiImgVideoTab.value
   if (mode.value === 'autoVideo') return autoVideoTab.value
   if (mode.value === 'sweep') return sweepTab.value
   if (mode.value === 'ltx2test') return ltx2TestTab.value
@@ -155,6 +158,9 @@ const gridClass = computed(() => {
       </template>
       <template #img2video>
         <CreateImageToVideoTab ref="i2vTab" :prefill-media-id="prefillMediaId" @generate-i2v="handleI2VGenerate" />
+      </template>
+      <template #multiImgVideo>
+        <CreateMultiImageVideoTab ref="multiImgVideoTab" />
       </template>
       <template #autoVideo>
         <CreateAutoVideoTab ref="autoVideoTab" />

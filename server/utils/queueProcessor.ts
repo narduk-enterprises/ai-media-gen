@@ -12,7 +12,11 @@
  */
 import { eq, asc } from 'drizzle-orm'
 import { mediaItems } from '../database/schema'
-import { submitJob, checkJobStatus, buildRequestFromMeta } from './podClient'
+import {
+  submitJob, checkJobStatus, buildRequestFromMeta, getPodUrl,
+  submitText2Image, submitImage2Image, submitImage2Video,
+  submitText2Video, submitUpscale,
+} from './podClient'
 import { completeMediaItem, updateGenerationStatus } from './completeItem'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 
@@ -91,9 +95,34 @@ async function submitPhase(db: DB) {
         return false
       }
 
-      // Build pod request from stored metadata and submit
-      const request = buildRequestFromMeta(meta)
-      const response = await submitJob(request)
+      // Route to correct pod endpoint based on action type
+      const action = input.action || ''
+      const podUrl = meta.apiUrl || meta.podUrl || getPodUrl()
+      let response: { job_id: string; status?: string }
+
+      switch (action) {
+        case 'text2image':
+          response = await submitText2Image(input, podUrl)
+          break
+        case 'image2image':
+          response = await submitImage2Image(input, podUrl)
+          break
+        case 'image2video':
+          response = await submitImage2Video(input, podUrl)
+          break
+        case 'text2video':
+          response = await submitText2Video(input, podUrl)
+          break
+        case 'upscale':
+        case 'upscale_video':
+          response = await submitUpscale(input, podUrl)
+          break
+        default: {
+          const request = buildRequestFromMeta(meta)
+          response = await submitJob(request, podUrl)
+          break
+        }
+      }
 
       await db.update(mediaItems)
         .set({
@@ -142,7 +171,9 @@ async function pollPhase(db: DB, mediaBucket: R2Bucket | null) {
 
   const results = await Promise.allSettled(pollable.map(async (item) => {
     try {
-      const result = await checkJobStatus(item.runpodJobId!)
+      const meta = parseItemMeta(item)
+      const podUrl = meta.apiUrl || meta.podUrl || getPodUrl()
+      const result = await checkJobStatus(item.runpodJobId!, podUrl)
       if (!result) return 'processing' as const
 
       const outcome = await completeMediaItem(db, mediaBucket, item.id, result)

@@ -10,7 +10,11 @@
  */
 import { eq } from 'drizzle-orm'
 import { mediaItems } from '../database/schema'
-import { submitJob, buildRequestFromMeta, getPodUrl } from './podClient'
+import {
+  submitJob, buildRequestFromMeta, getPodUrl,
+  submitText2Image, submitImage2Image, submitImage2Video,
+  submitText2Video, submitUpscale,
+} from './podClient'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 
 type DB = DrizzleD1Database<any>
@@ -44,9 +48,6 @@ export async function submitItemToPod(
       return null
     }
 
-    // Build pod request from stored metadata
-    const request = buildRequestFromMeta(meta)
-
     // Extract pod URL from metadata (stored when generation was created)
     const podUrl = meta.apiUrl || meta.podUrl || getPodUrl()
     if (!podUrl) {
@@ -54,8 +55,34 @@ export async function submitItemToPod(
       return null
     }
 
-    // Submit to GPU Pod
-    const response = await submitJob(request, podUrl)
+    // Route to correct pod endpoint based on action type
+    const action = input.action || ''
+    let response: { job_id: string; status?: string }
+
+    switch (action) {
+      case 'text2image':
+        response = await submitText2Image(input, podUrl)
+        break
+      case 'image2image':
+        response = await submitImage2Image(input, podUrl)
+        break
+      case 'image2video':
+        response = await submitImage2Video(input, podUrl)
+        break
+      case 'text2video':
+        response = await submitText2Video(input, podUrl)
+        break
+      case 'upscale':
+      case 'upscale_video':
+        response = await submitUpscale(input, podUrl)
+        break
+      default: {
+        // Fall back to multi-segment for backward compatibility
+        const request = buildRequestFromMeta(meta)
+        response = await submitJob(request, podUrl)
+        break
+      }
+    }
 
     await db.update(mediaItems)
       .set({
