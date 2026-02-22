@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const gen = useGeneration()
+const queue = useQueue()
 const { customEndpoint, runpodEndpoint } = useAppSettings()
 
 // ─── Preset Suggestions ─────────────────────────────────────────────────
@@ -30,12 +31,10 @@ const resolutionPresets = [
 ]
 
 // ─── Local State ────────────────────────────────────────────────────────
-const selectedMediaItemId = ref<string | null>(null)
-const selectedBase64 = ref('')
+const selectedImageIds = ref<string[]>([])
 const basePrompt = ref('')
 const audioPrompt = ref('')
 const negativePrompt = ref('worst quality, blurry, distorted, deformed, disfigured, bad anatomy, watermark, text, logo')
-const count = ref(1)
 const steps = ref(20)
 const numFrames = ref(241)
 const width = ref(768)
@@ -43,61 +42,42 @@ const height = ref(512)
 const imageStrength = ref(1.0)
 const loading = ref(false)
 
-// Auto-fill with random audio preset on mount (direction left empty for I2V fidelity)
+// Auto-fill with random audio preset on mount
 onMounted(() => {
-  const randAudio = audioPresets.filter(p => p.prompt)[Math.floor(Math.random() * (audioPresets.length - 1))]
+  const withAudio = audioPresets.filter(p => p.prompt)
+  const randAudio = withAudio[Math.floor(Math.random() * withAudio.length)]
   if (randAudio) audioPrompt.value = randAudio.prompt
 })
 
 // Pipeline results
-const caption = ref('')
 const generatedPrompts = ref<string[]>([])
 const timing = ref<{ captionSeconds?: number; promptSeconds?: number; totalSeconds?: number }>({})
 
-function onImageSelect(payload: { mediaItemId?: string; base64?: string; url: string }) {
-  selectedMediaItemId.value = payload.mediaItemId || null
-  selectedBase64.value = payload.base64 || ''
+function onImagesSelected(ids: string[]) {
+  selectedImageIds.value = ids
 }
 
-function onImageClear() {
-  selectedMediaItemId.value = null
-  selectedBase64.value = ''
-  caption.value = ''
-  generatedPrompts.value = []
-}
+const canGenerate = computed(() => selectedImageIds.value.length > 0 && !loading.value)
+const totalCount = computed(() => selectedImageIds.value.length)
 
+async function generate() {
+  if (!canGenerate.value) return
 
-
-// ─── Random Batch ───────────────────────────────────────────────────────
-const randomQty = ref(5)
-const randomRunning = ref(false)
-
-async function generateRandom() {
-  if (randomRunning.value) return
-  randomRunning.value = true
+  loading.value = true
   gen.error.value = ''
+  generatedPrompts.value = []
 
   try {
-    // 1. Fetch random image IDs
-    const { items: randomImages } = await $fetch<{ items: { id: string }[] }>('/api/media/random', {
-      params: { count: randomQty.value },
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    })
-
-    if (!randomImages.length) {
-      gen.error.value = 'No images found in gallery'
-      return
-    }
-
-    // 2. Single batch call — returns immediately, server processes in background
     const endpoint = customEndpoint.value || runpodEndpoint.value
+
+    // Use batch endpoint — sends all selected images at once
     const result = await $fetch<{
       generation: { id: string; status: string; imageCount: number }
       items: { id: string; generationId: string; type: string; prompt: string; status: string; url: null }[]
     }>('/api/generate/image2video-auto-batch', {
       method: 'POST',
       body: {
-        mediaItemIds: randomImages.map(i => i.id),
+        mediaItemIds: selectedImageIds.value,
         basePrompt: basePrompt.value, audioPrompt: audioPrompt.value,
         negativePrompt: negativePrompt.value,
         steps: steps.value, numFrames: numFrames.value,
@@ -112,64 +92,10 @@ async function generateRandom() {
         ...item, parentId: null,
       }))] as any
       gen.activeGenerationId.value = result.generation.id
+      queue.refresh()
     }
   } catch (e: any) {
-    gen.error.value = e.data?.message || e.message || 'Random batch failed'
-  } finally {
-    randomRunning.value = false
-  }
-}
-
-const canGenerate = computed(() => ((!!selectedMediaItemId.value || !!selectedBase64.value) && !loading.value) || randomRunning.value)
-const totalCount = computed(() => count.value)
-
-async function generate() {
-  if (!canGenerate.value) return
-
-  loading.value = true
-  gen.error.value = ''
-  caption.value = ''
-  generatedPrompts.value = []
-
-  try {
-    const endpoint = customEndpoint.value || runpodEndpoint.value
-    const body: Record<string, any> = {
-      basePrompt: basePrompt.value, audioPrompt: audioPrompt.value,
-      negativePrompt: negativePrompt.value, count: count.value,
-      steps: steps.value, numFrames: numFrames.value,
-      width: width.value, height: height.value,
-      imageStrength: imageStrength.value, endpoint,
-    }
-
-    if (selectedMediaItemId.value) {
-      body.mediaItemId = selectedMediaItemId.value
-    } else if (selectedBase64.value) {
-      body.image = selectedBase64.value
-    }
-
-    const result = await $fetch<{
-      generation: { id: string; status: string }
-      items: { id: string; type: string; status: string; prompt: string }[]
-      caption: string
-      prompts: string[]
-      timing: { captionSeconds?: number; promptSeconds?: number; totalSeconds?: number }
-    }>('/api/generate/image2video-auto', {
-      method: 'POST', body,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    })
-
-    caption.value = result.caption
-    generatedPrompts.value = result.prompts
-    timing.value = result.timing
-
-    if (result.items?.length) {
-      gen.results.value = [...gen.results.value, ...result.items.map(item => ({
-        ...item, url: null, parentId: null, generationId: result.generation.id,
-      }))] as any
-      gen.activeGenerationId.value = result.generation.id
-    }
-  } catch (e: any) {
-    gen.error.value = e.data?.message || e.message || 'Auto video pipeline failed'
+    gen.error.value = e.data?.message || e.message || 'Auto video batch failed'
   } finally {
     loading.value = false
   }
@@ -180,28 +106,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
 
 <template>
   <div class="space-y-6 pt-4">
-    <ImagePicker @select="onImageSelect" @clear="onImageClear" />
-
-    <!-- ═══ Random Batch ═══ -->
-    <UCard variant="outline">
-      <div class="flex items-center gap-2 mb-3">
-        <UIcon name="i-lucide-shuffle" class="w-4 h-4 text-violet-500" />
-        <span class="text-sm font-semibold text-slate-700">Random Batch</span>
-        <span class="text-xs text-slate-400">Pick random images from your gallery</span>
-      </div>
-      <div class="flex flex-wrap items-end gap-4">
-        <CountSelector v-model="randomQty" label="Quantity" :options="[1, 5, 10, 25, 50, 100]" />
-        <UButton
-          :loading="randomRunning"
-          :disabled="randomRunning"
-          size="sm"
-          color="primary"
-          variant="soft"
-          icon="i-lucide-shuffle"
-          @click="generateRandom"
-        >{{ randomRunning ? 'Submitting…' : `Generate ${randomQty} Random Videos` }}</UButton>
-      </div>
-    </UCard>
+    <ImagePicker :multi="true" label="Select images to animate" @update:selected="onImagesSelected" />
 
     <!-- Direction & Audio -->
     <UCard variant="outline">
@@ -214,7 +119,6 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
 
     <!-- Settings -->
     <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
-      <CountSelector v-model="count" label="Variations" :options="[1, 3, 5, 10]" />
       <CountSelector v-model="numFrames" label="Duration" :options="[49, 81, 121, 161, 241, 361, 481, 601, 721]" />
 
       <UFormField label="Resolution" size="sm">
@@ -236,26 +140,9 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
     <div v-if="loading" class="flex items-center gap-3 p-4 rounded-lg bg-violet-50 border border-violet-200">
       <div class="w-5 h-5 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin shrink-0" />
       <div>
-        <p class="text-sm font-medium text-violet-700">AI is analyzing your image...</p>
-        <p class="text-xs text-violet-500">Captioning → Generating {{ count }} prompts → Queuing videos</p>
-      </div>
-    </div>
-
-    <!-- Results Preview -->
-    <div v-if="generatedPrompts.length > 0" class="space-y-3">
-      <div class="flex items-center gap-2">
-        <UIcon name="i-lucide-sparkles" class="w-4 h-4 text-amber-500" />
-        <span class="text-sm font-semibold text-gray-700">Generated {{ generatedPrompts.length }} prompts</span>
-        <UBadge v-if="timing.totalSeconds" size="xs" variant="subtle" color="neutral">{{ timing.captionSeconds }}s caption + {{ timing.promptSeconds }}s prompts</UBadge>
-      </div>
-      <div v-for="(p, i) in generatedPrompts" :key="i" class="p-3 rounded-lg bg-gray-50 border border-gray-200">
-        <div class="flex items-center gap-1.5 mb-1">
-          <UBadge size="xs" variant="subtle" color="primary">{{ i + 1 }}</UBadge>
-          <span class="text-[10px] text-gray-400">queued for generation</span>
-        </div>
-        <p class="text-xs text-gray-600 leading-relaxed">{{ p }}</p>
+        <p class="text-sm font-medium text-violet-700">Submitting {{ selectedImageIds.length }} images to auto video pipeline...</p>
+        <p class="text-xs text-violet-500">Each image will be captioned → prompted → queued for video generation</p>
       </div>
     </div>
   </div>
 </template>
-

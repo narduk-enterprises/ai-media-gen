@@ -54,6 +54,7 @@ const otherItems = computed(() =>
                 <video v-if="item.type === 'video'" :src="item.url!" controls class="max-h-[70vh] w-auto rounded-lg object-contain" />
                 <NuxtImg v-else :src="item.url!" :alt="generation.prompt" class="max-h-[70vh] w-auto rounded-lg object-contain" />
                 <div class="flex gap-2">
+                  <UButton size="xs" variant="soft" color="primary" icon="i-lucide-info" :to="`/job/${item.id}`">Details</UButton>
                   <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-sparkles" :loading="actionLoading?.[`upscale-${item.id}`]" @click="emit('upscale', item.id)">Enhance</UButton>
                   <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-download" :href="item.url!" download target="_blank">Download</UButton>
                 </div>
@@ -66,6 +67,7 @@ const otherItems = computed(() =>
             <video v-if="mediaItems[0]?.type === 'video'" :src="mediaItems[0]?.url ?? ''" controls class="max-h-[70vh] w-auto rounded-lg object-contain" />
             <NuxtImg v-else :src="mediaItems[0]?.url ?? ''" :alt="generation.prompt" class="max-h-[70vh] w-auto rounded-lg object-contain" />
             <div v-if="mediaItems[0]" class="flex gap-2">
+              <UButton size="xs" variant="soft" color="primary" icon="i-lucide-info" :to="`/job/${mediaItems[0].id}`">Details</UButton>
               <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-sparkles" :loading="actionLoading?.[`upscale-${mediaItems[0].id}`]" @click="emit('upscale', mediaItems[0].id)">Enhance</UButton>
               <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-download" :href="mediaItems[0].url ?? ''" download target="_blank">Download</UButton>
             </div>

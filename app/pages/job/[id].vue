@@ -39,10 +39,23 @@ const runpodInput = computed(() => meta.value?.runpodInput || {})
 const mediaWidth = computed(() => runpodInput.value?.width || meta.value?.width || settings.value?.width || null)
 const mediaHeight = computed(() => runpodInput.value?.height || meta.value?.height || settings.value?.height || null)
 
-// All settings combined (metadata + generation settings) for display
+const workflowLabel = computed(() => {
+  const action = runpodInput.value?.action
+  switch (action) {
+    case 'text2image': return 'Text → Image'
+    case 'image2video': return 'Image → Video'
+    case 'text2video': return 'Text → Video'
+    case 'image2image': return 'Image → Image'
+    case 'upscale': return 'Upscale'
+    case 'upscale_video': return 'Video Upscale'
+    default: return action || null
+  }
+})
+
 const allSettings = computed(() => {
   const s: Record<string, any> = {}
   const input = runpodInput.value
+  if (workflowLabel.value) s['Workflow'] = workflowLabel.value
   if (input.model) s['Model'] = input.model
   if (input.width) s['Width'] = input.width
   if (input.height) s['Height'] = input.height
@@ -56,6 +69,8 @@ const allSettings = computed(() => {
   if (input.negative_prompt) s['Negative Prompt'] = input.negative_prompt
   if (input.audio_prompt) s['Audio'] = input.audio_prompt
   if (input.preset) s['Preset'] = input.preset
+  if (input.base_prompt) s['Base Prompt'] = input.base_prompt
+  if (input.camera_lora) s['Camera LoRA'] = input.camera_lora
   // Fallback to generation settings
   const gs = settings.value
   if (!Object.keys(s).length && gs) {
@@ -143,6 +158,41 @@ async function retry() {
     rerunning.value = false
   }
 }
+
+// ─── One-click Make Video (image → LTX2 auto pipeline) ──────
+const makingVideo = ref(false)
+
+async function makeVideo() {
+  if (!item.value || makingVideo.value) return
+  makingVideo.value = true
+  try {
+    const { customEndpoint, runpodEndpoint } = useAppSettings()
+    const endpoint = customEndpoint.value || runpodEndpoint.value
+
+    const result = await $fetch<any>('/api/generate/image2video-auto-batch', {
+      method: 'POST',
+      body: {
+        mediaItemIds: [item.value.id],
+        basePrompt: '',
+        audioPrompt: 'ambient nature sounds, gentle wind, peaceful',
+        negativePrompt: 'worst quality, blurry, distorted, deformed, disfigured, bad anatomy, watermark, text, logo',
+        steps: 20, numFrames: 241,
+        width: 1280, height: 720,
+        imageStrength: 1.0, endpoint,
+      },
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+
+    if (result.items?.length) {
+      queue.refresh()
+      navigateTo(`/job/${result.items[0].id}`)
+    }
+  } catch (e: any) {
+    console.error('Make video failed:', e.message)
+  } finally {
+    makingVideo.value = false
+  }
+}
 </script>
 
 <template>
@@ -177,9 +227,12 @@ async function retry() {
         </div>
 
         <!-- Action buttons -->
-        <div class="flex items-center gap-2 shrink-0">
+        <div class="flex items-center gap-2 shrink-0 flex-wrap">
           <UButton v-if="item.status === 'failed' || item.status === 'cancelled'" :loading="rerunning" size="sm" color="warning" variant="soft" icon="i-lucide-rotate-cw" @click="retry">
             Retry
+          </UButton>
+          <UButton v-if="item.status === 'complete' && item.type === 'image'" :loading="makingVideo" size="sm" color="success" variant="soft" icon="i-lucide-film" @click="makeVideo">
+            Make Video
           </UButton>
           <UButton v-if="item.status === 'complete' && runpodInput.action" :loading="rerunning" size="sm" color="primary" variant="soft" icon="i-lucide-copy" @click="rerun(false)">
             Re-run Exact
@@ -211,11 +264,14 @@ async function retry() {
 
         <!-- Failed -->
         <div v-else-if="item.status === 'failed'" class="rounded-xl border border-red-200 bg-red-50 p-6">
-          <div class="flex items-center gap-2 mb-2">
-            <UIcon name="i-lucide-x-circle" class="w-5 h-5 text-red-500" />
-            <span class="text-sm font-medium text-red-700">Generation Failed</span>
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-x-circle" class="w-5 h-5 text-red-500" />
+              <span class="text-sm font-medium text-red-700">Generation Failed</span>
+            </div>
+            <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-copy" @click="copyError" title="Copy error" />
           </div>
-          <p class="text-sm text-red-600">{{ item.error || 'Unknown error' }}</p>
+          <pre class="text-sm text-red-600 whitespace-pre-wrap break-all select-all bg-red-100/50 rounded-lg p-3 mt-2 font-mono">{{ item.error || 'Unknown error' }}</pre>
         </div>
       </div>
 

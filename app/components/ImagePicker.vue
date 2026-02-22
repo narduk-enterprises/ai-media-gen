@@ -1,25 +1,29 @@
 <script setup lang="ts">
 /**
  * Reusable image picker with recent images grid + drag-and-drop upload.
- * Emits the selected image's mediaItemId (for gallery images) or base64 (for uploads).
+ * Supports single-select (default) or multi-select mode.
  */
 const props = withDefaults(defineProps<{
   showUpload?: boolean
   label?: string
   pageSize?: number
+  multi?: boolean
 }>(), {
   showUpload: true,
   label: 'Select an image',
   pageSize: 6,
+  multi: false,
 })
 
 const emit = defineEmits<{
   select: [payload: { mediaItemId?: string; base64?: string; url: string }]
+  'update:selected': [ids: string[]]
   clear: []
 }>()
 
 const { images, loading: loadingImages, hasMore, fetch: fetchImages, loadMore } = useRecentImages(props.pageSize)
 const selectedId = ref<string | null>(null)
+const selectedIds = ref<Set<string>>(new Set())
 const uploadPreview = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 
@@ -28,12 +32,40 @@ const previewUrl = computed(() => {
   return uploadPreview.value
 })
 
+const selectedCount = computed(() => selectedIds.value.size)
+
 onMounted(() => { if (images.value.length === 0) fetchImages() })
 
 function selectImage(img: { id: string; url: string }) {
-  selectedId.value = img.id
-  uploadPreview.value = ''
-  emit('select', { mediaItemId: img.id, url: img.url })
+  if (props.multi) {
+    const ids = new Set<string>(selectedIds.value)
+    if (ids.has(img.id)) {
+      ids.delete(img.id)
+    } else {
+      ids.add(img.id)
+    }
+    selectedIds.value = ids
+    emit('update:selected', Array.from(ids))
+  } else {
+    selectedId.value = img.id
+    uploadPreview.value = ''
+    emit('select', { mediaItemId: img.id, url: img.url })
+  }
+}
+
+function selectAll() {
+  const ids = new Set<string>(images.value.map((i: any) => i.id))
+  selectedIds.value = ids
+  emit('update:selected', Array.from(ids))
+}
+
+function selectNone() {
+  selectedIds.value = new Set()
+  emit('update:selected', [])
+}
+
+function isSelected(id: string) {
+  return props.multi ? selectedIds.value.has(id) : selectedId.value === id
 }
 
 function onFileSelect(event: Event) {
@@ -61,17 +93,19 @@ function readFile(file: File) {
 
 function clear() {
   selectedId.value = null
+  selectedIds.value = new Set()
   uploadPreview.value = ''
   emit('clear')
+  emit('update:selected', [])
 }
 
-defineExpose({ previewUrl, selectedId, clear })
+defineExpose({ previewUrl, selectedId, selectedIds, selectedCount, clear })
 </script>
 
 <template>
   <div class="space-y-3">
-    <!-- Preview of selected image -->
-    <div v-if="previewUrl" class="flex items-center gap-3 p-2 rounded-lg bg-primary-50 border border-primary-200">
+    <!-- Preview of selected image (single mode only) -->
+    <div v-if="!multi && previewUrl" class="flex items-center gap-3 p-2 rounded-lg bg-primary-50 border border-primary-200">
       <img :src="previewUrl" alt="" class="w-14 h-14 rounded-lg object-cover shrink-0 border border-primary-200" />
       <div class="flex-1 min-w-0">
         <p class="text-[10px] text-primary-600">Selected ✓</p>
@@ -79,8 +113,15 @@ defineExpose({ previewUrl, selectedId, clear })
       <UButton icon="i-lucide-x" variant="ghost" color="neutral" size="xs" @click="clear" />
     </div>
 
-    <!-- Upload area -->
-    <div v-if="showUpload && !previewUrl"
+    <!-- Multi-select count badge -->
+    <div v-if="multi && selectedCount > 0" class="flex items-center gap-2 p-2 rounded-lg bg-primary-50 border border-primary-200">
+      <UIcon name="i-lucide-images" class="w-4 h-4 text-primary-500" />
+      <span class="text-sm font-medium text-primary-700">{{ selectedCount }} image{{ selectedCount !== 1 ? 's' : '' }} selected</span>
+      <UButton size="xs" variant="ghost" color="neutral" @click="selectNone">Clear</UButton>
+    </div>
+
+    <!-- Upload area (single mode only) -->
+    <div v-if="showUpload && !multi && !previewUrl"
       class="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-primary-400 hover:bg-primary-50/20 transition-colors"
       @dragover.prevent @drop="onDrop" @click="fileInput?.click()">
       <UIcon name="i-lucide-image-up" class="w-8 h-8 text-gray-400 mx-auto mb-2" />
@@ -92,7 +133,10 @@ defineExpose({ previewUrl, selectedId, clear })
     <section>
       <div class="flex items-center justify-between mb-2">
         <label class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">{{ label }}</label>
-        <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-refresh-cw" :loading="loadingImages" @click="fetchImages" />
+        <div class="flex items-center gap-1">
+          <UButton v-if="multi" size="xs" variant="ghost" color="primary" @click="selectAll">All</UButton>
+          <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-refresh-cw" :loading="loadingImages" @click="fetchImages" />
+        </div>
       </div>
       <div v-if="loadingImages && images.length === 0" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div v-for="i in 6" :key="i" class="aspect-square rounded-lg bg-gray-100 animate-pulse" />
@@ -100,10 +144,10 @@ defineExpose({ previewUrl, selectedId, clear })
       <div v-else class="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <button v-for="img in images" :key="img.id"
           class="relative aspect-square rounded-lg overflow-hidden border-2 transition-all"
-          :class="selectedId === img.id ? 'border-primary-400 ring-2 ring-primary-200' : 'border-transparent hover:border-gray-300'"
+          :class="isSelected(img.id) ? 'border-primary-400 ring-2 ring-primary-200' : 'border-transparent hover:border-gray-300'"
           @click="selectImage(img)">
           <NuxtImg :src="img.url" :alt="img.prompt" width="180" class="w-full h-full object-cover" loading="lazy" />
-          <div v-if="selectedId === img.id" class="absolute inset-0 bg-primary-400/20 flex items-center justify-center">
+          <div v-if="isSelected(img.id)" class="absolute inset-0 bg-primary-400/20 flex items-center justify-center">
             <UIcon name="i-lucide-check" class="w-6 h-6 text-white drop-shadow-md" />
           </div>
         </button>
