@@ -1,42 +1,29 @@
 <script setup lang="ts">
 import { VIDEO_MODELS } from '~/composables/useCreateShared'
+import { DIRECTION_PRESETS, AUDIO_PRESETS, DEFAULT_NEGATIVE_PROMPT, randomAudioPrompt } from '~/composables/useVideoDefaults'
 
 const props = defineProps<{ prefillMediaId?: string | null }>()
 const gen = useGeneration()
 const shared = useCreateShared()
 
-// ─── Preset Suggestions ─────────────────────────────────────────────────
-const directionPresets = [
-  { label: '🎬 Cinematic', prompt: 'Cinematic motion, smooth camera movements, dramatic lighting, film grain' },
-  { label: '🎵 Music Video', prompt: 'Dynamic cuts, vibrant colors, rhythmic camera movement, music video energy' },
-  { label: '🌊 Dreamy', prompt: 'Ethereal, slow motion, soft focus transitions, dreamlike atmosphere' },
-  { label: '🎥 Documentary', prompt: 'Naturalistic, handheld camera, candid moments, observational style' },
-  { label: '⚡ Action', prompt: 'Fast-paced, dynamic tracking shots, intense movement, high energy' },
-  { label: '🌅 Timelapse', prompt: 'Slow timelapse feel, gradual changes in lighting, clouds moving, passage of time' },
+// ─── I2V Workflow Presets (unique to this tab) ──────────────
+const I2V_PRESETS = [
+  { key: 'cinematic_breathe', label: '🎬 Cinematic Breathe', desc: 'Subtle breathing/living motion, very faithful' },
+  { key: 'gentle_wind', label: '🌿 Gentle Wind', desc: 'Soft environmental motion, like a gentle breeze' },
+  { key: 'dreamy_drift', label: '🌊 Dreamy Drift', desc: 'Dreamlike subtle movement, very smooth' },
+  { key: 'natural_motion', label: '🌲 Natural Motion', desc: 'Realistic natural movement, balanced' },
+  { key: 'vivid_action', label: '⚡ Vivid Action', desc: 'More dynamic motion, slightly more creative' },
+  { key: 'soft_focus', label: '📷 Soft Focus', desc: 'Soft cinematic feel, gentle transitions' },
+  { key: 'fluid_motion', label: '💧 Fluid Motion', desc: 'Smooth, flowing movement like water or silk' },
+  { key: 'tight_hold', label: '🔒 Tight Hold', desc: 'Max image fidelity, minimal but precise motion' },
+  { key: 'warm_glow', label: '🔥 Warm Glow', desc: 'Warm living quality, gentle light shifts' },
+  { key: 'dynamic_subtle', label: '✨ Dynamic Subtle', desc: 'Balanced between faithful and interesting' },
 ]
 
-const audioPresets = [
-  { label: '🎵 Upbeat', prompt: 'upbeat electronic music, positive energy, rhythmic beats' },
-  { label: '🎻 Orchestral', prompt: 'cinematic orchestral score, strings, dramatic crescendo' },
-  { label: '🌿 Ambient', prompt: 'ambient nature sounds, gentle wind, birds chirping, peaceful' },
-  { label: '🔇 Silent', prompt: '' },
-  { label: '🏙️ Urban', prompt: 'city ambience, distant traffic, footsteps, urban atmosphere' },
-  { label: '🌊 Ocean', prompt: 'ocean waves crashing, seagulls, coastal breeze, water sounds' },
-]
-
-const resolutionPresets = [
-  { label: '768×512', w: 768, h: 512, tag: 'Fast' },
-  { label: '1280×720', w: 1280, h: 720, tag: 'HD' },
-  { label: '512×768', w: 512, h: 768, tag: 'Portrait' },
-  { label: '720×1280', w: 720, h: 1280, tag: 'HD Port.' },
-  { label: '768×768', w: 768, h: 768, tag: 'Square' },
-]
-
-// ─── Source Image ───────────────────────────────────────────────────────
+// ─── Source Image ───────────────────────────────────────────
 const selectedMediaId = ref<string | null>(null)
 const uploadedBase64 = ref('')
 
-// Auto-select prefilled media from gallery navigation
 watch(() => props.prefillMediaId, (id) => {
   if (id) selectedMediaId.value = id
 }, { immediate: true })
@@ -51,9 +38,9 @@ function onImageClear() {
   uploadedBase64.value = ''
 }
 
-// ─── Video Settings ─────────────────────────────────────────────────────
+// ─── Video Settings ─────────────────────────────────────────
 const prompt = ref('')
-const negativePrompt = ref('worst quality, blurry, distorted, deformed, disfigured, bad anatomy, watermark, text, logo')
+const negativePrompt = ref(DEFAULT_NEGATIVE_PROMPT)
 const selectedModel = ref('ltx2')
 const steps = ref(20)
 const cfg = ref(3.5)
@@ -65,17 +52,14 @@ const loraStrength = ref(1.0)
 const fps = ref(24)
 const imageStrength = ref(1.0)
 const audioPrompt = ref('')
+const selectedPreset = ref('')
 const isLtx2 = computed(() => selectedModel.value === 'ltx2')
+const runningAllPresets = ref(false)
 
 const params = computed(() => shared.getVideoModelParams(selectedModel.value))
 const hasImage = computed(() => !!selectedMediaId.value || !!uploadedBase64.value)
 
-// Auto-fill with random audio preset on mount
-onMounted(() => {
-  const withAudio = audioPresets.filter(p => p.prompt)
-  const randAudio = withAudio[Math.floor(Math.random() * withAudio.length)]
-  if (randAudio) audioPrompt.value = randAudio.prompt
-})
+onMounted(() => { audioPrompt.value = randomAudioPrompt() })
 
 watch(selectedModel, (id) => {
   const p = shared.getVideoModelParams(id)
@@ -87,13 +71,13 @@ watch(selectedModel, (id) => {
   if (p.imageStrength) imageStrength.value = p.imageStrength.default
 })
 
-// ─── Generate ───────────────────────────────────────────────────────────
+// ─── Generate ───────────────────────────────────────────────
 const canGenerate = computed(() => hasImage.value)
 const totalCount = computed(() => canGenerate.value ? 1 : 0)
 
 const emit = defineEmits<{ 'generate-i2v': [body: Record<string, any>] }>()
 
-function buildVideoOpts() {
+function buildVideoOpts(presetOverride?: string) {
   return {
     model: selectedModel.value,
     prompt: prompt.value.trim() || undefined,
@@ -104,6 +88,7 @@ function buildVideoOpts() {
     loraStrength: isLtx2.value ? loraStrength.value : undefined,
     imageStrength: isLtx2.value ? imageStrength.value : undefined,
     audioPrompt: audioPrompt.value.trim() || undefined,
+    preset: presetOverride ?? (selectedPreset.value || undefined),
   }
 }
 
@@ -113,6 +98,18 @@ async function generate() {
     await gen.makeVideo(selectedMediaId.value, buildVideoOpts())
   } else {
     emit('generate-i2v', { image: uploadedBase64.value, seed: seed.value, ...buildVideoOpts() })
+  }
+}
+
+async function runAllPresets() {
+  if (!canGenerate.value || !selectedMediaId.value || runningAllPresets.value) return
+  runningAllPresets.value = true
+  try {
+    for (const preset of I2V_PRESETS) {
+      await gen.makeVideo(selectedMediaId.value!, buildVideoOpts(preset.key))
+    }
+  } finally {
+    runningAllPresets.value = false
   }
 }
 
@@ -126,13 +123,42 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
     <!-- Model Selector -->
     <ModelSelector :models="VIDEO_MODELS" :selected="selectedModel" color="cyan" @update:selected="selectedModel = $event as string" />
 
+    <!-- I2V Workflow Presets (LTX2 only) -->
+    <UCard v-if="isLtx2" variant="outline">
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-xs font-semibold text-slate-600 uppercase tracking-wider">I2V Workflow Preset</h3>
+            <p class="text-[10px] text-slate-400 mt-0.5">Each preset tunes CFG, scheduler, sampler, and image strength differently</p>
+          </div>
+          <UButton
+            v-if="hasImage && selectedMediaId"
+            size="xs" color="warning" variant="soft" icon="i-lucide-layers"
+            :loading="runningAllPresets" @click="runAllPresets"
+          >Run All 10 Presets</UButton>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+          <button
+            v-for="p in I2V_PRESETS" :key="p.key"
+            class="text-left px-2 py-1.5 rounded-lg border text-xs transition-all"
+            :class="selectedPreset === p.key
+              ? 'border-cyan-400 bg-cyan-50 text-cyan-700 ring-1 ring-cyan-300'
+              : 'border-slate-200 hover:border-slate-300 text-slate-600 hover:bg-slate-50'"
+            @click="selectedPreset = selectedPreset === p.key ? '' : p.key"
+          >
+            <span class="font-medium block truncate">{{ p.label }}</span>
+            <span class="text-[9px] opacity-60 block truncate">{{ p.desc }}</span>
+          </button>
+        </div>
+      </div>
+    </UCard>
+
     <!-- Direction & Audio Presets -->
     <UCard variant="outline">
       <div class="space-y-4">
-        <!-- Direction Presets -->
         <UFormField label="Style Direction" size="sm" description="Leave blank to auto-generate from the image">
           <div class="flex flex-wrap gap-1 mb-2">
-            <UButton v-for="p in directionPresets" :key="p.label" size="xs"
+            <UButton v-for="p in DIRECTION_PRESETS" :key="p.label" size="xs"
               :variant="prompt === p.prompt ? 'soft' : 'ghost'"
               :color="prompt === p.prompt ? 'primary' : 'neutral'"
               @click="prompt = prompt === p.prompt ? '' : p.prompt"
@@ -141,10 +167,9 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
           <UTextarea v-model="prompt" placeholder="Optional — AI will caption your image and create a prompt automatically" :rows="2" autoresize class="w-full" size="sm" />
         </UFormField>
 
-        <!-- Audio Presets -->
         <UFormField label="Audio / Soundtrack" size="sm" description="Soundtrack or ambience for the video">
           <div class="flex flex-wrap gap-1 mb-2">
-            <UButton v-for="p in audioPresets" :key="p.label" size="xs"
+            <UButton v-for="p in AUDIO_PRESETS" :key="p.label" size="xs"
               :variant="audioPrompt === p.prompt ? 'soft' : 'ghost'"
               :color="audioPrompt === p.prompt ? 'primary' : 'neutral'"
               @click="audioPrompt = audioPrompt === p.prompt ? '' : p.prompt"
@@ -153,7 +178,6 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
           <UTextarea v-model="audioPrompt" placeholder="Or describe the audio..." :rows="1" autoresize class="w-full" size="sm" />
         </UFormField>
 
-        <!-- Negative Prompt -->
         <UFormField label="Negative Prompt (−)" size="sm">
           <UTextarea v-model="negativePrompt" placeholder="Things to avoid (optional)..." :rows="1" autoresize class="w-full" size="sm" />
         </UFormField>
@@ -171,31 +195,14 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
           </div>
         </UFormField>
 
-        <UFormField label="Resolution" size="sm">
-          <div class="flex flex-wrap gap-1">
-            <UButton v-for="r in resolutionPresets" :key="r.label" size="xs"
-              :variant="width === r.w && height === r.h ? 'soft' : 'ghost'"
-              :color="width === r.w && height === r.h ? 'primary' : 'neutral'"
-              @click="width = r.w; height = r.h"
-            >{{ r.label }} <span class="text-[9px] opacity-60 ml-0.5">{{ r.tag }}</span></UButton>
-          </div>
-        </UFormField>
+        <ResolutionSelector v-model:width="width" v-model:height="height" />
 
         <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
           <SliderField v-model="steps" label="Steps" :min="params.steps.min" :max="params.steps.max" />
           <SliderField v-if="params.cfg" v-model="cfg" label="CFG" :min="params.cfg.min" :max="params.cfg.max" :step="params.cfg.step" />
           <SliderField v-if="params.fps" v-model="fps" label="FPS" :min="params.fps.min" :max="params.fps.max" />
           <SliderField v-if="params.lora" v-model="loraStrength" label="LoRA" :min="params.lora.min" :max="params.lora.max" :step="params.lora.step" />
-
-          <UFormField v-if="params.imageStrength" label="Image Fidelity" size="sm" description="How closely video matches source image">
-            <div class="flex gap-1">
-              <UButton v-for="f in [{l:'Creative',v:0.7},{l:'Balanced',v:0.85},{l:'Faithful',v:0.95},{l:'Exact',v:1.0}]" :key="f.v" size="xs"
-                :variant="imageStrength === f.v ? 'soft' : 'ghost'"
-                :color="imageStrength === f.v ? 'primary' : 'neutral'"
-                @click="imageStrength = f.v"
-              >{{ f.l }}</UButton>
-            </div>
-          </UFormField>
+          <FidelitySelector v-if="params.imageStrength" v-model="imageStrength" />
 
           <UFormField label="Seed" size="sm" :description="seed < 0 ? 'Random' : 'Fixed'">
             <div class="flex items-center gap-2">

@@ -91,6 +91,9 @@ export default defineEventHandler(async (event) => {
     runpodInput.fps = fps || 24
     runpodInput.lora_strength = loraStrength ?? 0.7
     runpodInput.image_strength = imageStrength ?? 1.0
+    if (body.preset) runpodInput.preset = body.preset
+    if (body.audioPrompt) runpodInput.audio_prompt = body.audioPrompt
+    if (body.cameraLora) runpodInput.camera_lora = body.cameraLora
   } else {
     runpodInput.cfg = cfg || 3.5
   }

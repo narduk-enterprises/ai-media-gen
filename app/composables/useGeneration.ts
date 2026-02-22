@@ -186,6 +186,8 @@ export function useGeneration() {
     loraStrength?: number
     imageStrength?: number
     audioPrompt?: string
+    preset?: string
+    cameraLora?: string
   } = {}) {
     const key = `video-${mediaItemId}`
     actionLoading.value[key] = true
@@ -208,6 +210,8 @@ export function useGeneration() {
         body.loraStrength = opts.loraStrength ?? 0.7
         body.imageStrength = opts.imageStrength ?? 1.0
         if (opts.audioPrompt) body.audioPrompt = opts.audioPrompt
+        if (opts.preset) body.preset = opts.preset
+        if (opts.cameraLora) body.cameraLora = opts.cameraLora
       }
       const result = await $fetch<{ item: MediaItemResult }>('/api/generate/video', {
         method: 'POST', body,
