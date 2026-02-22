@@ -128,6 +128,14 @@ export async function callRunPodAsync(input: Record<string, any>, apiUrlOverride
     });
   }
 
+  // Inject completion callback for instant gallery updates
+  const webhookSecret = config.webhookSecret || ''
+  const appUrl = config.public?.appUrl || ''
+  if (webhookSecret && appUrl) {
+    input.callback_url = `${appUrl}/api/generate/webhook`
+    input.callback_secret = webhookSecret
+  }
+
   const response = await $fetch<{ id: string; status: string }>(`${apiUrl}/run`, {
     method: 'POST',
     headers: {

@@ -16,8 +16,8 @@ import { updateGenerationStatus } from '../../utils/queueProcessor'
 
 export default defineEventHandler(async (event) => {
   // ── Auth: check webhook secret ──
-  const env = (globalThis as any).__env__
-  const webhookSecret = env?.WEBHOOK_SECRET || process.env.WEBHOOK_SECRET || ''
+  const config = useRuntimeConfig()
+  const webhookSecret = config.webhookSecret || ''
   const authHeader = getHeader(event, 'authorization') || ''
   const token = authHeader.replace('Bearer ', '')
 
@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = useDatabase()
-  const mediaBucket: R2Bucket | null = env?.MEDIA ?? null
+  const mediaBucket = useMediaBucket(event)
 
   // Find the media item by runpodJobId
   const [item] = await db.select()

@@ -45,6 +45,7 @@ export default defineNuxtConfig({
     aiApiUrl: process.env.AI_API_URL || 'https://api.runpod.ai/v2/6f2qydxrgdmrym',
     aiApiUrlSlim: process.env.AI_API_URL_SLIM || 'https://api.runpod.ai/v2/ejbg3jla5k2e7d',
     aiApiUrlEu: process.env.AI_API_URL_EU || 'https://api.runpod.ai/v2/u1ni81it5lbrwg',
+    webhookSecret: process.env.WEBHOOK_SECRET || '',
 
     // Apple Sign-In
     appleTeamId: process.env.APPLE_TEAM_ID || '',
