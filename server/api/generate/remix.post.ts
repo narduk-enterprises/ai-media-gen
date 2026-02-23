@@ -1,12 +1,12 @@
 import { requireAuth } from '../../utils/auth'
-import { resolveApiUrl, callRunPod } from '../../utils/ai'
+import { resolveApiUrl } from '../../utils/ai'
 import type { EndpointType } from '../../utils/ai'
 
 /**
  * POST /api/generate/remix
  *
  * Server-side prompt remix using the GPU pod's LLM.
- * Uses Qwen2.5-3B-Instruct running on the pod for fast, high-quality remixes.
+ * Calls the pod's /generate/remix endpoint which uses Qwen2.5-3B-Instruct.
  */
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
@@ -27,25 +27,24 @@ export default defineEventHandler(async (event) => {
   const apiUrl = resolveApiUrl(body.endpoint)
 
   try {
-    const response = await callRunPod({
-      action: 'prompt_remix',
-      prompt: body.prompt,
-      count,
-      temperature,
-    }, apiUrl)
+    const response = await $fetch<{ prompts: string[]; elapsed_seconds: number }>(`${apiUrl}/generate/remix`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: {
+        prompt: body.prompt,
+        count,
+        temperature,
+      },
+      timeout: 120_000,
+    })
 
-    // Handler returns { status, output: { prompts, elapsed_seconds } }
-    // Pod server wraps as { output: handler_result }, so prompts may be at either level
-    const prompts = response.output?.output?.prompts || response.output?.prompts
-    const elapsed = response.output?.output?.elapsed_seconds || response.output?.elapsed_seconds
-
-    if (prompts?.length) {
-      return { prompts, elapsed }
+    if (response?.prompts?.length) {
+      return { prompts: response.prompts, elapsed: response.elapsed_seconds }
     }
 
     throw createError({
       statusCode: 502,
-      message: response.error || 'No prompts returned from remix',
+      message: 'No prompts returned from remix',
     })
   } catch (e: any) {
     if (e.statusCode) throw e
