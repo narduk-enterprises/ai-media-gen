@@ -11,7 +11,7 @@ const generateSchema = z.object({
   prompts: z.array(z.string()).optional(),
   negativePrompt: z.string().default(''),
   count: z.number().int().min(1).max(16).default(1),
-  steps: z.number().int().min(1).max(50).default(20),
+  steps: z.number().int().min(1).max(80).default(20),
   width: z.number().int().min(512).max(2048).default(1024),
   height: z.number().int().min(512).max(2048).default(1024),
   loraStrength: z.number().min(0).max(2).default(1.0),
