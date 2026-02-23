@@ -250,15 +250,31 @@ export async function submitText2Video(
 }
 
 /**
- * Submit a multi-segment video job — passes the full comfyInput through
- * (minus the action key) so no fields are lost.
+ * Submit a multi-segment video job.
+ * Strips fields not in the pod's MultiSegmentRequest schema to avoid 400s.
  */
 export async function submitMultiSegmentVideo(
   input: Record<string, any>,
   podUrl?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
-  const { action, ...body } = input
+  const body: Record<string, any> = {
+    segments: (input.segments || []).map((s: any) => ({
+      ...(s.image ? { image: s.image } : {}),
+      prompt: s.prompt || '',
+      ...(s.frames ? { frames: s.frames } : {}),
+      ...(s.steps ? { steps: s.steps } : {}),
+      ...(s.seed != null ? { seed: s.seed } : {}),
+      ...(s.camera_lora ? { camera_lora: s.camera_lora } : {}),
+      ...(s.preset ? { preset: s.preset } : {}),
+    })),
+    model: input.model || 'ltx2',
+    width: input.width || 1280,
+    height: input.height || 720,
+    fps: input.fps || 24,
+    transition: input.transition || 'crossfade',
+    transition_duration: input.transition_duration ?? 0.5,
+  }
   return await $fetch(`${url}/generate/multi-segment`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
