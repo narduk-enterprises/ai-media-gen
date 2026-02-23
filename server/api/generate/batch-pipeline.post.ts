@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { submitItemToComfyUI } from '../../utils/submitItem'
+import { getPodUrl } from '../../utils/podClient'
 import { generations, mediaItems, users } from '../../database/schema'
 
 const BATCH_KEY = 'overnight-batch-2026'
@@ -120,13 +121,16 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  // Resolve the pod URL — from request body or env fallback
+  const apiUrl = data.endpoint || getPodUrl()
+
   await db.insert(mediaItems).values({
     id: videoId,
     generationId: genId,
     type: 'video',
     prompt: data.prompt,
     status: 'queued',
-    metadata: JSON.stringify({ comfyInput: inputPayload }),
+    metadata: JSON.stringify({ apiUrl, comfyInput: inputPayload }),
     createdAt: now,
   })
 
