@@ -23,8 +23,8 @@ import type { DrizzleD1Database } from 'drizzle-orm/d1'
 type DB = DrizzleD1Database<any>
 
 const MAX_CONCURRENT = 10
-const STALE_THRESHOLD_MS = 15 * 60 * 1000
-const MAX_RETRIES = 2
+const STALE_THRESHOLD_MS = 30 * 60 * 1000
+const MAX_RETRIES = 3
 
 /**
  * Main entry point — called by the cron task.

@@ -362,14 +362,10 @@ export async function checkJobStatus(
     // Still processing — return null to continue polling
     return null
   } catch (e: any) {
-    if (e?.response?.status === 404 || e?.status === 404) {
-      return {
-        status: 'FAILED',
-        error: 'Job not found on pod (expired or invalid)',
-      }
-    }
-    // Network error — treat as still running (retry)
-    console.warn(`[Pod] Status check failed for ${jobId}: ${e.message}`)
+    // 404 = pod restarted and lost in-memory job state, or job expired.
+    // Don't immediately fail — let the stale threshold + retry logic handle it.
+    // This prevents pod restarts from instantly killing all in-flight jobs.
+    console.warn(`[Pod] Status check failed for ${jobId}: ${e?.response?.status || ''} ${e.message}`)
     return null
   }
 }
