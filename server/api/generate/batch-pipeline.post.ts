@@ -4,17 +4,10 @@ import { waitUntil } from 'cloudflare:workers'
 import { submitItemToComfyUI } from '../../utils/submitItem'
 import { generations, mediaItems, users } from '../../database/schema'
 
-/**
- * POST /api/generate/batch-pipeline
- *
- * Service-key authenticated batch endpoint for T2I→I2V pipeline.
- * Accepts X-Batch-Key header instead of session cookie.
- * Creates DB records so results appear in the UI gallery.
- */
-
 const BATCH_KEY = 'overnight-batch-2026'
 
 const schema = z.object({
+  mode: z.enum(['pipeline', 't2v']).optional().default('pipeline'),
   prompt: z.string().min(1),
   negativePrompt: z.string().optional().default(''),
   width: z.number().optional().default(832),
@@ -22,6 +15,7 @@ const schema = z.object({
   steps: z.number().optional().default(30),
   cfg: z.number().optional().default(5.0),
   seed: z.number().optional().default(-1),
+  // Pipeline (T2I→I2V) fields
   imageModel: z.string().optional().default('cyberrealistic_pony'),
   videoPrompt: z.string().optional().default(''),
   videoModel: z.string().optional().default('wan22'),
@@ -30,18 +24,20 @@ const schema = z.object({
   videoFps: z.number().optional().default(16),
   loraName: z.string().optional(),
   loraStrength: z.number().optional().default(0.7),
+  // T2V fields
+  numFrames: z.number().optional().default(81),
+  model: z.string().optional().default('wan22'),
+  audioPrompt: z.string().optional().default(''),
   endpoint: z.string().optional(),
   generationId: z.string().uuid().optional(),
 })
 
 export default defineEventHandler(async (event) => {
-  // Service key auth
   const key = getHeader(event, 'x-batch-key')
   if (key !== BATCH_KEY) {
     throw createError({ statusCode: 401, message: 'Invalid batch key' })
   }
 
-  // Get the batch owner user
   const db = useDatabase()
   const batchUser = await db.select({ id: users.id }).from(users)
     .where(eq(users.email, 'narduk@mac.com')).limit(1).get()
@@ -85,26 +81,43 @@ export default defineEventHandler(async (event) => {
 
   const videoId = crypto.randomUUID()
 
-  const inputPayload: Record<string, any> = {
-    action: 'text2image_then_video',
-    prompt: data.prompt,
-    negative_prompt: data.negativePrompt,
-    width: data.width,
-    height: data.height,
-    steps: data.steps,
-    cfg: data.cfg,
-    seed: data.seed,
-    image_model: data.imageModel,
-    video_prompt: data.videoPrompt || data.prompt,
-    video_model: data.videoModel,
-    video_steps: data.videoSteps,
-    video_frames: data.videoFrames,
-    video_fps: data.videoFps,
-  }
+  // Build the appropriate payload based on mode
+  let inputPayload: Record<string, any>
 
-  if (data.loraName) {
-    inputPayload.lora_name = data.loraName
-    inputPayload.lora_strength = data.loraStrength
+  if (data.mode === 't2v') {
+    inputPayload = {
+      action: 'text2video',
+      prompt: data.prompt,
+      negative_prompt: data.negativePrompt,
+      width: data.width,
+      height: data.height,
+      num_frames: data.numFrames,
+      steps: data.steps,
+      model: data.model,
+      seed: data.seed,
+      ...(data.audioPrompt ? { audio_prompt: data.audioPrompt } : {}),
+    }
+  } else {
+    inputPayload = {
+      action: 'text2image_then_video',
+      prompt: data.prompt,
+      negative_prompt: data.negativePrompt,
+      width: data.width,
+      height: data.height,
+      steps: data.steps,
+      cfg: data.cfg,
+      seed: data.seed,
+      image_model: data.imageModel,
+      video_prompt: data.videoPrompt || data.prompt,
+      video_model: data.videoModel,
+      video_steps: data.videoSteps,
+      video_frames: data.videoFrames,
+      video_fps: data.videoFps,
+    }
+    if (data.loraName) {
+      inputPayload.lora_name = data.loraName
+      inputPayload.lora_strength = data.loraStrength
+    }
   }
 
   await db.insert(mediaItems).values({
@@ -117,7 +130,7 @@ export default defineEventHandler(async (event) => {
     createdAt: now,
   })
 
-  console.log(`[Batch] Pipeline queued: ${videoId.slice(0, 8)} → gen ${genId.slice(0, 8)}`)
+  console.log(`[Batch ${data.mode}] Queued: ${videoId.slice(0, 8)} → gen ${genId.slice(0, 8)}`)
 
   waitUntil(submitItemToComfyUI(db, videoId))
 
