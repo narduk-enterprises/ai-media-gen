@@ -14,39 +14,27 @@ const route = useRoute()
 
 const modeTabs: TabsItem[] = [
   { label: 'Text → Image', icon: 'i-lucide-image', value: 'text2image', slot: 'text2image' },
+  { label: '🎬 Video', icon: 'i-lucide-clapperboard', value: 'ultimateVideo', slot: 'ultimateVideo' },
   { label: 'Text → Video', icon: 'i-lucide-film', value: 'text2video', slot: 'text2video' },
-  { label: 'Pipeline Video', icon: 'i-lucide-workflow', value: 'pipelineVideo', slot: 'pipelineVideo' },
   { label: 'Image → Image', icon: 'i-lucide-image-plus', value: 'img2img', slot: 'img2img' },
-  { label: 'Image → Video', icon: 'i-lucide-clapperboard', value: 'img2video', slot: 'img2video' },
-  { label: 'Multi-Image Video', icon: 'i-lucide-images', value: 'multiImgVideo', slot: 'multiImgVideo' },
-  { label: 'Auto Video', icon: 'i-lucide-wand-sparkles', value: 'autoVideo', slot: 'autoVideo' },
-  { label: 'Sweep', icon: 'i-lucide-test-tubes', value: 'sweep', slot: 'sweep' },
-  { label: 'LTX2 Tester', icon: 'i-lucide-flask-conical', value: 'ltx2test', slot: 'ltx2test' },
+  { label: 'Multi-Video', icon: 'i-lucide-images', value: 'multiImgVideo', slot: 'multiImgVideo' },
   { label: 'Custom', icon: 'i-lucide-code-2', value: 'custom', slot: 'custom' },
 ]
 
 // ─── Tab Refs ───────────────────────────────────────────────────────────
 const t2iTab = ref<{ generate: (append?: boolean) => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
+const ultimateVideoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const t2vTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
-const pipelineTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const i2iTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
-const i2vTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
-const autoVideoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
-const sweepTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
-const ltx2TestTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const multiImgVideoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const customTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 
 const activeTab = computed(() => {
   if (mode.value === 'text2image') return t2iTab.value
+  if (mode.value === 'ultimateVideo') return ultimateVideoTab.value
   if (mode.value === 'text2video') return t2vTab.value
-  if (mode.value === 'pipelineVideo') return pipelineTab.value
   if (mode.value === 'img2img') return i2iTab.value
-  if (mode.value === 'img2video') return i2vTab.value
   if (mode.value === 'multiImgVideo') return multiImgVideoTab.value
-  if (mode.value === 'autoVideo') return autoVideoTab.value
-  if (mode.value === 'sweep') return sweepTab.value
-  if (mode.value === 'ltx2test') return ltx2TestTab.value
   if (mode.value === 'custom') return customTab.value
   return null
 })
@@ -61,37 +49,10 @@ function handleGenerate(append = false) {
   else activeTab.value?.generate()
 }
 
-// ─── Image-to-Video direct upload ───────────────────────────────────────
-async function handleI2VGenerate(body: Record<string, any>) {
-  // For direct image upload → video, we need to:
-  // 1. Upload the image as a media item via image2image with identity transform
-  // 2. Then make video from it
-  // For now, use the video endpoint which accepts inline base64
-  const { effectiveEndpoint } = useAppSettings()
-  const endpoint = effectiveEndpoint.value
-  body.endpoint = endpoint
-  try {
-    gen.submitting.value = true
-    gen.error.value = ''
-    const result = await $fetch<{ item: { id: string; type: string; url: string | null; status: string; parentId: string | null } }>('/api/generate/video-from-image', {
-      method: 'POST', body,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    if (result.item) {
-      gen.results.value.push(result.item)
-      const queue = useQueue()
-      queue.submitAndTrack(result.item.id)
-    }
-  } catch (e: any) {
-    gen.error.value = e.data?.message || 'Image-to-video generation failed'
-  } finally {
-    gen.submitting.value = false
-  }
-}
-
-// ─── Navigate to create tab (replaces modals) ───────────────────────────
+// ─── Navigate to video tab (from gallery / lightbox) ────────────────────
+const prefillMediaId = ref<string | null>(null)
 function goToVideoTab(mediaItemId: string) {
-  mode.value = 'img2video'
+  mode.value = 'ultimateVideo'
   prefillMediaId.value = mediaItemId
 }
 const lightboxOpen = ref(false)
@@ -100,10 +61,7 @@ function openLightbox(index: number) { lightboxIndex.value = index; lightboxOpen
 const lightboxItems = computed(() => gen.completedMedia.value.map(m => ({ id: m.id, url: m.url!, type: m.type })))
 
 // ─── Persist mode + query param routing ─────────────────────────────────
-const prefillMediaId = ref<string | null>(null)
-
 onMounted(() => {
-  // Query params take priority (from gallery navigation)
   const qTab = route.query.tab as string | undefined
   const qMedia = route.query.mediaId as string | undefined
   if (qTab && modeTabs.some(t => t.value === qTab)) {
@@ -153,29 +111,17 @@ const gridClass = computed(() => {
       <template #text2image>
         <CreateTextToImageTab ref="t2iTab" />
       </template>
+      <template #ultimateVideo>
+        <CreateUltimateVideoTab ref="ultimateVideoTab" :prefill-media-id="prefillMediaId" />
+      </template>
       <template #text2video>
         <CreateTextToVideoTab ref="t2vTab" />
-      </template>
-      <template #pipelineVideo>
-        <CreatePipelineVideoTab ref="pipelineTab" />
       </template>
       <template #img2img>
         <CreateImageToImageTab ref="i2iTab" />
       </template>
-      <template #img2video>
-        <CreateImageToVideoTab ref="i2vTab" :prefill-media-id="prefillMediaId" @generate-i2v="handleI2VGenerate" />
-      </template>
       <template #multiImgVideo>
         <CreateMultiImageVideoTab ref="multiImgVideoTab" />
-      </template>
-      <template #autoVideo>
-        <CreateAutoVideoTab ref="autoVideoTab" />
-      </template>
-      <template #sweep>
-        <CreateSweepTab ref="sweepTab" />
-      </template>
-      <template #ltx2test>
-        <CreateLTX2TesterTab ref="ltx2TestTab" />
       </template>
       <template #custom>
         <CreateCustomWorkflowTab ref="customTab" />
