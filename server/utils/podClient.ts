@@ -250,6 +250,24 @@ export async function submitText2Video(
 }
 
 /**
+ * Submit a multi-segment video job — passes the full comfyInput through
+ * (minus the action key) so no fields are lost.
+ */
+export async function submitMultiSegmentVideo(
+  input: Record<string, any>,
+  podUrl?: string,
+): Promise<{ job_id: string; status: string }> {
+  const url = podUrl || getPodUrl()
+  const { action, ...body } = input
+  return await $fetch(`${url}/generate/multi-segment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    timeout: 30_000,
+  })
+}
+
+/**
  * Submit an upscale job (image or video).
  */
 export async function submitUpscale(

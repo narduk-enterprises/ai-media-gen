@@ -15,7 +15,7 @@ import { mediaItems } from '../database/schema'
 import {
   submitJob, checkJobStatus, buildRequestFromMeta, getPodUrl,
   submitText2Image, submitImage2Image, submitImage2Video,
-  submitText2Video, submitUpscale,
+  submitText2Video, submitUpscale, submitMultiSegmentVideo,
 } from './podClient'
 import { completeMediaItem, updateGenerationStatus } from './completeItem'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
@@ -116,6 +116,9 @@ async function submitPhase(db: DB) {
         case 'upscale':
         case 'upscale_video':
           response = await submitUpscale(input, podUrl)
+          break
+        case 'multi_segment_video':
+          response = await submitMultiSegmentVideo(input, podUrl)
           break
         default: {
           const request = buildRequestFromMeta(meta)
