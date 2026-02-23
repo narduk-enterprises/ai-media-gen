@@ -196,6 +196,25 @@ export async function submitImage2Image(
 }
 
 /**
+ * Submit a custom raw ComfyUI workflow.
+ */
+export async function submitCustomWorkflow(
+  input: Record<string, any>,
+  podUrl?: string,
+): Promise<{ job_id: string; status: string }> {
+  const url = podUrl || getPodUrl()
+  return await $fetch(`${url}/generate/custom`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      workflow: input.workflow,
+      expect_video: input.expect_video ?? false,
+    },
+    timeout: 30_000,
+  })
+}
+
+/**
  * Submit an image-to-video job.
  */
 export async function submitImage2Video(
