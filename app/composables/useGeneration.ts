@@ -76,6 +76,10 @@ export function useGeneration() {
     width: number
     height: number
     loraStrength?: number
+    cfg?: number
+    sampler?: string
+    scheduler?: string
+    customLoras?: Record<string, number>
     model?: string
     seed?: number
     append?: boolean
@@ -104,6 +108,10 @@ export function useGeneration() {
           attributes: {}, endpoint: effectiveEndpoint.value,
           loraStrength: opts.loraStrength ?? 1.0, model: opts.model ?? 'wan22',
           seed: opts.seed ?? -1,
+          ...(opts.cfg != null ? { cfg: opts.cfg } : {}),
+          ...(opts.sampler ? { sampler_name: opts.sampler } : {}),
+          ...(opts.scheduler ? { scheduler: opts.scheduler } : {}),
+          ...(opts.customLoras ? { customLoras: opts.customLoras } : {}),
         }
         if (opts.sweepId) { body.sweepId = opts.sweepId; body.sweepLabel = opts.sweepLabel }
         const result = await $fetch<GenerationResult>('/api/generate/image', {

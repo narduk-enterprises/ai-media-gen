@@ -42,10 +42,16 @@ export default defineEventHandler(async (event) => {
     }
 
     if (object) {
-      setResponseHeaders(event, {
-        'Content-Type': object.httpMetadata?.contentType || 'video/mp4',
+      const contentType = object.httpMetadata?.contentType || 'video/mp4'
+      const headers: Record<string, string> = {
+        'Content-Type': contentType,
         'Cache-Control': 'public, max-age=31536000, immutable',
-      })
+        'Accept-Ranges': 'bytes',
+      }
+      if (object.size) {
+        headers['Content-Length'] = String(object.size)
+      }
+      setResponseHeaders(event, headers)
       setResponseStatus(event, 200)
       return sendStream(event, object.body as any)
     }

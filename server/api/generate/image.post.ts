@@ -15,8 +15,12 @@ const generateSchema = z.object({
   width: z.number().int().min(512).max(2048).default(1024),
   height: z.number().int().min(512).max(2048).default(1024),
   loraStrength: z.number().min(0).max(2).default(1.0),
-  model: z.enum(['wan22', 'qwen_image', 'flux2_dev', 'flux2_turbo']).default('wan22'),
+  model: z.enum(['wan22', 'qwen_image', 'flux2_dev', 'flux2_turbo', 'z_image', 'z_image_turbo']).default('wan22'),
   seed: z.number().int().default(-1),
+  cfg: z.number().min(0).max(20).optional(),
+  sampler: z.string().optional(),
+  scheduler: z.string().optional(),
+  customLoras: z.record(z.number()).optional(),
   attributes: z.record(z.string()).optional(),
   sweepId: z.string().optional(),
   sweepLabel: z.string().optional(),
@@ -32,13 +36,17 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, prompts, negativePrompt, count, steps, width, height, loraStrength, model, seed, attributes, sweepId, sweepLabel, endpoint } = parsed.data
+  const { prompt, prompts, negativePrompt, count, steps, width, height, loraStrength, cfg, sampler, scheduler, customLoras, model, seed, attributes, sweepId, sweepLabel, endpoint } = parsed.data
   const apiUrl = resolveApiUrl(endpoint)
 
   const settingsObj: Record<string, any> = {
     negativePrompt, steps, width, height, seed, model, loraStrength,
     attributes: attributes || {},
   }
+  if (cfg != null) settingsObj.cfg = cfg
+  if (sampler) settingsObj.sampler = sampler
+  if (scheduler) settingsObj.scheduler = scheduler
+  if (customLoras) settingsObj.customLoras = customLoras
   if (sweepId) { settingsObj.sweepId = sweepId; settingsObj.sweepLabel = sweepLabel || '' }
   const settings = JSON.stringify(settingsObj)
   const db = useDatabase()
@@ -76,6 +84,10 @@ export default defineEventHandler(async (event) => {
           width, height, steps,
           lora_strength: loraStrength,
           model,
+          cfg: cfg ?? undefined,
+          sampler_name: sampler ?? undefined,
+          scheduler: scheduler ?? undefined,
+          custom_loras: customLoras ?? undefined,
           seed: itemSeed,
         },
       }),

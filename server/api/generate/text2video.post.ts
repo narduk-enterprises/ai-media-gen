@@ -51,16 +51,18 @@ export default defineEventHandler(async (event) => {
     } else {
       // Generation not found — create a new one
       genId = crypto.randomUUID()
+      const settings = JSON.stringify({ negativePrompt, model, steps, width, height, numFrames, loraStrength, seed, audioPrompt })
       await db.insert(generations).values({
         id: genId, userId: user.id, prompt,
-        imageCount: 1, status: 'processing', createdAt: now,
+        imageCount: 1, status: 'processing', settings, createdAt: now,
       })
     }
   } else {
     genId = crypto.randomUUID()
+    const settings = JSON.stringify({ negativePrompt, model, steps, width, height, numFrames, loraStrength, seed, audioPrompt })
     await db.insert(generations).values({
       id: genId, userId: user.id, prompt,
-      imageCount: 1, status: 'processing', createdAt: now,
+      imageCount: 1, status: 'processing', settings, createdAt: now,
     })
   }
 

@@ -10,19 +10,31 @@ const negativePrompt = ref('')
 const imageBase64 = ref('')
 const imagePreview = ref('')
 const selectedModel = ref('wan22')
-const cfg = ref(3.5)
-const denoise = ref(0.75)
+const cfg = ref<number | undefined>(undefined)
+const denoise = ref<number | undefined>(0.75)
 const steps = ref(20)
 const imageWidth = ref(1024)
 const imageHeight = ref(1024)
+const loraStrength = ref<number | undefined>(undefined)
+const sampler = ref<string | undefined>(undefined)
+const scheduler = ref<string | undefined>(undefined)
+const seed = ref(-1)
 
-const params = computed(() => shared.getImageModelParams(selectedModel.value))
-const sizeItems = computed(() => params.value.sizes.map(v => ({ label: `${v}`, value: v })))
+// ─── Model-aware params (merged with I2I overrides) ─────────────────────
+const params = computed(() => shared.getI2IModelParams(selectedModel.value))
+
 const fileInput = ref<HTMLInputElement | null>(null)
 
 watch(selectedModel, (id) => {
-  const p = shared.getImageModelParams(id)
+  const p = shared.getI2IModelParams(id)
   steps.value = p.steps.default
+  imageWidth.value = p.defaultWidth
+  imageHeight.value = p.defaultHeight
+  cfg.value = p.cfg?.default
+  denoise.value = p.denoise?.default ?? 0.75
+  loraStrength.value = p.lora?.default
+  sampler.value = p.sampler?.default
+  scheduler.value = p.scheduler?.default
 })
 
 // ─── File handling ──────────────────────────────────────────────────────
@@ -91,23 +103,23 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: false })
 
     <!-- Prompt -->
     <PromptInput v-model="prompt" label="New Prompt" placeholder="Describe the style or changes you want..." />
-    <UInput v-model="negativePrompt" size="xs" placeholder="Negative prompt (optional)" icon="i-lucide-minus" class="w-full" />
 
     <!-- Model + Settings -->
     <ModelSelector :models="IMAGE_MODELS" :selected="selectedModel" @update:selected="selectedModel = $event as string" />
 
-    <UCard variant="outline">
-      <div class="flex flex-wrap gap-x-6 gap-y-3">
-        <SliderField v-model="cfg" label="CFG" :min="1" :max="15" :step="0.5" description="Higher = follow prompt more" />
-        <SliderField v-model="denoise" label="Denoise" :min="0" :max="1" :step="0.05" description="How much to change the image" :format="v => v.toFixed(2)" />
-        <SliderField v-model="steps" label="Steps" :min="params.steps.min" :max="params.steps.max" />
-        <UFormField label="Width" size="sm">
-          <USelect v-model="imageWidth" :items="sizeItems" size="sm" class="w-24" />
-        </UFormField>
-        <UFormField label="Height" size="sm">
-          <USelect v-model="imageHeight" :items="sizeItems" size="sm" class="w-24" />
-        </UFormField>
-      </div>
-    </UCard>
+    <ImageModelSettings
+      :params="params"
+      mode="i2i"
+      v-model:steps="steps"
+      v-model:width="imageWidth"
+      v-model:height="imageHeight"
+      v-model:seed="seed"
+      v-model:cfg="cfg"
+      v-model:lora-strength="loraStrength"
+      v-model:sampler="sampler"
+      v-model:scheduler="scheduler"
+      v-model:denoise="denoise"
+      v-model:negative-prompt="negativePrompt"
+    />
   </div>
 </template>

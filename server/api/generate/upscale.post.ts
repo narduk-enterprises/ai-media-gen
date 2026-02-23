@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
+import { resolveApiUrl } from '../../utils/ai'
 import { submitItemToComfyUI } from '../../utils/submitItem'
 import { useMediaBucket, readBase64FromR2 } from '../../utils/r2'
 import { mediaItems, generations } from '../../database/schema'
@@ -9,6 +10,7 @@ import { mediaItems, generations } from '../../database/schema'
 const upscaleSchema = z.object({
   mediaItemId: z.string().uuid('Invalid media item ID'),
   scale: z.number().min(2).max(4).optional().default(2),
+  endpoint: z.string().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -20,7 +22,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { mediaItemId, scale } = parsed.data
+  const { mediaItemId, scale, endpoint } = parsed.data
+  const apiUrl = resolveApiUrl(endpoint)
   const db = useDatabase()
 
   const source = await db
@@ -87,7 +90,7 @@ export default defineEventHandler(async (event) => {
     parentId: mediaItemId,
     prompt: sourceItem.prompt || source[0].generations.prompt || '',
     status: 'queued',
-    metadata: JSON.stringify({ comfyInput, isUpscale: true, scale }),
+    metadata: JSON.stringify({ apiUrl, comfyInput, isUpscale: true, scale }),
     createdAt: now,
   })
 

@@ -18,20 +18,22 @@ interface Segment {
   preset?: string
 }
 
+const DEFAULT_CHARACTER_PROMPT = `Stunning blonde college girl, early 20s, athletic build, sun-kissed tan skin, long windswept hair, wearing cutoff denim shorts and a coral bikini top, aviator sunglasses pushed up on her head, natural freckles across her nose, confident radiant smile, golden hour light, photorealistic skin texture with peach fuzz visible, Arri Alexa 65mm anamorphic lens`
+
 const DEFAULT_SEGMENTS: Omit<Segment, 'id'>[] = [
   {
-    prompt: 'Slow motion aerial drone shot swooping down toward a stunning blonde college girl in cutoff shorts and a bikini top driving a lime green golf cart at full speed down a palm-tree-lined campus boulevard, golden hour backlight creating lens flares and a warm halo around her hair, she looks up at camera with a fearless grin, one hand on the wheel and a cold Corona in the other, sweat and condensation glistening, shallow depth of field with creamy bokeh of Spanish tile rooftops behind her, Arri Alexa 65mm anamorphic, film grain, 4K cinematic',
+    prompt: 'Slow motion aerial drone shot swooping down, she drives a lime green golf cart at full speed down a palm-tree-lined campus boulevard, golden hour backlight creating lens flares and a warm halo, she looks up at camera with a fearless grin, one hand on the wheel and a cold Corona in the other, sweat and condensation glistening, shallow depth of field with creamy bokeh, film grain, 4K cinematic',
     camera_lora: 'dolly-in',
   },
   {
-    prompt: 'Extreme close-up tracking shot at wheel height, the golf cart tires kicking up dust on a dirt path between campus lawns, rack focus pulls from spinning wheel up to her face mid-laugh as she tilts a beer bottle back and chugs, golden liquid catching sunlight, droplets splashing off her chin, aviator sunglasses reflecting palm trees, her free hand casually steering, background students frozen mid-stare in beautiful bokeh, photorealistic skin texture with peach fuzz visible, warm 5600K color temperature, Cooke S7i glass character',
+    prompt: 'Extreme close-up tracking shot at wheel height, golf cart tires kicking up dust on a dirt path between campus lawns, rack focus pulls from spinning wheel up to her face mid-laugh as she tilts a beer bottle back and chugs, golden liquid catching sunlight, droplets splashing off her chin, background students frozen mid-stare in beautiful bokeh, warm 5600K color temperature, Cooke S7i glass character',
   },
   {
-    prompt: 'Dynamic low-angle hero shot from the grass as the golf cart roars past camera left to right, her hair and a campus flag both whipping in the slipstream, she casually tosses an empty beer can in a perfect arc over her shoulder without looking back, the can tumbles in slow motion catching golden light, students on the quad behind her cheer and raise their hands, long dramatic shadows stretching across manicured grass, anamorphic barrel distortion at the edges, motion blur on background, Steadicam energy',
+    prompt: 'Dynamic low-angle hero shot from the grass as the golf cart roars past camera left to right, her hair and a campus flag both whipping in the slipstream, she casually tosses an empty beer can in a perfect arc over her shoulder without looking back, students on the quad behind her cheer and raise their hands, long dramatic shadows, anamorphic barrel distortion, motion blur on background, Steadicam energy',
     camera_lora: 'dolly-right',
   },
   {
-    prompt: 'Epic wide pullback crane shot rising from behind the golf cart as it cruises away down a cathedral-like avenue of massive live oaks draped in Spanish moss, dappled golden light filtering through the canopy onto the road, she stands up in the moving cart and raises a fresh beer triumphantly with both arms like she just won the championship, tiny dust particles and pollen floating in visible god-rays, the whole frame glowing amber and green, nostalgic 16mm film grain, Terrence Malick golden hour magic',
+    prompt: 'Epic wide pullback crane shot rising from behind the golf cart as it cruises away down a cathedral-like avenue of massive live oaks draped in Spanish moss, dappled golden light filtering through the canopy, she stands up in the moving cart and raises a fresh beer triumphantly with both arms, tiny dust particles and pollen floating in visible god-rays, nostalgic 16mm film grain, Terrence Malick golden hour magic',
     camera_lora: 'dolly-out',
   },
 ]
@@ -39,6 +41,36 @@ const DEFAULT_SEGMENTS: Omit<Segment, 'id'>[] = [
 const segments = ref<Segment[]>([])
 const dragOver = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
+
+// ─── Character consistency mode ──────────────────────────────
+type CharacterMode = 'shared_hero' | 'independent' | 'chain_last_frame'
+const characterMode = ref<CharacterMode>('shared_hero')
+const characterPrompt = ref(DEFAULT_CHARACTER_PROMPT)
+const heroImage = ref('')
+const heroPreview = ref('')
+
+function pickHeroImage() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.onchange = () => {
+    const file = input.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      heroImage.value = dataUrl.split(',')[1] || ''
+      heroPreview.value = dataUrl
+    }
+    reader.readAsDataURL(file)
+  }
+  input.click()
+}
+
+function clearHeroImage() {
+  heroImage.value = ''
+  heroPreview.value = ''
+}
 
 // ─── Adding segments ─────────────────────────────────────────
 function addPromptSegment(prompt = '') {
@@ -221,6 +253,10 @@ function loadDefaults() {
     ...s,
     id: crypto.randomUUID().slice(0, 8),
   }))
+  characterMode.value = 'shared_hero'
+  characterPrompt.value = DEFAULT_CHARACTER_PROMPT
+  heroImage.value = ''
+  heroPreview.value = ''
   audioPrompt.value = 'upbeat summer indie rock, warm acoustic guitar riff, distant crowd cheering, golf cart electric motor whirring, beer cans clinking and fizzing open, campus ambience with birds and sprinklers, lo-fi warmth'
   negativePrompt.value = 'worst quality, blurry, distorted, deformed, disfigured, bad anatomy, watermark, text, logo, anime, cartoon, illustration, painting, 3d render, cgi, plastic skin, oversaturated'
   targetDuration.value = 30
@@ -279,6 +315,13 @@ async function generate() {
       steps: steps.value,
       transition: transition.value,
       transitionDuration: transitionDuration.value,
+      characterMode: characterMode.value,
+      characterPrompt: characterMode.value === 'shared_hero' || characterMode.value === 'chain_last_frame'
+        ? characterPrompt.value.trim() || undefined
+        : undefined,
+      heroImage: characterMode.value === 'shared_hero' && heroImage.value
+        ? heroImage.value
+        : undefined,
       endpoint: effectiveEndpoint.value,
     }
     if (isLtx2.value) {
@@ -324,7 +367,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <UButton size="xs" variant="ghost" color="violet" icon="i-lucide-rotate-ccw" @click="loadDefaults">Defaults</UButton>
+          <UButton size="xs" variant="ghost" color="secondary" icon="i-lucide-rotate-ccw" @click="loadDefaults">Defaults</UButton>
           <UBadge v-if="segmentCount" variant="subtle" color="primary" size="xs">{{ segmentCount }} shot{{ segmentCount !== 1 ? 's' : '' }}</UBadge>
           <UBadge v-if="segmentCount >= 1" variant="subtle" color="info" size="xs">~{{ perSegmentDuration }}s each</UBadge>
           <UBadge variant="subtle" color="warning" size="xs">~{{ targetDuration }}s total</UBadge>
@@ -339,6 +382,78 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
     <UAlert v-if="resultMeta" color="success" variant="subtle" icon="i-lucide-check-circle"
       :title="`${resultMeta.numSegments}-shot video queued!`"
       :description="`~${resultMeta.effectiveDuration}s · ${resultMeta.autoFrames} frames/shot · ${resultMeta.t2vCount} T2V + ${resultMeta.i2vCount} I2V · Check your queue`" />
+
+    <!-- ═══ Character Consistency ═══ -->
+    <UCard variant="outline" class="ring-1 ring-fuchsia-200">
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-user-check" class="w-4 h-4 text-fuchsia-500" />
+            <h3 class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Character Consistency</h3>
+          </div>
+          <UBadge variant="subtle" :color="characterMode === 'shared_hero' ? 'success' : characterMode === 'chain_last_frame' ? 'info' : 'warning'" size="xs">
+            {{ characterMode === 'shared_hero' ? 'Same Girl' : characterMode === 'chain_last_frame' ? 'Chained' : 'Independent' }}
+          </UBadge>
+        </div>
+
+        <!-- Mode selector -->
+        <div class="flex gap-1.5">
+          <button
+            class="flex-1 text-left px-3 py-2 rounded-lg border text-xs transition-all"
+            :class="characterMode === 'shared_hero'
+              ? 'border-fuchsia-400 bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-300'
+              : 'border-slate-200 hover:border-slate-300 text-slate-600 hover:bg-slate-50'"
+            @click="characterMode = 'shared_hero'"
+          >
+            <span class="font-medium block">🧍 Same Character</span>
+            <span class="text-[9px] opacity-60 block">One hero image for all shots — she looks the same</span>
+          </button>
+          <button
+            class="flex-1 text-left px-3 py-2 rounded-lg border text-xs transition-all"
+            :class="characterMode === 'chain_last_frame'
+              ? 'border-blue-400 bg-blue-50 text-blue-700 ring-1 ring-blue-300'
+              : 'border-slate-200 hover:border-slate-300 text-slate-600 hover:bg-slate-50'"
+            @click="characterMode = 'chain_last_frame'"
+          >
+            <span class="font-medium block">🔗 Chain Frames</span>
+            <span class="text-[9px] opacity-60 block">Each shot continues from the last frame</span>
+          </button>
+          <button
+            class="flex-1 text-left px-3 py-2 rounded-lg border text-xs transition-all"
+            :class="characterMode === 'independent'
+              ? 'border-amber-400 bg-amber-50 text-amber-700 ring-1 ring-amber-300'
+              : 'border-slate-200 hover:border-slate-300 text-slate-600 hover:bg-slate-50'"
+            @click="characterMode = 'independent'"
+          >
+            <span class="font-medium block">🎲 Independent</span>
+            <span class="text-[9px] opacity-60 block">Every shot generates its own character</span>
+          </button>
+        </div>
+
+        <!-- Character prompt (for shared_hero and chain modes) -->
+        <div v-if="characterMode !== 'independent'" class="space-y-2">
+          <UFormField :label="characterMode === 'shared_hero' ? 'Describe Your Character' : 'First Shot Character'" size="sm"
+            :description="characterMode === 'shared_hero' ? 'This generates one hero image used as the I2V source for every shot' : 'Used for the first shot — subsequent shots chain from the last frame'">
+            <UTextarea v-model="characterPrompt" :rows="2" autoresize
+              placeholder="Describe the character in detail — appearance, outfit, lighting, camera lens..."
+              class="w-full" size="sm" />
+          </UFormField>
+
+          <!-- Hero image upload (shared_hero only) -->
+          <div v-if="characterMode === 'shared_hero'" class="flex items-center gap-3">
+            <div v-if="heroPreview" class="relative group">
+              <img :src="heroPreview" alt="Hero" class="w-20 h-14 rounded object-cover border border-fuchsia-300 ring-1 ring-fuchsia-200" />
+              <button class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center text-[8px] opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                @click="clearHeroImage">&times;</button>
+            </div>
+            <UButton size="xs" variant="soft" color="secondary" icon="i-lucide-upload" @click="pickHeroImage">
+              {{ heroPreview ? 'Change' : 'Upload' }} Hero Image
+            </UButton>
+            <span v-if="!heroPreview" class="text-[10px] text-slate-400">Optional — skip to auto-generate from the prompt above</span>
+          </div>
+        </div>
+      </div>
+    </UCard>
 
     <!-- ═══ JSON Import ═══ -->
     <UCard variant="outline" :class="showJsonImport ? 'ring-1 ring-violet-300' : ''">

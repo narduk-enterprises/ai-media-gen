@@ -107,7 +107,7 @@ export default defineEventHandler(async (event) => {
     parentId: mediaItemId,
     prompt,
     status: 'queued',
-    metadata: JSON.stringify({ comfyInput: inputPayload }),
+    metadata: JSON.stringify({ apiUrl, comfyInput: inputPayload }),
     createdAt: now,
   })
 

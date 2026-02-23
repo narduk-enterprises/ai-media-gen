@@ -159,6 +159,10 @@ export async function submitText2Image(
       seed: input.seed,
       model: input.model || 'wan22',
       lora_strength: input.lora_strength,
+      cfg: input.cfg,
+      sampler_name: input.sampler_name,
+      scheduler: input.scheduler,
+      custom_loras: input.custom_loras,
     },
     timeout: 30_000,
   })
@@ -323,18 +327,18 @@ export async function checkJobStatus(
     })
 
     if (status.status === 'completed') {
-      // Base64 may be inline (image) or stripped (video) — check both
       let data = status.video_base64 || status.image_base64
-      let type: string = status.video_base64 ? 'video' : 'image'
+      let type: string = (status.has_video || status.video_base64) ? 'video' : 'image'
 
-      // If status stripped the blob, fetch from /generate/result/
+      // Status endpoint strips large blobs — fetch from /generate/result/
       if (!data && (status.has_video || status.has_image)) {
         try {
           const result = await $fetch<{ video_base64?: string; image_base64?: string }>(`${url}/generate/result/${jobId}`, {
-            timeout: 60_000,
+            timeout: 180_000,
           })
           data = result.video_base64 || result.image_base64
-          type = result.video_base64 ? 'video' : 'image'
+          if (result.video_base64) type = 'video'
+          else if (result.image_base64) type = 'image'
         } catch (e: any) {
           console.warn(`[Pod] Failed to fetch result for ${jobId}: ${e.message}`)
         }

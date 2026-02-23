@@ -14,13 +14,16 @@ const steps = ref(20)
 const imageWidth = ref(1280)
 const imageHeight = ref(720)
 const loraStrength = ref(1.0)
+const cfg = ref<number | undefined>(undefined)
+const sampler = ref<string | undefined>(undefined)
+const scheduler = ref<string | undefined>(undefined)
 const seed = ref(-1)
+const customLoras = ref<Record<string, number>>({})
 
 // ─── Model-aware params ────────────────────────────────────────────────
 const primaryModel = computed(() => selectedModels.value[0] ?? 'wan22')
 const params = computed(() => shared.getImageModelParams(primaryModel.value))
 const compareMode = computed(() => selectedModels.value.length > 1)
-const sizeItems = computed(() => params.value.sizes.map(v => ({ label: `${v}`, value: v })))
 
 // Apply model defaults when model changes
 watch(primaryModel, (id) => {
@@ -29,6 +32,17 @@ watch(primaryModel, (id) => {
   imageWidth.value = p.defaultWidth
   imageHeight.value = p.defaultHeight
   if (p.lora) loraStrength.value = p.lora.default
+  cfg.value = p.cfg?.default
+  sampler.value = p.sampler?.default
+  scheduler.value = p.scheduler?.default
+  // Initialize custom LoRA defaults
+  if (p.customLoras?.length) {
+    const loras: Record<string, number> = {}
+    for (const cl of p.customLoras) loras[cl.id] = cl.default
+    customLoras.value = loras
+  } else {
+    customLoras.value = {}
+  }
 })
 
 // ─── Generate ───────────────────────────────────────────────────────────
@@ -56,12 +70,16 @@ async function generate(append = false) {
         prompts: p, negativePrompt: shared.negativePrompt.value,
         steps: modelSteps, width: imageWidth.value, height: imageHeight.value,
         loraStrength: loraStrength.value, model: modelId, seed: seed.value,
+        cfg: cfg.value, sampler: sampler.value, scheduler: scheduler.value,
+        customLoras: Object.keys(customLoras.value).length ? customLoras.value : undefined,
       })
     } else {
       await gen.generate({
         prompts: p, negativePrompt: shared.negativePrompt.value,
         steps: modelSteps, width: imageWidth.value, height: imageHeight.value,
         loraStrength: loraStrength.value, model: modelId, seed: seed.value,
+        cfg: cfg.value, sampler: sampler.value, scheduler: scheduler.value,
+        customLoras: Object.keys(customLoras.value).length ? customLoras.value : undefined,
         append: append || selectedModels.value.indexOf(modelId) > 0,
       })
     }
@@ -77,15 +95,20 @@ onMounted(() => {
   if (s.t2i_width != null) imageWidth.value = s.t2i_width
   if (s.t2i_height != null) imageHeight.value = s.t2i_height
   if (s.t2i_lora != null) loraStrength.value = s.t2i_lora
+  if (s.t2i_cfg != null) cfg.value = s.t2i_cfg
+  if (s.t2i_sampler != null) sampler.value = s.t2i_sampler
+  if (s.t2i_scheduler != null) scheduler.value = s.t2i_scheduler
   if (s.t2i_seed != null) seed.value = s.t2i_seed
   if (s.t2i_count != null) count.value = s.t2i_count
 })
 
-watch([prompt, selectedModels, steps, imageWidth, imageHeight, loraStrength, seed, count], () => {
+watch([prompt, selectedModels, steps, imageWidth, imageHeight, loraStrength, cfg, sampler, scheduler, seed, count, customLoras], () => {
   shared.persistForm({
     t2i_prompt: prompt.value, t2i_selectedModels: selectedModels.value,
     t2i_steps: steps.value, t2i_width: imageWidth.value, t2i_height: imageHeight.value,
-    t2i_lora: loraStrength.value, t2i_seed: seed.value, t2i_count: count.value,
+    t2i_lora: loraStrength.value, t2i_cfg: cfg.value, t2i_sampler: sampler.value,
+    t2i_scheduler: scheduler.value, t2i_seed: seed.value, t2i_count: count.value,
+    t2i_customLoras: customLoras.value,
   })
 }, { deep: true })
 
@@ -122,28 +145,19 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: false })
     <ModelSelector :models="IMAGE_MODELS" :selected="selectedModels" :multi="true" @update:selected="selectedModels = $event as string[]" />
 
     <!-- Settings -->
-    <UCard variant="outline">
-      <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
-        <SliderField v-model="steps" label="Steps" :min="params.steps.min" :max="params.steps.max" />
-        <UFormField label="Width" size="sm">
-          <USelect v-model="imageWidth" :items="sizeItems" size="sm" class="w-24" />
-        </UFormField>
-        <UFormField label="Height" size="sm">
-          <USelect v-model="imageHeight" :items="sizeItems" size="sm" class="w-24" />
-        </UFormField>
-        <SliderField v-if="params.lora" v-model="loraStrength" label="LoRA" :min="params.lora.min" :max="params.lora.max" :step="params.lora.step" description="Speed LoRA strength" :format="v => v.toFixed(2)" />
-        <UFormField label="Seed" size="sm" :description="seed < 0 ? 'Random' : 'Fixed'">
-          <div class="flex items-center gap-2">
-            <UInput v-model.number="seed" type="number" size="sm" class="w-28" />
-            <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-shuffle" square @click="seed = -1" title="Random seed" />
-          </div>
-        </UFormField>
-      </div>
-      <!-- Negative prompt -->
-      <div class="mt-3 pt-3 border-t border-slate-100">
-        <UInput v-model="shared.negativePrompt.value" placeholder="Negative prompt (optional)" size="xs" icon="i-lucide-minus" class="w-full" />
-      </div>
-    </UCard>
+    <ImageModelSettings
+      :params="params"
+      v-model:steps="steps"
+      v-model:width="imageWidth"
+      v-model:height="imageHeight"
+      v-model:seed="seed"
+      v-model:cfg="cfg"
+      v-model:lora-strength="loraStrength"
+      v-model:sampler="sampler"
+      v-model:scheduler="scheduler"
+      v-model:negative-prompt="shared.negativePrompt.value"
+      v-model:custom-loras="customLoras"
+    />
 
     <!-- Batch progress -->
     <div v-if="gen.generating.value && gen.batchProgress.value.total > 0" class="flex items-center gap-3 p-3 rounded-lg bg-violet-50 border border-violet-200">

@@ -9,7 +9,7 @@ const schema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
   negativePrompt: z.string().default(''),
   image: z.string().min(1, 'Image (base64) is required'),
-  model: z.enum(['wan22', 'flux2_turbo']).default('wan22'),
+  model: z.enum(['wan22', 'flux2_turbo', 'z_image', 'z_image_turbo']).default('wan22'),
   steps: z.number().int().min(1).max(50).default(20),
   width: z.number().int().min(512).max(2048).default(1024),
   height: z.number().int().min(512).max(2048).default(1024),

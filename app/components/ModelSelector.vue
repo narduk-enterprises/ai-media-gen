@@ -1,11 +1,5 @@
 <script setup lang="ts">
-export interface ModelDef {
-  id: string
-  label: string
-  description: string
-  icon: string
-  defaultSteps?: number
-}
+import type { ModelDef } from '~/composables/models'
 
 const props = defineProps<{
   models: readonly ModelDef[]
@@ -25,6 +19,8 @@ function isSelected(id: string) {
 }
 
 function toggle(id: string) {
+  const model = props.models.find(m => m.id === id)
+  if (model?.comingSoon) return
   if (props.multi && Array.isArray(props.selected)) {
     const idx = props.selected.indexOf(id)
     if (idx >= 0 && props.selected.length > 1) {
@@ -50,9 +46,13 @@ function toggle(id: string) {
       <button
         v-for="m in models" :key="m.id"
         class="flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all duration-150"
-        :class="isSelected(m.id)
-          ? `border-${activeColor}-400 bg-${activeColor}-50/60 shadow-sm`
-          : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'"
+        :class="[
+          isSelected(m.id)
+            ? `border-${activeColor}-400 bg-${activeColor}-50/60 shadow-sm`
+            : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50',
+          m.comingSoon ? 'opacity-50 cursor-not-allowed' : '',
+        ]"
+        :disabled="m.comingSoon"
         @click="toggle(m.id)"
       >
         <div
@@ -62,7 +62,10 @@ function toggle(id: string) {
           <UIcon :name="m.icon" class="w-4 h-4" />
         </div>
         <div class="flex-1 min-w-0">
-          <div class="text-sm font-semibold" :class="isSelected(m.id) ? `text-${activeColor}-700` : 'text-slate-700'">{{ m.label }}</div>
+          <div class="text-sm font-semibold flex items-center gap-1.5" :class="isSelected(m.id) ? `text-${activeColor}-700` : 'text-slate-700'">
+            {{ m.label }}
+            <span v-if="m.comingSoon" class="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-500">Soon</span>
+          </div>
           <div class="text-[11px]" :class="isSelected(m.id) ? `text-${activeColor}-500` : 'text-slate-400'">{{ m.description }}</div>
         </div>
         <!-- Checkbox for multi, radio for single -->

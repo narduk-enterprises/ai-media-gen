@@ -30,6 +30,9 @@ const bodySchema = z.object({
   preset: z.string().optional().default(''),
   transition: z.enum(['crossfade', 'cut']).optional().default('crossfade'),
   transitionDuration: z.number().min(0).max(2).optional().default(0.5),
+  characterMode: z.enum(['shared_hero', 'independent', 'chain_last_frame']).optional().default('shared_hero'),
+  characterPrompt: z.string().optional().default(''),
+  heroImage: z.string().optional().default(''),
   endpoint: z.string().optional(),
 })
 
@@ -56,7 +59,8 @@ export default defineEventHandler(async (event) => {
   const {
     segments: inputSegments, targetDuration, audioPrompt, negativePrompt,
     model, width, height, fps, steps: globalSteps, loraStrength, imageStrength,
-    preset: globalPreset, transition, transitionDuration, endpoint,
+    preset: globalPreset, transition, transitionDuration,
+    characterMode, characterPrompt, heroImage, endpoint,
   } = parsed.data
 
   const apiUrl = resolveApiUrl(endpoint)
@@ -103,8 +107,12 @@ export default defineEventHandler(async (event) => {
     height,
     transition,
     transition_duration: transitionDuration,
+    character_mode: characterMode,
     segments,
   }
+
+  if (characterPrompt) comfyInput.character_prompt = characterPrompt
+  if (heroImage) comfyInput.hero_image = heroImage
 
   if (isLtx2) {
     comfyInput.fps = fps
