@@ -369,12 +369,96 @@ export function useGeneration() {
     a.click()
   }
 
+  /**
+   * Generate a video via the T2I→I2V pipeline:
+   * Creates an image from text, then animates it into a video.
+   */
+  async function generatePipelineVideo(opts: {
+    prompt: string
+    negativePrompt?: string
+    width?: number
+    height?: number
+    steps?: number
+    cfg?: number
+    seed?: number
+    imageModel?: string
+    samplerName?: string
+    scheduler?: string
+    videoPrompt?: string
+    videoModel?: string
+    videoSteps?: number
+    videoFrames?: number
+    videoFps?: number
+    loraStrength?: number
+    imageStrength?: number
+    count?: number
+    generationId?: string
+  }) {
+    const totalJobs = opts.count ?? 1
+    submitting.value = true
+    error.value = ''
+    results.value = []
+    if (totalJobs > 1) batchProgress.value = { current: 0, total: totalJobs }
+
+    let batchGenId = opts.generationId
+    let submitted = 0
+
+    for (let i = 0; i < totalJobs; i++) {
+      try {
+        const result = await $fetch<{
+          generation: { id: string; prompt: string; imageCount: number; status: string; createdAt: string }
+          item: MediaItemResult
+        }>('/api/generate/text2image-video', {
+          method: 'POST',
+          body: {
+            prompt: opts.prompt,
+            negativePrompt: opts.negativePrompt || '',
+            width: opts.width ?? 832,
+            height: opts.height ?? 480,
+            steps: opts.steps ?? 30,
+            cfg: opts.cfg ?? 5.0,
+            seed: opts.seed ?? -1,
+            imageModel: opts.imageModel ?? 'cyberrealistic_pony',
+            samplerName: opts.samplerName,
+            scheduler: opts.scheduler,
+            videoPrompt: opts.videoPrompt || opts.prompt,
+            videoModel: opts.videoModel ?? 'wan22',
+            videoSteps: opts.videoSteps ?? 20,
+            videoFrames: opts.videoFrames ?? 81,
+            videoFps: opts.videoFps ?? 16,
+            loraStrength: opts.loraStrength ?? 1.0,
+            imageStrength: opts.imageStrength ?? 1.0,
+            endpoint: effectiveEndpoint.value,
+            ...(batchGenId ? { generationId: batchGenId } : {}),
+          },
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+
+        if (result.item) {
+          if (!batchGenId) batchGenId = result.generation.id
+          results.value = [...results.value, result.item]
+          activeGenerationId.value = result.generation.id
+          trackedGenerationIds.value.add(result.generation.id)
+          const key = `pipeline-${result.item.id}`
+          actionLoading.value[key] = true
+          queue.submitAndTrack(result.item.id, actionLoading, key)
+        }
+      } catch (e: any) {
+        error.value = e.data?.message || e.message || 'Pipeline video generation failed'
+      }
+      submitted++
+      if (totalJobs > 1) batchProgress.value.current = submitted
+    }
+
+    submitting.value = false
+  }
+
   return {
     MAX_IMAGES_PER_BATCH,
     generating, submitting, error, results, activeGenerationId, trackedGenerationIds,
     lastSettings, completedMedia, totalDone, totalFailed, totalPending,
     actionLoading, batchProgress,
-    generate, generateImage2Image, generateText2Video,
+    generate, generateImage2Image, generateText2Video, generatePipelineVideo,
     makeVideo, makeAudio, upscale,
     clearResults, downloadMedia,
   }

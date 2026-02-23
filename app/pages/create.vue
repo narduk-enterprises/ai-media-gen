@@ -15,6 +15,7 @@ const route = useRoute()
 const modeTabs: TabsItem[] = [
   { label: 'Text → Image', icon: 'i-lucide-image', value: 'text2image', slot: 'text2image' },
   { label: 'Text → Video', icon: 'i-lucide-film', value: 'text2video', slot: 'text2video' },
+  { label: 'Pipeline Video', icon: 'i-lucide-workflow', value: 'pipelineVideo', slot: 'pipelineVideo' },
   { label: 'Image → Image', icon: 'i-lucide-image-plus', value: 'img2img', slot: 'img2img' },
   { label: 'Image → Video', icon: 'i-lucide-clapperboard', value: 'img2video', slot: 'img2video' },
   { label: 'Multi-Image Video', icon: 'i-lucide-images', value: 'multiImgVideo', slot: 'multiImgVideo' },
@@ -27,6 +28,7 @@ const modeTabs: TabsItem[] = [
 // ─── Tab Refs ───────────────────────────────────────────────────────────
 const t2iTab = ref<{ generate: (append?: boolean) => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const t2vTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
+const pipelineTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const i2iTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const i2vTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const autoVideoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
@@ -38,6 +40,7 @@ const customTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; tot
 const activeTab = computed(() => {
   if (mode.value === 'text2image') return t2iTab.value
   if (mode.value === 'text2video') return t2vTab.value
+  if (mode.value === 'pipelineVideo') return pipelineTab.value
   if (mode.value === 'img2img') return i2iTab.value
   if (mode.value === 'img2video') return i2vTab.value
   if (mode.value === 'multiImgVideo') return multiImgVideoTab.value
@@ -152,6 +155,9 @@ const gridClass = computed(() => {
       </template>
       <template #text2video>
         <CreateTextToVideoTab ref="t2vTab" />
+      </template>
+      <template #pipelineVideo>
+        <CreatePipelineVideoTab ref="pipelineTab" />
       </template>
       <template #img2img>
         <CreateImageToImageTab ref="i2iTab" />
