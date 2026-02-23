@@ -260,7 +260,7 @@ export async function submitMultiSegmentVideo(
   const url = podUrl || getPodUrl()
   const body: Record<string, any> = {
     segments: (input.segments || []).map((s: any) => ({
-      ...(s.image ? { image: s.image } : {}),
+      image: s.image || 'auto',
       prompt: s.prompt || '',
       ...(s.frames ? { frames: s.frames } : {}),
       ...(s.steps ? { steps: s.steps } : {}),
