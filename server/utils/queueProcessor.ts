@@ -23,7 +23,7 @@ import type { DrizzleD1Database } from 'drizzle-orm/d1'
 type DB = DrizzleD1Database<any>
 
 const MAX_CONCURRENT = 10
-const STALE_THRESHOLD_MS = 30 * 60 * 1000
+const STALE_THRESHOLD_MS = 4 * 60 * 60 * 1000 // 4 hours — long LTX2 videos (721 frames) can take 60+ min
 const MAX_RETRIES = 3
 
 /**
