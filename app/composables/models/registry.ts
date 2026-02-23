@@ -8,7 +8,7 @@
  */
 import type { ModelDef, ImageModelParams, VideoModelParams, ImageModelConfig, VideoModelConfig } from './types'
 import { wan22Image, wan22Video } from './wan22'
-import { qwenImage } from './qwen'
+import { qwenImage, qwenLora } from './qwen'
 import { flux2Turbo, flux2Dev } from './flux2'
 import { ltx2Video } from './ltx2'
 import { zImageBase, zImageTurbo } from './zimage'
@@ -18,6 +18,7 @@ import { zImageBase, zImageTurbo } from './zimage'
 const IMAGE_CONFIGS: ImageModelConfig[] = [
   wan22Image,
   qwenImage,
+  qwenLora,
   flux2Turbo,
   flux2Dev,
   zImageBase,

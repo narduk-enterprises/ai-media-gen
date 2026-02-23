@@ -21,3 +21,30 @@ export const qwenImage: ImageModelConfig = {
     defaultHeight: 720,
   },
 }
+
+export const qwenLora: ImageModelConfig = {
+  def: {
+    id: 'qwen_lora',
+    label: 'Qwen 2.5 + LoRA',
+    description: 'VL 7B + blondeCurlyQ2512, 30 steps',
+    icon: 'i-lucide-sparkles',
+    capabilities: ['t2i'],
+    defaultSteps: 30,
+  },
+  params: {
+    steps: { min: 1, max: 50, default: 30 },
+    cfg: { min: 0, max: 15, default: 4.0, step: 0.5 },
+    lora: { min: 0, max: 2, default: 0.75, step: 0.05 },
+    sampler: {
+      options: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde'],
+      default: 'euler',
+    },
+    scheduler: {
+      options: ['simple', 'beta', 'karras', 'normal'],
+      default: 'simple',
+    },
+    sizes: [512, 720, 768, 832, 1024, 1152, 1216, 1280, 1536],
+    defaultWidth: 1024,
+    defaultHeight: 1536,
+  },
+}
