@@ -20,16 +20,19 @@ interface Segment {
 
 const DEFAULT_SEGMENTS: Omit<Segment, 'id'>[] = [
   {
-    prompt: 'Cinematic drone shot approaching a gorgeous college girl driving a lime green golf cart down a sun-drenched palm tree lined campus road, golden hour lighting, she glances at the camera with a confident grin, wind blowing through her hair, cold beer in hand, shallow depth of field, film grain, 4K cinematic quality',
+    prompt: 'Slow motion aerial drone shot swooping down toward a stunning blonde college girl in cutoff shorts and a bikini top driving a lime green golf cart at full speed down a palm-tree-lined campus boulevard, golden hour backlight creating lens flares and a warm halo around her hair, she looks up at camera with a fearless grin, one hand on the wheel and a cold Corona in the other, sweat and condensation glistening, shallow depth of field with creamy bokeh of Spanish tile rooftops behind her, Arri Alexa 65mm anamorphic, film grain, 4K cinematic',
+    camera_lora: 'dolly-in',
   },
   {
-    prompt: 'Close-up tracking shot of her laughing and chugging a cold beer while steering the golf cart one-handed, condensation dripping off the bottle, aviator sunglasses catching sunlight, bokeh background of lush campus greenery and Spanish colonial buildings, smooth natural motion, photorealistic',
+    prompt: 'Extreme close-up tracking shot at wheel height, the golf cart tires kicking up dust on a dirt path between campus lawns, rack focus pulls from spinning wheel up to her face mid-laugh as she tilts a beer bottle back and chugs, golden liquid catching sunlight, droplets splashing off her chin, aviator sunglasses reflecting palm trees, her free hand casually steering, background students frozen mid-stare in beautiful bokeh, photorealistic skin texture with peach fuzz visible, warm 5600K color temperature, Cooke S7i glass character',
   },
   {
-    prompt: 'Low angle side shot of the golf cart cruising past a crowded quad, students turning their heads, she tosses an empty beer can over her shoulder without looking, warm summer afternoon light, motion blur on the background, cinematic depth',
+    prompt: 'Dynamic low-angle hero shot from the grass as the golf cart roars past camera left to right, her hair and a campus flag both whipping in the slipstream, she casually tosses an empty beer can in a perfect arc over her shoulder without looking back, the can tumbles in slow motion catching golden light, students on the quad behind her cheer and raise their hands, long dramatic shadows stretching across manicured grass, anamorphic barrel distortion at the edges, motion blur on background, Steadicam energy',
+    camera_lora: 'dolly-right',
   },
   {
-    prompt: 'Wide pullback shot as the golf cart drives away down a tree-canopied campus avenue, she raises a fresh beer triumphantly, long afternoon shadows stretching across the path, dust particles floating in golden light beams, nostalgic summer feeling',
+    prompt: 'Epic wide pullback crane shot rising from behind the golf cart as it cruises away down a cathedral-like avenue of massive live oaks draped in Spanish moss, dappled golden light filtering through the canopy onto the road, she stands up in the moving cart and raises a fresh beer triumphantly with both arms like she just won the championship, tiny dust particles and pollen floating in visible god-rays, the whole frame glowing amber and green, nostalgic 16mm film grain, Terrence Malick golden hour magic',
+    camera_lora: 'dolly-out',
   },
 ]
 
@@ -118,10 +121,16 @@ const jsonInput = ref('')
 const jsonError = ref('')
 
 const EXAMPLE_JSON = JSON.stringify({
-  segments: DEFAULT_SEGMENTS.map(s => ({ prompt: s.prompt })),
+  segments: DEFAULT_SEGMENTS.map(s => ({
+    prompt: s.prompt,
+    ...(s.camera_lora ? { camera_lora: s.camera_lora } : {}),
+  })),
   targetDuration: 30,
-  audioPrompt: 'upbeat summer indie music, golf cart engine humming, beer cans clinking, campus ambience, birds chirping, warm vibes',
+  audioPrompt: 'upbeat summer indie rock, warm acoustic guitar riff, distant crowd cheering, golf cart electric motor whirring, beer cans clinking and fizzing open, campus ambience with birds and sprinklers, lo-fi warmth',
+  negativePrompt: 'worst quality, blurry, distorted, deformed, disfigured, bad anatomy, watermark, text, logo, anime, cartoon, illustration, painting, 3d render, cgi, plastic skin, oversaturated',
   model: 'ltx2',
+  steps: 25,
+  preset: 'quality_res2s',
 }, null, 2)
 
 function importJson() {
@@ -212,9 +221,17 @@ function loadDefaults() {
     ...s,
     id: crypto.randomUUID().slice(0, 8),
   }))
-  audioPrompt.value = 'upbeat summer indie music, golf cart engine humming, beer cans clinking, campus ambience, birds chirping, warm vibes'
+  audioPrompt.value = 'upbeat summer indie rock, warm acoustic guitar riff, distant crowd cheering, golf cart electric motor whirring, beer cans clinking and fizzing open, campus ambience with birds and sprinklers, lo-fi warmth'
+  negativePrompt.value = 'worst quality, blurry, distorted, deformed, disfigured, bad anatomy, watermark, text, logo, anime, cartoon, illustration, painting, 3d render, cgi, plastic skin, oversaturated'
   targetDuration.value = 30
   selectedModel.value = 'ltx2'
+  steps.value = 25
+  width.value = 1280
+  height.value = 720
+  fps.value = 24
+  transition.value = 'crossfade'
+  transitionDuration.value = 0.5
+  selectedPreset.value = 'quality_res2s'
 }
 
 onMounted(() => {
