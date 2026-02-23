@@ -14,7 +14,7 @@ import {
   submitJob, buildRequestFromMeta, getPodUrl,
   submitText2Image, submitImage2Image, submitImage2Video,
   submitText2Video, submitUpscale, submitMultiSegmentVideo,
-  submitCustomWorkflow,
+  submitCustomWorkflow, submitText2ImageThenVideo,
 } from './podClient'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 
@@ -82,6 +82,9 @@ export async function submitItemToPod(
         break
       case 'custom_workflow':
         response = await submitCustomWorkflow(input, podUrl)
+        break
+      case 'text2image_then_video':
+        response = await submitText2ImageThenVideo(input, podUrl)
         break
       default: {
         const request = buildRequestFromMeta(meta)

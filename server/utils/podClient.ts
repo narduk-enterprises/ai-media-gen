@@ -169,6 +169,41 @@ export async function submitText2Image(
 }
 
 /**
+ * Submit a text-to-image-then-video pipeline job.
+ * Generates an image first, then animates it with I2V.
+ */
+export async function submitText2ImageThenVideo(
+  input: Record<string, any>,
+  podUrl?: string,
+): Promise<{ job_id: string; status: string }> {
+  const url = podUrl || getPodUrl()
+  return await $fetch(`${url}/generate/text2image-then-video`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      prompt: input.prompt,
+      negative_prompt: input.negative_prompt,
+      width: input.width,
+      height: input.height,
+      steps: input.steps,
+      cfg: input.cfg,
+      seed: input.seed,
+      image_model: input.image_model || 'cyberrealistic_pony',
+      sampler_name: input.sampler_name,
+      scheduler: input.scheduler,
+      video_prompt: input.video_prompt,
+      video_model: input.video_model || 'wan22',
+      video_steps: input.video_steps,
+      video_frames: input.video_frames,
+      video_fps: input.video_fps,
+      lora_strength: input.lora_strength,
+      image_strength: input.image_strength,
+    },
+    timeout: 30_000,
+  })
+}
+
+/**
  * Submit an image-to-image job.
  */
 export async function submitImage2Image(
