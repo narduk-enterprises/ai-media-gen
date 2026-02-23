@@ -77,6 +77,33 @@ function onDrop(e: DragEvent) {
 
 function removeSegment(idx: number) { segments.value.splice(idx, 1) }
 
+function pickImageForSegment(idx: number) {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.onchange = () => {
+    const file = input.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      const seg = segments.value[idx]
+      if (!seg) return
+      seg.image = dataUrl.split(',')[1] || ''
+      seg.preview = dataUrl
+    }
+    reader.readAsDataURL(file)
+  }
+  input.click()
+}
+
+function clearSegmentImage(idx: number) {
+  const seg = segments.value[idx]
+  if (!seg) return
+  seg.image = undefined
+  seg.preview = undefined
+}
+
 function moveSegment(idx: number, dir: -1 | 1) {
   const to = idx + dir
   if (to < 0 || to >= segments.value.length) return
@@ -355,18 +382,25 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
           <div v-for="(seg, idx) in segments" :key="seg.id"
             class="flex items-start gap-3 p-2.5 rounded-lg border border-slate-200 hover:border-violet-200 transition-colors group"
           >
-            <!-- Shot number + thumbnail -->
+            <!-- Shot number + thumbnail (clickable to pick image) -->
             <div class="shrink-0 flex flex-col items-center gap-1">
               <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
                 :class="seg.image ? 'bg-violet-500 text-white' : 'bg-amber-100 text-amber-700'">
                 {{ idx + 1 }}
               </div>
-              <img v-if="seg.preview" :src="seg.preview" alt="" class="w-16 h-10 rounded object-cover border" />
-              <div v-else class="w-16 h-10 rounded bg-amber-50 border border-amber-200 flex items-center justify-center">
-                <UIcon name="i-lucide-type" class="w-3.5 h-3.5 text-amber-400" />
+              <div class="relative cursor-pointer group/thumb" @click="pickImageForSegment(idx)">
+                <img v-if="seg.preview" :src="seg.preview" alt="" class="w-20 h-14 rounded object-cover border hover:ring-2 hover:ring-violet-400 transition-all" />
+                <div v-else class="w-20 h-14 rounded bg-amber-50 border border-amber-200 hover:border-violet-300 hover:bg-violet-50/30 flex flex-col items-center justify-center transition-all">
+                  <UIcon name="i-lucide-image-plus" class="w-4 h-4 text-amber-400 group-hover/thumb:text-violet-500" />
+                  <span class="text-[7px] text-amber-400 group-hover/thumb:text-violet-500 mt-0.5">Add image</span>
+                </div>
+                <button v-if="seg.image" class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center text-[8px] opacity-0 group-hover/thumb:opacity-100 transition-opacity hover:bg-red-600"
+                  @click.stop="clearSegmentImage(idx)">
+                  &times;
+                </button>
               </div>
               <span class="text-[8px] uppercase font-medium" :class="seg.image ? 'text-violet-500' : 'text-amber-500'">
-                {{ seg.image ? 'I2V' : 'T2V' }}
+                {{ seg.image ? 'I2V' : 'T2V (auto)' }}
               </span>
             </div>
 
