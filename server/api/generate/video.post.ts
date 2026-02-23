@@ -24,6 +24,7 @@ const videoSchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  try {
   const user = await requireAuth(event)
   const body = await readBody(event)
   const parsed = videoSchema.safeParse(body)
@@ -126,5 +127,10 @@ export default defineEventHandler(async (event) => {
       status: 'queued',
       url: null,
     },
+  }
+  } catch (e: any) {
+    console.error('[video.post] Error:', e?.statusCode, e?.message, e?.stack || e)
+    if (e.statusCode) throw e
+    throw createError({ statusCode: 500, message: e?.message || 'Internal server error' })
   }
 })

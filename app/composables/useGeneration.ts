@@ -289,12 +289,15 @@ export function useGeneration() {
     negativePrompt?: string
     numFrames?: number | number[]
     steps?: number
+    cfg?: number
     width?: number
     height?: number
+    fps?: number
     loraStrength?: number
     model?: string
     seed?: number
     audioPrompt?: string
+    count?: number
     append?: boolean
   }) {
     const allPrompts = opts.prompts?.length ? opts.prompts : opts.prompt?.trim() ? [opts.prompt.trim()] : []
@@ -322,6 +325,7 @@ export function useGeneration() {
             body: {
               prompt: p, negativePrompt: opts.negativePrompt || '',
               numFrames: nf, steps: opts.steps ?? 4,
+              cfg: opts.cfg, fps: opts.fps,
               width: opts.width ?? 832, height: opts.height ?? 480,
               endpoint: effectiveEndpoint.value,
               loraStrength: opts.loraStrength ?? 1.0, model: opts.model ?? 'wan22',
