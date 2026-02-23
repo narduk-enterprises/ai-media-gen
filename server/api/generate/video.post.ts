@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl } from '../../utils/ai'
-import { submitItemToComfyUI } from '../../utils/submitItem'
+import { submitImage2Video } from '../../utils/podClient'
 import { useMediaBucket, readBase64FromR2 } from '../../utils/r2'
 import { mediaItems, generations } from '../../database/schema'
 
@@ -25,111 +25,135 @@ const videoSchema = z.object({
 
 export default defineEventHandler(async (event) => {
   try {
-  const user = await requireAuth(event)
-  const body = await readBody(event)
-  const parsed = videoSchema.safeParse(body)
+    const user = await requireAuth(event)
+    const body = await readBody(event)
+    const parsed = videoSchema.safeParse(body)
 
-  if (!parsed.success) {
-    throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
-  }
-
-  const { mediaItemId, model, prompt: customPrompt, negativePrompt, numFrames, steps, cfg, width, height, fps, loraStrength, imageStrength, endpoint } = parsed.data
-  const apiUrl = resolveApiUrl(endpoint)
-  const db = useDatabase()
-
-  // Fetch media item
-  const [sourceItem] = await db.select().from(mediaItems).where(eq(mediaItems.id, mediaItemId)).limit(1)
-
-  if (!sourceItem) {
-    throw createError({ statusCode: 404, message: 'Image not found' })
-  }
-
-  // Verify user owns this generation
-  const [gen] = await db.select().from(generations).where(eq(generations.id, sourceItem.generationId)).limit(1)
-
-  if (!gen || gen.userId !== user.id) {
-    throw createError({ statusCode: 404, message: 'Image not found' })
-  }
-
-  if (sourceItem.type !== 'image' || !sourceItem.url) {
-    throw createError({ statusCode: 400, message: 'Source must be a completed image' })
-  }
-
-  // Read source image as base64 — supports both R2 paths and legacy data URIs
-  let imageBase64: string | null = null
-  const base64Match = sourceItem.url.match(/^data:image\/\w+;base64,(.+)$/)
-  if (base64Match) {
-    imageBase64 = base64Match[1]!
-  } else {
-    const bucket = useMediaBucket(event)
-    if (bucket) {
-      imageBase64 = await readBase64FromR2(bucket, mediaItemId)
+    if (!parsed.success) {
+      throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
     }
-  }
 
-  if (!imageBase64) {
-    throw createError({ statusCode: 400, message: 'Could not read source image data' })
-  }
+    const { mediaItemId, model, prompt: customPrompt, negativePrompt, numFrames, steps, cfg, width, height, fps, loraStrength, imageStrength, endpoint } = parsed.data
+    const apiUrl = resolveApiUrl(endpoint)
+    const db = useDatabase()
 
-  const prompt = customPrompt || gen.prompt || ''
-  const now = new Date().toISOString()
+    // Fetch media item
+    const [sourceItem] = await db.select().from(mediaItems).where(eq(mediaItems.id, mediaItemId)).limit(1)
 
-  const videoId = crypto.randomUUID()
+    if (!sourceItem) {
+      throw createError({ statusCode: 404, message: 'Image not found' })
+    }
 
-  // Build model-specific input payload
-  const isLtx2 = model === 'ltx2'
-  const inputPayload: Record<string, any> = {
-    action: 'image2video',
-    model,
-    prompt,
-    negative_prompt: negativePrompt,
-    image: imageBase64,
-    width: width || (isLtx2 ? 1280 : 768),
-    height: height || (isLtx2 ? 720 : 768),
-    num_frames: numFrames || (isLtx2 ? 121 : 81),
-    steps: steps || 20,
-  }
-  if (isLtx2) {
-    inputPayload.fps = fps || 24
-    inputPayload.lora_strength = loraStrength ?? 0.7
-    inputPayload.image_strength = imageStrength ?? 1.0
-    if (body.preset) inputPayload.preset = body.preset
-    if (body.audioPrompt) inputPayload.audio_prompt = body.audioPrompt
-    if (body.cameraLora) inputPayload.camera_lora = body.cameraLora
-  } else {
-    inputPayload.cfg = cfg || 3.5
-  }
+    // Verify user owns this generation
+    const [gen] = await db.select().from(generations).where(eq(generations.id, sourceItem.generationId)).limit(1)
 
-  // Insert as 'queued'
-  await db.insert(mediaItems).values({
-    id: videoId,
-    generationId: sourceItem.generationId,
-    type: 'video',
-    parentId: mediaItemId,
-    prompt,
-    status: 'queued',
-    metadata: JSON.stringify({ apiUrl, comfyInput: inputPayload }),
-    createdAt: now,
-  })
+    if (!gen || gen.userId !== user.id) {
+      throw createError({ statusCode: 404, message: 'Image not found' })
+    }
 
-  console.log(`[I2V] Item queued: ${videoId.slice(0, 8)}`)
+    if (sourceItem.type !== 'image' || !sourceItem.url) {
+      throw createError({ statusCode: 400, message: 'Source must be a completed image' })
+    }
 
-  // Submit to ComfyUI in background
-  waitUntil(submitItemToComfyUI(db, videoId))
+    // Read source image as base64 — supports both R2 paths and legacy data URIs
+    let imageBase64: string | null = null
+    const base64Match = sourceItem.url.match(/^data:image\/\w+;base64,(.+)$/)
+    if (base64Match) {
+      imageBase64 = base64Match[1]!
+    } else {
+      const bucket = useMediaBucket(event)
+      if (bucket) {
+        imageBase64 = await readBase64FromR2(bucket, mediaItemId)
+      }
+    }
 
-  return {
-    item: {
+    if (!imageBase64) {
+      throw createError({ statusCode: 400, message: 'Could not read source image data' })
+    }
+
+    const prompt = customPrompt || gen.prompt || ''
+    const now = new Date().toISOString()
+    const videoId = crypto.randomUUID()
+
+    // Build model-specific input payload (with image for pod submission)
+    const isLtx2 = model === 'ltx2'
+    const inputPayload: Record<string, any> = {
+      action: 'image2video',
+      model,
+      prompt,
+      negative_prompt: negativePrompt,
+      image: imageBase64,
+      width: width || (isLtx2 ? 1280 : 768),
+      height: height || (isLtx2 ? 720 : 768),
+      num_frames: numFrames || (isLtx2 ? 121 : 81),
+      steps: steps || 20,
+    }
+    if (isLtx2) {
+      inputPayload.fps = fps || 24
+      inputPayload.lora_strength = loraStrength ?? 0.7
+      inputPayload.image_strength = imageStrength ?? 1.0
+      if (body.preset) inputPayload.preset = body.preset
+      if (body.audioPrompt) inputPayload.audio_prompt = body.audioPrompt
+      if (body.cameraLora) inputPayload.camera_lora = body.cameraLora
+    } else {
+      inputPayload.cfg = cfg || 3.5
+    }
+
+    // Store metadata WITHOUT the base64 image (only R2 key reference)
+    const metadataForDb: Record<string, any> = {
+      apiUrl,
+      comfyInput: {
+        ...inputPayload,
+        image: undefined,       // Don't store base64 in D1
+        imageR2Key: mediaItemId, // Reference to R2 for cron retries
+      },
+    }
+
+    // Insert as 'queued'
+    await db.insert(mediaItems).values({
       id: videoId,
       generationId: sourceItem.generationId,
       type: 'video',
       parentId: mediaItemId,
-      runpodJobId: null,
+      prompt,
       status: 'queued',
-      url: null,
-    },
-  }
+      metadata: JSON.stringify(metadataForDb),
+      createdAt: now,
+    })
+
+    console.log(`[I2V] Item queued: ${videoId.slice(0, 8)}`)
+
+    // Submit directly to pod in background (we already have the base64 in memory)
+    waitUntil((async () => {
+      try {
+        const response = await submitImage2Video(inputPayload, apiUrl)
+        await db.update(mediaItems)
+          .set({
+            status: 'processing',
+            runpodJobId: response.job_id,
+            submittedAt: new Date().toISOString(),
+            metadata: JSON.stringify({ ...metadataForDb, podJobId: response.job_id }),
+          })
+          .where(eq(mediaItems.id, videoId))
+        console.log(`[I2V] ✅ ${videoId.slice(0, 8)} → Pod job ${response.job_id}`)
+      } catch (e: any) {
+        console.warn(`[I2V] ⚠️ ${videoId.slice(0, 8)} submit failed, cron will retry: ${e.message}`)
+      }
+    })())
+
+    return {
+      item: {
+        id: videoId,
+        generationId: sourceItem.generationId,
+        type: 'video',
+        parentId: mediaItemId,
+        runpodJobId: null,
+        status: 'queued',
+        url: null,
+      },
+    }
   } catch (e: any) {
-    console.error('[video.post] Error:', e?.statusCode, e?.message, e?.stack || e)
+    console.error('[video.post] Error:', e?.statusCode, e?.message)
     if (e.statusCode) throw e
     throw createError({ statusCode: 500, message: e?.message || 'Internal server error' })
   }
