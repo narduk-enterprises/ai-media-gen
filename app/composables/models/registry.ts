@@ -12,6 +12,8 @@ import { qwenImage, qwenLora } from './qwen'
 import { flux2Turbo, flux2Dev } from './flux2'
 import { ltx2Video } from './ltx2'
 import { zImageBase, zImageTurbo } from './zimage'
+import { juggernautXL } from './juggernaut'
+import { cyberRealisticPony } from './cyberrealistic'
 
 // ─── Image Model Registry ───────────────────────────────────────────────────
 
@@ -23,6 +25,8 @@ const IMAGE_CONFIGS: ImageModelConfig[] = [
   flux2Dev,
   zImageBase,
   zImageTurbo,
+  juggernautXL,
+  cyberRealisticPony,
 ]
 
 /** All image model definitions (for ModelSelector) */
