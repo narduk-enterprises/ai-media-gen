@@ -270,9 +270,13 @@ export async function submitImage2Video(
       steps: input.steps,
       fps: input.fps,
       seed: input.seed,
+      cfg: input.cfg,
       model: input.model || 'ltx2',
       camera_lora: input.camera_lora,
       preset: input.preset,
+      audio_prompt: input.audio_prompt,
+      lora_strength: input.lora_strength,
+      image_strength: input.image_strength,
     },
     timeout: 30_000,
   })
