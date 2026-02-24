@@ -90,15 +90,9 @@ function goToVideo(id: string) { navigateTo({ path: '/create', query: { tab: 'im
 function goToReimagine(id: string) { navigateTo({ path: '/create', query: { tab: 'img2img', mediaId: id } }) }
 async function upscaleImage(id: string) { await gen.upscale(id) }
 
-function downloadMedia(url: string, index: number, type: string = 'image') {
+function downloadMedia(url: string, type: string = 'image') {
   const a = document.createElement('a')
-  a.href = url; a.download = `gallery-${index + 1}.${type === 'video' ? 'mp4' : 'png'}`; a.click()
-}
-
-function recreateFromImage(img: GalleryMedia) {
-  const query: Record<string, string> = { prompt: img.prompt }
-  if (img.settings) query.settings = JSON.stringify(img.settings)
-  navigateTo({ path: '/create', query })
+  a.href = url; a.download = `gallery.${type === 'video' ? 'mp4' : 'png'}`; a.click()
 }
 </script>
 
@@ -161,34 +155,31 @@ function recreateFromImage(img: GalleryMedia) {
       </div>
 
       <!-- Grid -->
-      <div v-else :class="['grid gap-1', largeGrid ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6']">
+      <div v-else :class="['grid gap-1.5', largeGrid ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6']">
         <div
           v-for="(item, index) in filteredMedia" :key="item.id"
-          class="group relative aspect-square rounded-lg overflow-hidden cursor-pointer border border-slate-200 hover:border-violet-300 transition-all hover:shadow-lg"
+          class="group relative aspect-square rounded-xl overflow-hidden cursor-pointer border border-slate-200 hover:border-violet-300 transition-all hover:shadow-lg"
           @click="openLightbox(index)"
         >
           <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="none" class="w-full h-full object-cover" @mouseenter="($event.target as HTMLVideoElement).play()" @mouseleave="($event.target as HTMLVideoElement).pause()" />
           <NuxtImg v-else :src="item.url" :alt="item.prompt" :width="largeGrid ? 512 : 300" class="w-full h-full object-cover" loading="lazy" />
 
           <!-- Video badge -->
-          <div v-if="item.type === 'video'" class="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/50 backdrop-blur-sm text-white text-[10px] flex items-center gap-1">
-            <UIcon name="i-lucide-play" class="w-3 h-3" /> Video
+          <div v-if="item.type === 'video'" class="absolute top-2.5 left-2.5 px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm text-white text-xs flex items-center gap-1">
+            <UIcon name="i-lucide-play" class="w-3.5 h-3.5" /> Video
           </div>
 
           <!-- Hover overlay -->
           <div class="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <div class="absolute bottom-0 left-0 right-0 p-2.5">
-              <p class="text-white text-[11px] line-clamp-2 leading-relaxed">{{ item.prompt }}</p>
-              <p class="text-white/50 text-[9px] mt-0.5">{{ formatDate(item.createdAt) }}</p>
+            <div class="absolute bottom-0 left-0 right-0 p-3">
+              <p class="text-white text-xs line-clamp-2 leading-relaxed">{{ item.prompt }}</p>
+              <p class="text-white/50 text-[10px] mt-0.5">{{ formatDate(item.createdAt) }}</p>
             </div>
           </div>
 
-          <!-- Action buttons on hover -->
-          <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-image-plus" @click.stop="goToReimagine(item.id)" title="Reimagine" />
-            <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-sparkles" :loading="actionLoading[`upscale-${item.id}`]" @click.stop="upscaleImage(item.id)" title="Enhance" />
-            <UButton v-if="item.type === 'image'" size="xs" variant="soft" color="neutral" icon="i-lucide-film" @click.stop="goToVideo(item.id)" title="Animate" />
-            <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="downloadMedia(item.url, index, item.type)" />
+          <!-- Download on hover -->
+          <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <UButton size="sm" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="downloadMedia(item.url, item.type)" />
           </div>
         </div>
       </div>
@@ -208,25 +199,31 @@ function recreateFromImage(img: GalleryMedia) {
     <!-- Lightbox -->
     <AppLightbox v-model:open="lightboxOpen" v-model:index="lightboxIndex" :items="filteredMedia">
       <template #toolbar="{ item }">
-        <UButton variant="ghost" size="xs" icon="i-lucide-clipboard-copy" class="text-white/60 hover:text-white" @click="copyPrompt(currentItem?.prompt || '')">Prompt</UButton>
-        <UButton variant="ghost" size="xs" icon="i-lucide-sparkles" class="text-white/60 hover:text-white" :loading="actionLoading[`upscale-${item.id}`]" @click="upscaleImage(item.id)">Enhance</UButton>
+        <UButton variant="ghost" size="sm" icon="i-lucide-sparkles" class="text-white/60 hover:text-white" :loading="actionLoading[`upscale-${item.id}`]" @click="upscaleImage(item.id)">Enhance</UButton>
         <template v-if="item.type === 'image'">
-          <UButton variant="ghost" size="xs" icon="i-lucide-image-plus" class="text-white/60 hover:text-white" @click="goToReimagine(item.id)">Reimagine</UButton>
-          <UButton variant="ghost" size="xs" icon="i-lucide-film" class="text-white/60 hover:text-white" @click="goToVideo(item.id)">Video</UButton>
+          <UButton variant="ghost" size="sm" icon="i-lucide-image-plus" class="text-white/60 hover:text-white" @click="goToReimagine(item.id)">Reimagine</UButton>
+          <UButton variant="ghost" size="sm" icon="i-lucide-film" class="text-white/60 hover:text-white" @click="goToVideo(item.id)">Video</UButton>
         </template>
-        <UButton variant="ghost" size="xs" icon="i-lucide-info" class="text-white/60 hover:text-white" @click="showInfo = !showInfo">Info</UButton>
-        <UButton variant="ghost" size="xs" icon="i-lucide-refresh-cw" class="text-white/60 hover:text-white" @click="currentItem && recreateFromImage(currentItem)">Recreate</UButton>
+        <UButton variant="ghost" size="sm" icon="i-lucide-info" class="text-white/60 hover:text-white" @click="showInfo = !showInfo">Info</UButton>
       </template>
 
       <template #panel>
         <Transition name="fade">
-          <div v-if="showInfo && currentItem" class="absolute bottom-16 left-1/2 -translate-x-1/2 w-[420px] max-h-80 overflow-y-auto rounded-xl bg-black/80 backdrop-blur-md p-4 text-sm text-white/80 space-y-2">
+          <div v-if="showInfo && currentItem" class="absolute bottom-18 left-1/2 -translate-x-1/2 w-[440px] max-h-80 overflow-y-auto rounded-xl bg-black/80 backdrop-blur-md p-5 text-sm text-white/80 space-y-3">
             <div class="flex items-center justify-between">
               <span class="text-xs uppercase tracking-wider text-white/50 font-medium">Info</span>
               <button class="text-white/40 hover:text-white text-xs" @click="showInfo = false">✕</button>
             </div>
-            <p class="text-xs text-white/80 leading-relaxed">{{ currentItem.prompt }}</p>
-            <div v-if="currentItem.settings" class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-[10px] text-white/40 uppercase tracking-wider">Prompt</span>
+                <button class="text-[10px] text-white/40 hover:text-white flex items-center gap-1" @click="copyPrompt(currentItem.prompt)">
+                  <UIcon name="i-lucide-clipboard-copy" class="w-3 h-3" /> Copy
+                </button>
+              </div>
+              <p class="text-xs text-white/80 leading-relaxed">{{ currentItem.prompt }}</p>
+            </div>
+            <div v-if="currentItem.settings" class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs border-t border-white/10 pt-3">
               <span class="text-white/40">Dimensions</span><span>{{ currentItem.settings.width }} × {{ currentItem.settings.height }}</span>
               <span class="text-white/40">Steps</span><span>{{ currentItem.settings.steps }}</span>
               <span class="text-white/40">Created</span><span>{{ formatDate(currentItem.createdAt) }}</span>

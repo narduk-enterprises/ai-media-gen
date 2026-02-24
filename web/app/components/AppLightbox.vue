@@ -36,8 +36,11 @@ function handleKeydown(e: KeyboardEvent) {
   else if (e.key === 'Escape') close()
 }
 
-onMounted(() => {
-  if (import.meta.client) window.addEventListener('keydown', handleKeydown)
+// Only add keyboard listener when lightbox is open to avoid unnecessary event handling
+watch(open, (isOpen) => {
+  if (!import.meta.client) return
+  if (isOpen) window.addEventListener('keydown', handleKeydown)
+  else window.removeEventListener('keydown', handleKeydown)
 })
 onUnmounted(() => {
   if (import.meta.client) window.removeEventListener('keydown', handleKeydown)
@@ -103,24 +106,24 @@ function download() {
           <video
             v-if="currentItem.type === 'video'"
             :src="currentItem.url"
-            :key="currentItem.id"
+            :key="'video-' + currentItem.id"
             class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
             controls autoplay loop
           />
           <img
             v-else
             :src="currentItem.url"
-            :key="currentItem.id"
+            :key="'img-' + currentItem.id"
             alt="Generated"
             class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
           />
         </div>
 
         <!-- Bottom toolbar -->
-        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1.5 rounded-full bg-white/10 backdrop-blur-md">
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/10 backdrop-blur-md">
           <UButton
             variant="ghost"
-            size="xs"
+            size="sm"
             icon="i-lucide-download"
             class="text-white/60 hover:text-white"
             @click="download"
