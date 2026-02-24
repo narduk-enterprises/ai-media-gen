@@ -15,7 +15,9 @@ export interface RunPodInfo {
   gpuName: string
   gpuCount: number
   gpuUtilPercent: number
+  gpuMemoryPercent: number
   cpuUtilPercent: number
+  memoryPercent: number
   memoryUsedGb: number
   memoryTotalGb: number
   diskUsedGb: number
@@ -72,6 +74,10 @@ export async function getRunPods(): Promise<RunPodInfo[]> {
               gpuUtilPercent
               memoryUtilPercent
             }
+            container {
+              cpuPercent
+              memoryPercent
+            }
             ports {
               ip
               isIpPublic
@@ -80,6 +86,9 @@ export async function getRunPods(): Promise<RunPodInfo[]> {
               type
             }
           }
+          volumeInGb
+          volumeMountPath
+          containerDiskInGb
           machine {
             gpuDisplayName
             costPerHr
@@ -87,8 +96,6 @@ export async function getRunPods(): Promise<RunPodInfo[]> {
           gpuCount
           vcpuCount
           memoryInGb
-          volumeInGb
-          containerDiskInGb
           machineId
           podType
           costPerHr
@@ -104,6 +111,10 @@ export async function getRunPods(): Promise<RunPodInfo[]> {
     const avgGpuUtil = gpus.length > 0
       ? gpus.reduce((sum: number, g: any) => sum + (g.gpuUtilPercent || 0), 0) / gpus.length
       : 0
+    const avgGpuMemUtil = gpus.length > 0
+      ? gpus.reduce((sum: number, g: any) => sum + (g.memoryUtilPercent || 0), 0) / gpus.length
+      : 0
+    const container = pod.runtime?.container || {}
 
     return {
       id: pod.id,
@@ -118,9 +129,11 @@ export async function getRunPods(): Promise<RunPodInfo[]> {
       gpuName: pod.machine?.gpuDisplayName || '',
       gpuCount: pod.gpuCount || 1,
       gpuUtilPercent: Math.round(avgGpuUtil),
-      cpuUtilPercent: 0, // RunPod doesn't expose CPU util in GraphQL
-      memoryUsedGb: 0, // Not available via GraphQL — would need pod health endpoint
+      gpuMemoryPercent: Math.round(avgGpuMemUtil),
+      cpuUtilPercent: Math.round(container.cpuPercent || 0),
+      memoryPercent: Math.round(container.memoryPercent || 0),
       memoryTotalGb: pod.memoryInGb || 0,
+      memoryUsedGb: Math.round(((container.memoryPercent || 0) / 100) * (pod.memoryInGb || 0) * 10) / 10,
       diskUsedGb: 0,
       diskTotalGb: (pod.volumeInGb || 0) + (pod.containerDiskInGb || 0),
       vcpuCount: pod.vcpuCount || 0,

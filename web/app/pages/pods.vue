@@ -492,67 +492,65 @@ onUnmounted(() => {
           </div>
 
           <!-- Metrics bar (only when running) -->
-          <div v-if="pod.status === 'RUNNING'" class="grid grid-cols-3 gap-3">
-            <!-- GPU / VRAM Utilization -->
-            <div class="text-center" :title="podHealth[pod.id]?.comfy?.vram_total_gb
-              ? `VRAM: ${((podHealth[pod.id].comfy.vram_total_gb! - (podHealth[pod.id].comfy.vram_free_gb || 0))).toFixed(1)}GB / ${podHealth[pod.id].comfy.vram_total_gb!.toFixed(1)}GB\nGPU: ${podHealth[pod.id].comfy.gpu_name || pod.gpuName}\nComfyUI: ${podHealth[pod.id].comfy.status}`
-              : `GPU Util: ${pod.gpuUtilPercent}%`">
-              <div class="relative w-12 h-12 mx-auto">
-                <svg viewBox="0 0 36 36" class="w-12 h-12">
+          <div v-if="pod.status === 'RUNNING'" class="grid grid-cols-4 gap-2">
+            <!-- GPU Utilization -->
+            <div class="text-center" :title="`GPU Utilization: ${pod.gpuUtilPercent}%\n${pod.gpuName}`">
+              <div class="relative w-11 h-11 mx-auto">
+                <svg viewBox="0 0 36 36" class="w-11 h-11">
                   <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" stroke-width="3" />
                   <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#8b5cf6" stroke-width="3"
-                    :stroke-dasharray="`${podHealth[pod.id]?.comfy?.vram_total_gb
-                      ? Math.round(((podHealth[pod.id].comfy.vram_total_gb! - (podHealth[pod.id].comfy.vram_free_gb || 0)) / podHealth[pod.id].comfy.vram_total_gb!) * 100)
-                      : pod.gpuUtilPercent}, 100`"
-                    stroke-linecap="round" />
+                    :stroke-dasharray="`${pod.gpuUtilPercent}, 100`" stroke-linecap="round" />
                 </svg>
-                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-slate-700">
-                  {{ podHealth[pod.id]?.comfy?.vram_total_gb
-                    ? `${((podHealth[pod.id].comfy.vram_total_gb! - (podHealth[pod.id].comfy.vram_free_gb || 0))).toFixed(0)}G`
-                    : `${pod.gpuUtilPercent}%` }}
-                </span>
+                <span class="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-slate-700">{{ pod.gpuUtilPercent }}%</span>
               </div>
-              <p class="text-[10px] text-slate-500 mt-1">VRAM</p>
+              <p class="text-[9px] text-slate-500 mt-0.5">GPU</p>
             </div>
-            <!-- ComfyUI Status -->
-            <div class="text-center" :title="podHealth[pod.id]?.comfy ? `ComfyUI: ${podHealth[pod.id].comfy.status}` : 'Checking...'">
-              <div class="relative w-12 h-12 mx-auto">
-                <svg viewBox="0 0 36 36" class="w-12 h-12">
+            <!-- GPU Memory -->
+            <div class="text-center" :title="`GPU Memory: ${pod.gpuMemoryPercent}%\n${pod.gpuName}`">
+              <div class="relative w-11 h-11 mx-auto">
+                <svg viewBox="0 0 36 36" class="w-11 h-11">
                   <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" stroke-width="3" />
-                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none"
-                    :stroke="podHealth[pod.id]?.comfy?.status === 'running' ? '#10b981' : '#f59e0b'" stroke-width="3"
-                    :stroke-dasharray="podHealth[pod.id]?.comfy?.status === 'running' ? '100, 100' : '25, 100'"
-                    stroke-linecap="round" />
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#a78bfa" stroke-width="3"
+                    :stroke-dasharray="`${pod.gpuMemoryPercent}, 100`" stroke-linecap="round" />
                 </svg>
-                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold"
-                  :class="podHealth[pod.id]?.comfy?.status === 'running' ? 'text-emerald-600' : 'text-amber-600'">
-                  {{ podHealth[pod.id]?.comfy?.status === 'running' ? '✓' : '⏳' }}
-                </span>
+                <span class="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-slate-700">{{ pod.gpuMemoryPercent }}%</span>
               </div>
-              <p class="text-[10px] text-slate-500 mt-1">Comfy</p>
+              <p class="text-[9px] text-slate-500 mt-0.5">VRAM</p>
+            </div>
+            <!-- CPU Memory -->
+            <div class="text-center" :title="`Memory: ${pod.memoryPercent}% (${pod.memoryUsedGb.toFixed(1)}GB / ${pod.memoryTotalGb}GB)`">
+              <div class="relative w-11 h-11 mx-auto">
+                <svg viewBox="0 0 36 36" class="w-11 h-11">
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" stroke-width="3" />
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#3b82f6" stroke-width="3"
+                    :stroke-dasharray="`${pod.memoryPercent}, 100`" stroke-linecap="round" />
+                </svg>
+                <span class="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-slate-700">{{ pod.memoryPercent }}%</span>
+              </div>
+              <p class="text-[9px] text-slate-500 mt-0.5">Mem</p>
             </div>
             <!-- Disk -->
             <div class="text-center" :title="podHealth[pod.id]?.disk?.total_gb
-              ? `Disk: ${podHealth[pod.id].disk.used_gb?.toFixed(1)}GB / ${podHealth[pod.id].disk.total_gb?.toFixed(1)}GB\nFree: ${podHealth[pod.id].disk.free_gb?.toFixed(1)}GB`
+              ? `Disk: ${podHealth[pod.id]!.disk.used_gb?.toFixed(1)}GB / ${podHealth[pod.id]!.disk.total_gb?.toFixed(1)}GB\nFree: ${podHealth[pod.id]!.disk.free_gb?.toFixed(1)}GB`
               : `Volume: ${pod.volumeInGb}GB`">
-              <div class="relative w-12 h-12 mx-auto">
-                <svg viewBox="0 0 36 36" class="w-12 h-12">
+              <div class="relative w-11 h-11 mx-auto">
+                <svg viewBox="0 0 36 36" class="w-11 h-11">
                   <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" stroke-width="3" />
                   <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none"
-                    :stroke="(podHealth[pod.id]?.disk?.total_gb && podHealth[pod.id].disk.used_gb! / podHealth[pod.id].disk.total_gb! > 0.85) ? '#ef4444' : '#10b981'"
+                    :stroke="(podHealth[pod.id]?.disk?.total_gb && (podHealth[pod.id]!.disk.used_gb! / podHealth[pod.id]!.disk.total_gb!) > 0.85) ? '#ef4444' : '#10b981'"
                     stroke-width="3"
                     :stroke-dasharray="`${podHealth[pod.id]?.disk?.total_gb
-                      ? Math.round((podHealth[pod.id].disk.used_gb! / podHealth[pod.id].disk.total_gb!) * 100)
+                      ? Math.round((podHealth[pod.id]!.disk.used_gb! / podHealth[pod.id]!.disk.total_gb!) * 100)
                       : 0}, 100`"
                     stroke-linecap="round" />
                 </svg>
-                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-slate-700">
-                  {{ podHealth[pod.id]?.disk?.used_gb
-                    ? `${podHealth[pod.id].disk.used_gb!.toFixed(0)}G`
-                    : `${pod.volumeInGb}G` }}
+                <span class="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-slate-700">
+                  {{ podHealth[pod.id]?.disk?.used_gb != null
+                    ? `${Math.round((podHealth[pod.id]!.disk.used_gb! / podHealth[pod.id]!.disk.total_gb!) * 100)}%`
+                    : '...' }}
                 </span>
               </div>
-              <p class="text-[10px] text-slate-500 mt-1">Disk</p>
+              <p class="text-[9px] text-slate-500 mt-0.5">Disk</p>
             </div>
           </div>
 
