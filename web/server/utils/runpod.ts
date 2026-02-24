@@ -181,7 +181,7 @@ export async function deployRunPod(
     }
   `
 
-  // Build the bootstrap one-liner that runs as dockerStartCmd.
+  // Build the bootstrap one-liner that runs as dockerArgs.
   // It clones the repo using GITHUB_PAT and runs bootstrap.sh.
   const bootstrapCmd = [
     'bash -c \'',
@@ -207,7 +207,7 @@ export async function deployRunPod(
       { key: 'POD_PROFILE', value: profile },
       { key: 'REPO_URL', value: repoUrl },
     ],
-    dockerStartCmd: bootstrapCmd,
+    dockerArgs: bootstrapCmd,
   }
 
   if (options?.cloudType) {
