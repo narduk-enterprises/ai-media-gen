@@ -77,11 +77,11 @@ export function useQueue() {
     }
   }
 
-  // ─── Adaptive polling (fallback when SSE drops) ─────────────
+  // ─── Adaptive polling (reduced when SSE active) ─────────────
   function _getInterval(): number {
-    if (_sseConnected) return 0 // SSE handles updates — no polling
-    if (stats.value.processing > 0) return 15_000
-    if (stats.value.queued > 0) return 30_000
+    if (_sseConnected) return 30_000 // SSE active — slow safety-net poll
+    if (stats.value.processing > 0) return 5_000
+    if (stats.value.queued > 0) return 15_000
     return 0
   }
 
@@ -272,10 +272,9 @@ export function useQueue() {
       })
 
       _eventSource.onopen = () => {
-        console.log('[Queue] SSE connected')
+        console.log('[Queue] SSE connected — server-side polling active')
         _sseConnected = true
-        // Stop polling — SSE handles updates
-        stopPolling()
+        // Keep client polling as safety net at reduced rate (SSE handles fast updates)
       }
 
       _eventSource.onerror = () => {
