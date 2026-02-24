@@ -11,7 +11,7 @@ export default defineNuxtConfig({
   ],
   css: ['~/assets/css/main.css'],
 
-  compatibilityDate: '2025-07-15',
+  compatibilityDate: 'latest',
 
   devtools: { enabled: true },
 
@@ -76,7 +76,7 @@ export default defineNuxtConfig({
   },
 
   nitro: {
-    preset: 'cloudflare_module',
+    preset: 'cloudflare-module',
     experimental: {
       tasks: true,
     },
@@ -85,26 +85,7 @@ export default defineNuxtConfig({
     },
     cloudflare: {
       deployConfig: true,
-      wrangler: {
-        name: 'ai-media-gen',
-        compatibility_flags: ['nodejs_compat'],
-        d1_databases: [
-          {
-            binding: 'DB',
-            database_name: 'ai-media-gen-db',
-            database_id: '9a1de542-1861-4a4c-a456-7367915c2dee'
-          }
-        ],
-        r2_buckets: [
-          {
-            binding: 'MEDIA',
-            bucket_name: 'ai-media-gen-media'
-          }
-        ],
-        triggers: {
-          crons: ['* * * * *']  // every minute — keep the pipeline fed
-        }
-      }
+      nodeCompat: true
     },
     esbuild: {
       options: {
