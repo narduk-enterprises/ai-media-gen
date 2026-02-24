@@ -193,10 +193,19 @@ export async function deployRunPod(
     '\'',
   ].join(' ')
 
+  // Profile-aware volume sizing (models are large)
+  // image ~30GB models + overhead, video ~80GB models + overhead, full ~120GB+
+  const PROFILE_VOLUME_GB: Record<string, number> = {
+    image: 75,
+    video: 150,
+    full: 200,
+  }
+  const defaultVolume = PROFILE_VOLUME_GB[profile] || 200
+
   const input: any = {
     gpuCount,
-    volumeInGb: options?.volumeInGb || 50,
-    containerDiskInGb: options?.containerDiskInGb || 25,
+    volumeInGb: options?.volumeInGb || defaultVolume,
+    containerDiskInGb: options?.containerDiskInGb || 40,
     minVcpuCount: 2,
     minMemoryInGb: 15,
     gpuTypeId,
