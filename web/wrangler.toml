@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 binding = "DB"
 database_name = "ai-media-gen-db"
 database_id = "9a1de542-1861-4a4c-a456-7367915c2dee"
-preview_database_id = "DB"
+preview_database_id = "9a1de542-1861-4a4c-a456-7367915c2dee"
 migrations_dir = "drizzle"
 
 [[r2_buckets]]

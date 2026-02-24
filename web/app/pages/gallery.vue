@@ -32,25 +32,19 @@ function handleItemClick(item: GalleryMedia, index: number) {
 }
 
 const isDeleting = ref(false)
-const deleteModalOpen = ref(false)
-const itemToDelete = ref<string | null>(null) // null means bulk delete
 
-function promptDelete(id?: string) {
-  itemToDelete.value = id || null
-  deleteModalOpen.value = true
-}
-
-async function confirmDelete() {
+async function handleDelete(id?: string) {
+  if (isDeleting.value) return
   isDeleting.value = true
   try {
-    const ids = itemToDelete.value ? [itemToDelete.value] : Array.from(selectedIds.value)
+    const ids = id ? [id] : Array.from(selectedIds.value)
+    if (!ids.length) return
     await deleteItems(ids)
-    toast.add({ title: 'Deletion confirmed', description: `Successfully deleted ${ids.length > 1 ? ids.length + ' items' : 'item'}.`, color: 'success' })
-    if (!itemToDelete.value) {
+    toast.add({ title: 'Deleted', description: `Successfully deleted ${ids.length > 1 ? ids.length + ' items' : 'item'}.`, color: 'success' })
+    if (!id) {
       isSelectionMode.value = false
       selectedIds.value.clear()
     }
-    deleteModalOpen.value = false
   } catch (e: any) {
     toast.add({ title: 'Deletion failed', description: e.message || 'Something went wrong.', color: 'error' })
   } finally {
@@ -186,7 +180,7 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
           <span class="text-sm font-medium text-violet-700">{{ selectedIds.size }} selected</span>
           <div class="flex items-center gap-2">
             <UButton size="xs" color="neutral" variant="solid" @click="selectedIds.clear()">Deselect All</UButton>
-            <UButton size="xs" color="error" variant="solid" icon="i-lucide-trash-2" @click="promptDelete()">Delete Selected</UButton>
+            <UButton size="xs" color="error" variant="solid" icon="i-lucide-trash-2" :loading="isDeleting" @click="handleDelete()">Delete Selected</UButton>
           </div>
         </div>
       </Transition>
@@ -255,7 +249,7 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
 
           <!-- Actions on hover -->
           <div v-if="!isSelectionMode" class="absolute top-2.5 right-2.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            <UButton size="sm" variant="soft" color="error" icon="i-lucide-trash-2" @click.stop="promptDelete(item.id)" />
+            <UButton size="sm" variant="soft" color="error" icon="i-lucide-trash-2" :loading="isDeleting" @click.stop="handleDelete(item.id)" />
             <UButton size="sm" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="downloadMedia(item.url, item.type)" />
           </div>
         </div>
@@ -315,26 +309,6 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
         </Transition>
       </template>
     </AppLightbox>
-
-    <!-- Delete Confirmation Modal -->
-    <UModal v-model="deleteModalOpen">
-      <div class="p-6">
-        <div class="flex items-center gap-3 text-red-600 mb-4">
-          <UIcon name="i-lucide-alert-triangle" class="w-6 h-6" />
-          <h3 class="font-display font-semibold text-lg text-slate-800">Confirm Deletion</h3>
-        </div>
-        <p class="text-slate-600 text-sm mb-6">
-          Are you sure you want to delete
-          <strong v-if="itemToDelete">this item</strong>
-          <strong v-else>these {{ selectedIds.size }} selected items</strong>?
-          This action cannot be undone, and the generative media will be permanently removed.
-        </p>
-        <div class="flex justify-end gap-3">
-          <UButton color="neutral" variant="solid" @click="deleteModalOpen = false">Cancel</UButton>
-          <UButton color="error" variant="solid" :loading="isDeleting" @click="confirmDelete()">Delete Forever</UButton>
-        </div>
-      </div>
-    </UModal>
   </div>
 </template>
 
