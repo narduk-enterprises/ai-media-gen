@@ -47,10 +47,16 @@ export default defineEventHandler(async (event) => {
       message: 'No prompts returned from remix',
     })
   } catch (e: any) {
-    if (e.statusCode) throw e
+    // Re-throw our own validation errors (400)
+    if (e.statusCode && e.statusCode < 500) throw e
+    // Wrap pod errors as 502 with a user-friendly message
+    const podMsg = e?.data?.error || e?.data?.message || e?.message || 'Unknown error'
+    const isModelMissing = podMsg.includes('FileNotFoundError') || podMsg.includes('No such file')
     throw createError({
       statusCode: 502,
-      message: `Remix failed: ${e.message}`,
+      message: isModelMissing
+        ? 'AI Remix model not installed on pod. Sync the "AI Remix + Caption" group first.'
+        : `Remix failed: ${podMsg.slice(0, 200)}`,
     })
   }
 })
