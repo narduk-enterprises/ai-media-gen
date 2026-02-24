@@ -709,13 +709,14 @@ onUnmounted(() => {
               <label class="block text-sm font-medium text-slate-700 mb-2">Model Groups</label>
               <!-- Preset buttons -->
               <div class="flex gap-1.5 mb-3">
-                <button v-for="p in (['image', 'video', 'all', 'none'] as const)" :key="p" class="px-2 py-0.5 text-[10px] rounded font-medium uppercase tracking-wide bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors" @click="selectPreset(p)">{{ p }}</button>
+                <button v-for="p in (['image', 'video', 'all', 'none'] as const)" :key="p" type="button" class="px-2 py-0.5 text-[10px] rounded font-medium uppercase tracking-wide bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors" @click="selectPreset(p)">{{ p }}</button>
               </div>
               <!-- Group checkboxes -->
               <div class="grid grid-cols-2 gap-1.5">
                 <button
                   v-for="group in MODEL_GROUPS"
                   :key="group.value"
+                  type="button"
                   class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border"
                   :class="deployState.modelGroups.includes(group.value)
                     ? 'bg-primary-50 border-primary-300 text-primary-700'
