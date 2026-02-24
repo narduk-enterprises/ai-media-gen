@@ -11,6 +11,19 @@ export interface RunPodInfo {
   ports: string
   podType: string
   machineId: string
+  // Metrics
+  gpuName: string
+  gpuCount: number
+  gpuUtilPercent: number
+  cpuUtilPercent: number
+  memoryUsedGb: number
+  memoryTotalGb: number
+  diskUsedGb: number
+  diskTotalGb: number
+  vcpuCount: number
+  costPerHr: number
+  volumeInGb: number
+  containerDiskInGb: number
 }
 
 /**
@@ -54,6 +67,11 @@ export async function getRunPods(): Promise<RunPodInfo[]> {
           desiredStatus
           runtime {
             uptimeInSeconds
+            gpus {
+              id
+              gpuUtilPercent
+              memoryUtilPercent
+            }
             ports {
               ip
               isIpPublic
@@ -62,8 +80,18 @@ export async function getRunPods(): Promise<RunPodInfo[]> {
               type
             }
           }
+          machine {
+            gpuDisplayName
+            costPerHr
+          }
+          gpuCount
+          vcpuCount
+          memoryInGb
+          volumeInGb
+          containerDiskInGb
           machineId
           podType
+          costPerHr
         }
       }
     }
@@ -72,6 +100,11 @@ export async function getRunPods(): Promise<RunPodInfo[]> {
   const data = await fetchRunPodGraphQL<any>(query)
   
   return data.myself.pods.map((pod: any) => {
+    const gpus = pod.runtime?.gpus || []
+    const avgGpuUtil = gpus.length > 0
+      ? gpus.reduce((sum: number, g: any) => sum + (g.gpuUtilPercent || 0), 0) / gpus.length
+      : 0
+
     return {
       id: pod.id,
       name: pod.name,
@@ -81,6 +114,19 @@ export async function getRunPods(): Promise<RunPodInfo[]> {
       ports: pod.runtime?.ports?.map((p: any) => `${p.publicPort}->${p.privatePort}`).join(', ') || '',
       podType: pod.podType,
       machineId: pod.machineId,
+      // Metrics
+      gpuName: pod.machine?.gpuDisplayName || '',
+      gpuCount: pod.gpuCount || 1,
+      gpuUtilPercent: Math.round(avgGpuUtil),
+      cpuUtilPercent: 0, // RunPod doesn't expose CPU util in GraphQL
+      memoryUsedGb: 0, // Not available via GraphQL — would need pod health endpoint
+      memoryTotalGb: pod.memoryInGb || 0,
+      diskUsedGb: 0,
+      diskTotalGb: (pod.volumeInGb || 0) + (pod.containerDiskInGb || 0),
+      vcpuCount: pod.vcpuCount || 0,
+      costPerHr: pod.costPerHr || pod.machine?.costPerHr || 0,
+      volumeInGb: pod.volumeInGb || 0,
+      containerDiskInGb: pod.containerDiskInGb || 0,
     }
   })
 }

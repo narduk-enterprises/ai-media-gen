@@ -211,6 +211,48 @@ async function terminatePod(podId: string) {
   }
 }
 
+// ─── Pod Logs ──────────────────────────────────────────────────────────────
+const podLogs = ref<Record<string, string>>({})
+const podLogsOpen = ref<Record<string, boolean>>({})
+const podLogsSource = ref<Record<string, 'admin' | 'comfy'>>({})
+const podLogsTimers = ref<Record<string, ReturnType<typeof setInterval>>>({})
+const podLogsLoading = ref<Record<string, boolean>>({})
+
+async function fetchLogs(podId: string) {
+  podLogsLoading.value[podId] = true
+  try {
+    const source = podLogsSource.value[podId] || 'admin'
+    const res = await $fetch<{ logs: string }>('/api/runpod/logs', {
+      params: { podId, source, lines: 100 },
+    })
+    podLogs.value[podId] = res.logs
+  } catch {
+    podLogs.value[podId] = '⚠️ Failed to fetch logs'
+  } finally {
+    podLogsLoading.value[podId] = false
+  }
+}
+
+function toggleLogs(podId: string) {
+  const isOpen = !podLogsOpen.value[podId]
+  podLogsOpen.value[podId] = isOpen
+
+  if (isOpen) {
+    if (!podLogsSource.value[podId]) podLogsSource.value[podId] = 'admin'
+    fetchLogs(podId)
+    // Auto-refresh every 5s while open
+    podLogsTimers.value[podId] = setInterval(() => fetchLogs(podId), 5000)
+  } else {
+    clearInterval(podLogsTimers.value[podId])
+    delete podLogsTimers.value[podId]
+  }
+}
+
+function switchLogSource(podId: string, source: 'admin' | 'comfy') {
+  podLogsSource.value[podId] = source
+  fetchLogs(podId)
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 function getProxyUrl(podId: string, port = 8188) {
   return `https://${podId}-${port}.proxy.runpod.net`
@@ -333,7 +375,47 @@ onUnmounted(() => {
         <div class="space-y-4">
           <div>
             <h3 class="font-semibold text-slate-800 text-lg truncate">{{ pod.name }}</h3>
-            <p class="text-xs text-slate-500">Machine: <span class="font-mono">{{ pod.machineId || 'N/A' }}</span></p>
+            <div class="flex items-center gap-2 mt-1 text-xs text-slate-500">
+              <span class="font-mono">🖥 {{ pod.gpuName || 'Unknown GPU' }} ×{{ pod.gpuCount }}</span>
+              <span v-if="pod.costPerHr" class="text-emerald-600 font-semibold">${{ pod.costPerHr.toFixed(2) }}/hr</span>
+            </div>
+          </div>
+
+          <!-- Metrics bar (only when running) -->
+          <div v-if="pod.status === 'RUNNING'" class="grid grid-cols-3 gap-3">
+            <!-- GPU Utilization -->
+            <div class="text-center">
+              <div class="relative w-12 h-12 mx-auto">
+                <svg viewBox="0 0 36 36" class="w-12 h-12">
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" stroke-width="3" />
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#8b5cf6" stroke-width="3" :stroke-dasharray="`${pod.gpuUtilPercent}, 100`" stroke-linecap="round" />
+                </svg>
+                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-slate-700">{{ pod.gpuUtilPercent }}%</span>
+              </div>
+              <p class="text-[10px] text-slate-500 mt-1">GPU</p>
+            </div>
+            <!-- Memory -->
+            <div class="text-center">
+              <div class="relative w-12 h-12 mx-auto">
+                <svg viewBox="0 0 36 36" class="w-12 h-12">
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" stroke-width="3" />
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#3b82f6" stroke-width="3" :stroke-dasharray="`${pod.memoryTotalGb ? Math.round((pod.memoryUsedGb / pod.memoryTotalGb) * 100) : 0}, 100`" stroke-linecap="round" />
+                </svg>
+                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-slate-700">{{ pod.memoryTotalGb }}G</span>
+              </div>
+              <p class="text-[10px] text-slate-500 mt-1">Memory</p>
+            </div>
+            <!-- Disk -->
+            <div class="text-center">
+              <div class="relative w-12 h-12 mx-auto">
+                <svg viewBox="0 0 36 36" class="w-12 h-12">
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" stroke-width="3" />
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" stroke-width="3" :stroke-dasharray="`${pod.diskTotalGb ? Math.round((pod.diskUsedGb / pod.diskTotalGb) * 100) : 0}, 100`" stroke-linecap="round" />
+                </svg>
+                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-slate-700">{{ pod.volumeInGb }}G</span>
+              </div>
+              <p class="text-[10px] text-slate-500 mt-1">Volume</p>
+            </div>
           </div>
 
           <!-- Network details (only if running) -->
@@ -359,6 +441,44 @@ onUnmounted(() => {
           </div>
           <div v-else class="bg-slate-50 rounded p-3 text-xs text-slate-400 italic text-center">
             Network info unavailable while stopped
+          </div>
+        </div>
+
+        <!-- Collapsible Logs Panel -->
+        <div v-if="pod.status === 'RUNNING'" class="mt-3">
+          <button
+            class="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1 transition-colors"
+            @click="toggleLogs(pod.id)"
+          >
+            <UIcon :name="podLogsOpen[pod.id] ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" class="w-3.5 h-3.5" />
+            <UIcon name="i-heroicons-command-line" class="w-3.5 h-3.5" />
+            Server Logs
+            <UIcon v-if="podLogsLoading[pod.id]" name="i-heroicons-arrow-path" class="w-3 h-3 animate-spin ml-1" />
+          </button>
+
+          <div v-if="podLogsOpen[pod.id]" class="mt-2">
+            <!-- Source switcher -->
+            <div class="flex gap-1 mb-2">
+              <button
+                v-for="src in (['admin', 'comfy'] as const)"
+                :key="src"
+                class="px-2 py-0.5 text-[10px] rounded font-medium uppercase tracking-wide transition-colors"
+                :class="(podLogsSource[pod.id] || 'admin') === src
+                  ? 'bg-slate-800 text-white'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
+                @click="switchLogSource(pod.id, src)"
+              >
+                {{ src }}
+              </button>
+              <button
+                class="ml-auto px-2 py-0.5 text-[10px] rounded bg-slate-100 text-slate-500 hover:bg-slate-200"
+                @click="fetchLogs(pod.id)"
+              >
+                ↻ Refresh
+              </button>
+            </div>
+            <!-- Log output -->
+            <pre class="bg-slate-900 text-green-400 text-[10px] leading-relaxed p-3 rounded-lg overflow-x-auto max-h-64 overflow-y-auto font-mono whitespace-pre-wrap">{{ podLogs[pod.id] || 'Loading...' }}</pre>
           </div>
         </div>
 
