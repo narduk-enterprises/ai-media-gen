@@ -15,10 +15,16 @@ import { getPodUrl } from './podClient'
 export type EndpointType = string
 export type PodProfile = 'image' | 'video' | 'full'
 
+// Model groups that indicate a pod can handle video jobs
+const VIDEO_GROUPS = ['wan22', 'ltx2', 'ltx2_camera']
+
+// Max queue depth for image-only pods before we overflow to video machines
+const IMAGE_POD_QUEUE_THRESHOLD = 50
+
 interface PodHealth {
   url: string
   queueDepth: number
-  syncedGroups: Record<string, { status: string }> // group -> { status: 'synced' | 'partial' | 'missing' }
+  syncedGroups: Record<string, { synced: boolean; partial: boolean }>
 }
 
 /**
@@ -51,7 +57,7 @@ export async function resolveApiUrl(
           try {
             const health = await $fetch<{
               comfy?: { status?: string; queue_pending?: number; queue_running?: number }
-              synced_groups?: Record<string, { status: string }>
+              synced_groups?: Record<string, { synced: boolean; partial: boolean }>
             }>(`${url}/health`, { timeout: 3_000 })
 
             // Skip pods where ComfyUI isn't running yet
@@ -81,7 +87,7 @@ export async function resolveApiUrl(
         let candidates = healthy
         if (requiredGroups && requiredGroups.length > 0) {
           const withModels = healthy.filter(pod =>
-            requiredGroups.every(group => pod.syncedGroups[group]?.status === 'synced'),
+            requiredGroups.every(group => pod.syncedGroups[group]?.synced === true),
           )
 
           if (withModels.length > 0) {
@@ -90,7 +96,7 @@ export async function resolveApiUrl(
             // No pod has all required groups fully synced — try partial matches
             const withPartial = healthy.filter(pod =>
               requiredGroups.every(group =>
-                pod.syncedGroups[group]?.status === 'synced' || pod.syncedGroups[group]?.status === 'partial',
+                pod.syncedGroups[group]?.synced === true || pod.syncedGroups[group]?.partial === true,
               ),
             )
             if (withPartial.length > 0) {
@@ -103,18 +109,37 @@ export async function resolveApiUrl(
           }
         }
 
+        // ── Image-only pod preference ──
+        // For image jobs, prefer image-only machines (no video models) if their
+        // queues are short, reserving video-capable machines for video work.
+        const isImageJob = !requiredGroups?.some(g => VIDEO_GROUPS.includes(g))
+        let routeReason = ''
+        if (isImageJob && candidates.length > 1) {
+          const imageOnly = candidates.filter(pod =>
+            !VIDEO_GROUPS.some(vg => pod.syncedGroups[vg]?.synced === true),
+          )
+          const imageOnlyAvailable = imageOnly.filter(p => p.queueDepth < IMAGE_POD_QUEUE_THRESHOLD)
+
+          if (imageOnlyAvailable.length > 0) {
+            candidates = imageOnlyAvailable
+            routeReason = ` [preferred ${imageOnlyAvailable.length} image-only pod(s), threshold<${IMAGE_POD_QUEUE_THRESHOLD}]`
+          } else if (imageOnly.length > 0) {
+            routeReason = ` [image-only pods full (${imageOnly.map(p => `q${p.queueDepth}`).join(',')}≥${IMAGE_POD_QUEUE_THRESHOLD}), overflowing to video machines]`
+          }
+        }
+
         // Pick pod with lowest queue depth
         candidates.sort((a, b) => a.queueDepth - b.queueDepth)
         const best = candidates[0]!
         const summary = candidates.map((h) => {
           const id = new URL(h.url).hostname.split('-8188')[0]
           const groups = Object.entries(h.syncedGroups)
-            .filter(([, v]) => v.status === 'synced')
+            .filter(([, v]) => v.synced === true)
             .map(([k]) => k)
           return `${id}=q${h.queueDepth}[${groups.join(',')}]`
         }).join(', ')
         const needed = requiredGroups?.length ? ` needs:[${requiredGroups}]` : ''
-        console.log(`[Router] → ${best.url} (queue: ${best.queueDepth}${needed}) [${summary}]`)
+        console.log(`[Router] → ${best.url} (queue: ${best.queueDepth}${needed}${routeReason}) [${summary}]`)
         return best.url
       }
     }
