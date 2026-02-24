@@ -85,10 +85,9 @@ export default defineNuxtConfig({
     },
     cloudflare: {
       deployConfig: true,
-      nodeCompat: true,
       wrangler: {
         name: 'ai-media-gen',
-        compatibility_flags: ['nodejs_compat_v2'],
+        compatibility_flags: ['nodejs_compat'],
         d1_databases: [
           {
             binding: 'DB',

@@ -48,7 +48,9 @@ watch(showDeployModal, async (open) => {
       gpuTypes.value = (res.gpuTypes || []).map(g => ({
         label: g.displayName,
         value: g.id,
-        memoryInGb: g.memoryInGb
+        memoryInGb: g.memoryInGb,
+        securePrice: g.securePrice,
+        communityPrice: g.communityPrice
       }))
 
       dataCenters.value = [
@@ -351,30 +353,45 @@ function setAsTarget(podId: string) {
               <UInput v-model="deployState.name" class="w-full" />
             </UFormField>
             
-            <UFormField label="RunPod Template" name="template" required>
+            <UFormField label="RunPod Template" name="template" required class="col-span-1 sm:col-span-2">
               <USelect
                 v-model="deployState.template"
                 :items="templates"
                 placeholder="Select Template"
                 class="w-full"
+                size="lg"
               />
             </UFormField>
 
-            <UFormField label="GPU Type" name="gpuType" required>
-              <USelect
+            <UFormField label="GPU Type" name="gpuType" required class="col-span-1 sm:col-span-2">
+              <USelectMenu
                 v-model="deployState.gpuType"
                 :items="gpuTypes"
                 placeholder="Select GPU"
                 class="w-full"
+                size="lg"
               >
                 <template #item-label="{ item }">
-                  <span v-if="item">{{ (item as any).label }} <span class="text-xs text-slate-400 font-mono ml-1">({{ (item as any).memoryInGb }}GB)</span></span>
+                  <div class="flex items-center justify-between w-full">
+                    <span>
+                      {{ (item as any).label }} 
+                      <span class="text-xs text-slate-400 font-mono ml-1">({{ (item as any).memoryInGb }}GB)</span>
+                    </span>
+                    <div class="flex items-center gap-3 text-xs font-mono ml-4">
+                      <span v-if="(item as any).communityPrice" class="text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded" title="Community Price">
+                        ${{ (item as any).communityPrice }}/hr
+                      </span>
+                      <span v-if="(item as any).securePrice" class="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded" title="Secure Price">
+                        ${{ (item as any).securePrice }}/hr
+                      </span>
+                    </div>
+                  </div>
                 </template>
-              </USelect>
+              </USelectMenu>
             </UFormField>
 
             <UFormField label="GPU Count" name="gpuCount" required>
-              <UInput v-model="deployState.gpuCount" type="number" min="1" max="8" class="w-full" />
+              <UInput v-model="deployState.gpuCount" type="number" min="1" max="8" class="w-full" size="lg" />
             </UFormField>
 
             <UFormField label="Cloud Type" name="cloudType" required>
@@ -382,6 +399,7 @@ function setAsTarget(podId: string) {
                 v-model="deployState.cloudType"
                 :items="cloudTypes"
                 class="w-full"
+                size="lg"
               />
             </UFormField>
 
@@ -397,21 +415,22 @@ function setAsTarget(podId: string) {
                 :items="computedDataCenters"
                 :disabled="loadingAvailability"
                 class="w-full"
+                size="lg"
               />
             </UFormField>
 
             <UFormField label="Workspace Volume (GB)" name="volumeInGb" required>
-              <UInput v-model="deployState.volumeInGb" type="number" min="1" class="w-full" />
+              <UInput v-model="deployState.volumeInGb" type="number" min="1" class="w-full" size="lg" />
             </UFormField>
 
             <UFormField label="Container Disk (GB)" name="containerDiskInGb" required>
-              <UInput v-model="deployState.containerDiskInGb" type="number" min="1" class="w-full" />
+              <UInput v-model="deployState.containerDiskInGb" type="number" min="1" class="w-full" size="lg" />
             </UFormField>
           </div>
           
-          <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <UButton color="neutral" variant="ghost" @click="showDeployModal = false">Cancel</UButton>
-            <UButton type="submit" color="primary" loading-auto>Deploy Instance</UButton>
+          <div class="flex justify-end gap-3 pt-6 border-t border-slate-100 mt-2">
+            <UButton color="neutral" variant="ghost" size="lg" @click="showDeployModal = false">Cancel</UButton>
+            <UButton type="submit" color="primary" size="lg" loading-auto>Deploy Instance</UButton>
           </div>
         </UForm>
       </template>

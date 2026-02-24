@@ -132,6 +132,8 @@ export async function getRunPodOptions(): Promise<{ templates: any[], gpuTypes: 
         id
         displayName
         memoryInGb
+        securePrice
+        communityPrice
       }
       dataCenters {
         id
