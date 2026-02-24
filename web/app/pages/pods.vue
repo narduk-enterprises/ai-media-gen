@@ -12,20 +12,31 @@ const showDeployModal = ref(false)
 const optionsPending = ref(false)
 const templates = ref<any[]>([])
 const gpuTypes = ref<any[]>([])
+const dataCenters = ref<any[]>([])
 const deploying = ref(false)
 
 const deployState = reactive({
   name: 'GPU Pod',
   templateId: '',
   gpuTypeId: 'NVIDIA RTX A6000',
-  gpuCount: 1
+  gpuCount: 1,
+  cloudType: 'SECURE',
+  dataCenterId: 'ANY',
+  volumeInGb: 50,
+  containerDiskInGb: 25
 })
+
+const cloudTypes = [
+  { label: 'Secure Cloud', value: 'SECURE' },
+  { label: 'Community Cloud', value: 'COMMUNITY' },
+  { label: 'Any', value: 'ALL' }
+]
 
 watch(showDeployModal, async (open) => {
   if (open && templates.value.length === 0) {
     optionsPending.value = true
     try {
-      const res = await $fetch<{ templates: any[], gpuTypes: any[] }>('/api/runpod/options')
+      const res = await $fetch<{ templates: any[], gpuTypes: any[], dataCenters: any[] }>('/api/runpod/options')
       
       // Nuxt UI 4 requires objects with `label` and `value` properties.
       templates.value = (res.templates || []).map(t => ({
@@ -38,6 +49,14 @@ watch(showDeployModal, async (open) => {
         value: g.id,
         memoryInGb: g.memoryInGb
       }))
+
+      dataCenters.value = [
+        { label: 'Any Data Center', value: 'ANY' },
+        ...(res.dataCenters || []).map(d => ({
+          label: d.name,
+          value: d.id
+        }))
+      ]
       
       const defaultTemplate = templates.value.find(t => t.label.includes('ai-media-gen'))
       if (defaultTemplate) deployState.templateId = defaultTemplate.value
@@ -286,37 +305,67 @@ function setAsTarget(podId: string) {
         </div>
         
         <UForm v-else :state="deployState" @submit="deployPod" class="space-y-5">
-          <UFormField label="Pod Name" name="name" required>
-            <UInput v-model="deployState.name" class="w-full" />
-          </UFormField>
-          
-          <UFormField label="RunPod Template" name="templateId" required>
-            <USelectMenu
-              v-model="deployState.templateId"
-              :items="templates"
-              placeholder="Select Template"
-              class="w-full"
-            />
-          </UFormField>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <UFormField label="Pod Name" name="name" required>
+              <UInput v-model="deployState.name" class="w-full" />
+            </UFormField>
+            
+            <UFormField label="RunPod Template" name="templateId" required>
+              <USelectMenu
+                v-model="deployState.templateId"
+                :items="templates"
+                placeholder="Select Template"
+                class="w-full"
+                value-key="value"
+              />
+            </UFormField>
 
-          <UFormField label="GPU Type" name="gpuTypeId" required>
-            <USelectMenu
-              v-model="deployState.gpuTypeId"
-              :items="gpuTypes"
-              placeholder="Select GPU"
-              class="w-full"
-            >
-              <template #item-label="{ item }">
-                <span v-if="item">{{ (item as any).label }} <span class="text-xs text-slate-400 font-mono ml-1">({{ (item as any).memoryInGb }}GB)</span></span>
-              </template>
-            </USelectMenu>
-          </UFormField>
+            <UFormField label="GPU Type" name="gpuTypeId" required>
+              <USelectMenu
+                v-model="deployState.gpuTypeId"
+                :items="gpuTypes"
+                placeholder="Select GPU"
+                class="w-full"
+                value-key="value"
+              >
+                <template #item-label="{ item }">
+                  <span v-if="item">{{ (item as any).label }} <span class="text-xs text-slate-400 font-mono ml-1">({{ (item as any).memoryInGb }}GB)</span></span>
+                </template>
+              </USelectMenu>
+            </UFormField>
 
-          <UFormField label="GPU Count" name="gpuCount" required>
-            <UInput v-model="deployState.gpuCount" type="number" min="1" max="8" class="w-full" />
-          </UFormField>
+            <UFormField label="GPU Count" name="gpuCount" required>
+              <UInput v-model="deployState.gpuCount" type="number" min="1" max="8" class="w-full" />
+            </UFormField>
+
+            <UFormField label="Cloud Type" name="cloudType" required>
+              <USelectMenu
+                v-model="deployState.cloudType"
+                :items="cloudTypes"
+                class="w-full"
+                value-key="value"
+              />
+            </UFormField>
+
+            <UFormField label="Data Center" name="dataCenterId" required>
+              <USelectMenu
+                v-model="deployState.dataCenterId"
+                :items="dataCenters"
+                class="w-full"
+                value-key="value"
+              />
+            </UFormField>
+
+            <UFormField label="Workspace Volume (GB)" name="volumeInGb" required>
+              <UInput v-model="deployState.volumeInGb" type="number" min="1" class="w-full" />
+            </UFormField>
+
+            <UFormField label="Container Disk (GB)" name="containerDiskInGb" required>
+              <UInput v-model="deployState.containerDiskInGb" type="number" min="1" class="w-full" />
+            </UFormField>
+          </div>
           
-          <div class="flex justify-end gap-3 pt-2">
+          <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <UButton color="neutral" variant="ghost" @click="showDeployModal = false">Cancel</UButton>
             <UButton type="submit" color="primary" :loading="deploying">Deploy Instance</UButton>
           </div>

@@ -118,7 +118,7 @@ export async function stopRunPod(podId: string): Promise<void> {
 /**
  * Get available RunPod templates and GPU types.
  */
-export async function getRunPodOptions(): Promise<{ templates: any[], gpuTypes: any[] }> {
+export async function getRunPodOptions(): Promise<{ templates: any[], gpuTypes: any[], dataCenters: any[] }> {
   const query = `
     query {
       myself {
@@ -133,19 +133,35 @@ export async function getRunPodOptions(): Promise<{ templates: any[], gpuTypes: 
         displayName
         memoryInGb
       }
+      dataCenters {
+        id
+        name
+      }
     }
   `
   const data = await fetchRunPodGraphQL<any>(query)
   return {
-    templates: data.myself.podTemplates || [],
-    gpuTypes: data.gpuTypes || []
+    templates: data.myself?.podTemplates || [],
+    gpuTypes: data.gpuTypes || [],
+    dataCenters: data.dataCenters || []
   }
 }
 
 /**
  * Deploy a new pod on demand.
  */
-export async function deployRunPod(name: string, templateId: string, gpuTypeId: string, gpuCount: number): Promise<string> {
+export async function deployRunPod(
+  name: string,
+  templateId: string,
+  gpuTypeId: string,
+  gpuCount: number,
+  options?: {
+    cloudType?: string,
+    dataCenterId?: string,
+    volumeInGb?: number,
+    containerDiskInGb?: number
+  }
+): Promise<string> {
   const query = `
     mutation($input: PodFindAndDeployOnDemandInput!) {
       podFindAndDeployOnDemand(input: $input) {
@@ -153,18 +169,28 @@ export async function deployRunPod(name: string, templateId: string, gpuTypeId: 
       }
     }
   `
-  const data = await fetchRunPodGraphQL<any>(query, {
-    input: {
-      cloudType: "ALL",
-      gpuCount,
-      volumeInGb: 50,
-      containerDiskInGb: 25,
-      minVcpuCount: 2,
-      minMemoryInGb: 15,
-      gpuTypeId,
-      name,
-      templateId
-    }
-  })
+  
+  const input: any = {
+    gpuCount,
+    volumeInGb: options?.volumeInGb || 50,
+    containerDiskInGb: options?.containerDiskInGb || 25,
+    minVcpuCount: 2,
+    minMemoryInGb: 15,
+    gpuTypeId,
+    name,
+    templateId
+  }
+  
+  if (options?.cloudType) {
+    input.cloudType = options.cloudType
+  } else {
+    input.cloudType = "ALL"
+  }
+  
+  if (options?.dataCenterId && options.dataCenterId !== 'ANY') {
+    input.dataCenterId = options.dataCenterId
+  }
+
+  const data = await fetchRunPodGraphQL<any>(query, { input })
   return data.podFindAndDeployOnDemand.id
 }
