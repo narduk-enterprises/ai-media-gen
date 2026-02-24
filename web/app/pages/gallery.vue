@@ -66,19 +66,36 @@ async function handleDelete(id?: string) {
 // ─── Infinite scroll ──────────────────────────────────────────────────
 const sentinelRef = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | null = null
+let sentinelVisible = false
+let autoLoadCount = 0
+const MAX_AUTO_LOADS = 2 // max consecutive loads without real user scroll
+
+function onScrollReset() { autoLoadCount = 0 }
 
 onMounted(() => {
+  window.addEventListener('scroll', onScrollReset, { passive: true })
   observer = new IntersectionObserver((entries) => {
-    if (entries[0]?.isIntersecting && hasMore.value && !loadingMore.value && !pending.value) loadMore()
-  }, { rootMargin: '400px' })
+    sentinelVisible = !!entries[0]?.isIntersecting
+    if (sentinelVisible && hasMore.value && !loadingMore.value && !pending.value) {
+      autoLoadCount = 0 // first trigger from real scroll
+      loadMore()
+    }
+  }, { rootMargin: '200px' })
 })
-onUnmounted(() => observer?.disconnect())
+onUnmounted(() => {
+  observer?.disconnect()
+  window.removeEventListener('scroll', onScrollReset)
+})
 
 watch(sentinelRef, (el) => { observer?.disconnect(); if (el) observer?.observe(el) })
-watch([pending, loadingMore], () => {
-  if (!pending.value && !loadingMore.value && hasMore.value && sentinelRef.value) {
-    observer?.disconnect()
-    observer?.observe(sentinelRef.value)
+
+// After a load finishes, if sentinel is still visible and we haven't auto-loaded too many times, load more
+watch(loadingMore, (val) => {
+  if (!val && sentinelVisible && hasMore.value && !pending.value) {
+    autoLoadCount++
+    if (autoLoadCount < MAX_AUTO_LOADS) {
+      nextTick(() => loadMore())
+    }
   }
 })
 
@@ -243,8 +260,8 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
             <UIcon v-if="selectedIds.has(item.id)" name="i-lucide-check" class="w-3.5 h-3.5" />
           </div>
 
-          <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="metadata" class="w-full h-auto bg-slate-100 block" @mouseenter="!isSelectionMode && ($event.target as HTMLVideoElement).play()" @mouseleave="!isSelectionMode && ($event.target as HTMLVideoElement).pause()" />
-          <NuxtImg v-else :src="item.url" :alt="item.prompt" :width="largeGrid ? 512 : 300" class="w-full h-auto bg-slate-100 block" loading="lazy" />
+          <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="metadata" class="w-full h-auto min-h-40 bg-slate-100 block" @mouseenter="!isSelectionMode && ($event.target as HTMLVideoElement).play()" @mouseleave="!isSelectionMode && ($event.target as HTMLVideoElement).pause()" />
+          <NuxtImg v-else :src="item.url" :alt="item.prompt" :width="largeGrid ? 512 : 300" class="w-full h-auto min-h-40 bg-slate-100 block" loading="lazy" />
 
           <!-- Video badge -->
           <div v-if="item.type === 'video' && !isSelectionMode" class="absolute top-2.5 left-2.5 px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm text-white text-xs flex items-center gap-1">

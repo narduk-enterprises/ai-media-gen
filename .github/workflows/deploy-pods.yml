@@ -1,15 +1,17 @@
-name: Deploy to GPU Pod
+name: Deploy to GPU Pods
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'pod/**'
 
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -21,57 +23,107 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           echo "StrictHostKeyChecking no" >> ~/.ssh/config
 
-      - name: Check pod reachability
-        id: check
-        continue-on-error: true
+      - name: Discover running pods
+        id: discover
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
         run: |
-          ssh -o ConnectTimeout=5 -p ${{ secrets.POD_SSH_PORT }} -i ~/.ssh/id_ed25519 root@${{ secrets.POD_SSH_HOST }} 'echo ok' \
-            && echo "reachable=true" >> $GITHUB_OUTPUT \
-            || echo "reachable=false" >> $GITHUB_OUTPUT
+          # Query RunPod GraphQL API for all running pods with SSH ports
+          RESPONSE=$(curl -sf https://api.runpod.io/graphql \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $RUNPOD_API_KEY" \
+            -d '{"query":"{ myself { pods { id name desiredStatus runtime { ports { ip isIpPublic privatePort publicPort type } } } } }"}')
 
-      - name: Deploy
-        if: steps.check.outputs.reachable == 'true'
+          # Extract SSH connection info for running pods
+          # SSH is the port mapping to private port 22
+          PODS=$(echo "$RESPONSE" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          pods = data.get('data',{}).get('myself',{}).get('pods',[])
+          results = []
+          for pod in pods:
+              if pod.get('desiredStatus') != 'RUNNING':
+                  continue
+              ports = pod.get('runtime',{}).get('ports') or []
+              for p in ports:
+                  if p.get('privatePort') == 22 and p.get('isIpPublic'):
+                      results.append(f\"{pod['id']}|{pod['name']}|{p['ip']}|{p['publicPort']}\")
+                      break
+          print('\n'.join(results))
+          ")
+
+          if [ -z "$PODS" ]; then
+            echo "⏭️ No running pods found"
+            echo "count=0" >> $GITHUB_OUTPUT
+          else
+            COUNT=$(echo "$PODS" | wc -l | tr -d ' ')
+            echo "Found $COUNT running pod(s):"
+            echo "$PODS" | while IFS='|' read -r id name ip port; do
+              echo "  • $name ($id) → $ip:$port"
+            done
+            echo "pods<<EOF" >> $GITHUB_OUTPUT
+            echo "$PODS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "count=$COUNT" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to all pods
+        if: steps.discover.outputs.count != '0'
         run: |
-          HOST="${{ secrets.POD_SSH_HOST }}"
-          PORT="${{ secrets.POD_SSH_PORT }}"
           KEY=~/.ssh/id_ed25519
+          SUCCESS=0
+          FAILED=0
 
-          echo "📦 Deploying admin server..."
-          ssh -p $PORT -i $KEY root@$HOST 'mkdir -p /workspace/admin/workflows'
-          scp -P $PORT -i $KEY pod/requirements.txt root@$HOST:/workspace/requirements.txt
-          scp -P $PORT -i $KEY pod/admin/server.py root@$HOST:/workspace/admin/server.py
-          scp -P $PORT -i $KEY pod/admin/workflow_loader.py root@$HOST:/workspace/admin/workflow_loader.py
-          scp -P $PORT -i $KEY pod/admin/workflows/* root@$HOST:/workspace/admin/workflows/
+          echo "${{ steps.discover.outputs.pods }}" | while IFS='|' read -r POD_ID POD_NAME HOST PORT; do
+            [ -z "$HOST" ] && continue
+            echo ""
+            echo "═══════════════════════════════════════════"
+            echo "📦 Deploying to: $POD_NAME ($POD_ID)"
+            echo "   SSH: $HOST:$PORT"
+            echo "═══════════════════════════════════════════"
 
-          # Upload dashboard if it exists
-          [ -f pod/admin/index.html ] && scp -P $PORT -i $KEY pod/admin/index.html root@$HOST:/workspace/admin/index.html || true
+            # Check reachability
+            if ! ssh -o ConnectTimeout=5 -p "$PORT" -i "$KEY" root@"$HOST" 'echo ok' > /dev/null 2>&1; then
+              echo "⚠️ Pod $POD_NAME not reachable via SSH — skipping"
+              FAILED=$((FAILED + 1))
+              continue
+            fi
 
-          # Upload manage script
-          [ -f pod/scripts/manage-pod.sh ] && scp -P $PORT -i $KEY pod/scripts/manage-pod.sh root@$HOST:/workspace/manage.sh || true
+            # Deploy files
+            echo "  📁 Uploading files..."
+            ssh -p "$PORT" -i "$KEY" root@"$HOST" 'mkdir -p /workspace/admin/workflows'
+            scp -P "$PORT" -i "$KEY" pod/requirements.txt root@"$HOST":/workspace/requirements.txt
+            scp -P "$PORT" -i "$KEY" pod/admin/server.py root@"$HOST":/workspace/admin/server.py
+            scp -P "$PORT" -i "$KEY" pod/admin/workflow_loader.py root@"$HOST":/workspace/admin/workflow_loader.py
+            scp -P "$PORT" -i "$KEY" pod/admin/workflows/* root@"$HOST":/workspace/admin/workflows/
 
-          echo "🔄 Restarting admin server..."
-          ssh -p $PORT -i $KEY root@$HOST '
-            fuser -k 8188/tcp 2>/dev/null || true
-            sleep 2
-            cd /workspace/admin
-            COMFY_PORT=8189 ADMIN_PORT=8188 setsid python3 -u server.py > /workspace/admin.log 2>&1 < /dev/null &
-            sleep 3
-            curl -sf http://127.0.0.1:8188/health > /dev/null \
-              && echo "✅ Admin server healthy" \
-              || echo "⚠️ Admin server not responding"
-          '
+            # Upload dashboard if it exists
+            [ -f pod/admin/index.html ] && scp -P "$PORT" -i "$KEY" pod/admin/index.html root@"$HOST":/workspace/admin/index.html || true
 
-      - name: Verify
-        if: steps.check.outputs.reachable == 'true'
-        run: |
-          HOST="${{ secrets.POD_SSH_HOST }}"
-          PORT="${{ secrets.POD_SSH_PORT }}"
-          KEY=~/.ssh/id_ed25519
+            # Upload manage script
+            [ -f pod/scripts/manage-pod.sh ] && scp -P "$PORT" -i "$KEY" pod/scripts/manage-pod.sh root@"$HOST":/workspace/manage.sh || true
 
-          ENDPOINTS=$(ssh -p $PORT -i $KEY root@$HOST \
-            'curl -s http://127.0.0.1:8188/openapi.json | python3 -c "import sys,json;print(len(json.load(sys.stdin)[\"paths\"]))"' 2>/dev/null || echo "?")
-          echo "✅ $ENDPOINTS endpoints deployed"
+            # Restart admin server
+            echo "  🔄 Restarting admin server..."
+            ssh -p "$PORT" -i "$KEY" root@"$HOST" '
+              fuser -k 8188/tcp 2>/dev/null || true
+              sleep 2
+              cd /workspace/admin
+              COMFY_PORT=8189 ADMIN_PORT=8188 setsid python3 -u server.py > /workspace/admin.log 2>&1 < /dev/null &
+              sleep 3
+              curl -sf http://127.0.0.1:8188/health > /dev/null \
+                && echo "  ✅ Admin server healthy" \
+                || echo "  ⚠️ Admin server not responding"
+            '
 
-      - name: Skip (pod offline)
-        if: steps.check.outputs.reachable != 'true'
-        run: echo "⏭️ Pod not reachable — skipping deploy"
+            SUCCESS=$((SUCCESS + 1))
+          done
+
+          echo ""
+          echo "════════════════════════"
+          echo "📊 Deploy summary: $SUCCESS succeeded"
+          echo "════════════════════════"
+
+      - name: No pods running
+        if: steps.discover.outputs.count == '0'
+        run: echo "⏭️ No running pods found — nothing to deploy"
