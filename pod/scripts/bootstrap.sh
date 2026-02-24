@@ -146,15 +146,20 @@ echo "▸ [4/5] Installing ComfyUI + custom nodes..."
 ) > >(tee -a "$LOGDIR/nodes.log") 2>&1
 echo ""
 
-# ══ STEP 5: Wait for models, symlink, start services ══
-echo "▸ [5/5] Waiting for model sync..."
-wait $SYNC_PID
-SYNC_RC=$?
-[ $SYNC_RC -eq 0 ] && echo "  ✅ All models synced" || echo "  ⚠️  sync_models exited with code $SYNC_RC"
+# ══ STEP 5: Symlink model dirs + start services (DON'T wait for models) ══
+# Use directory-level symlinks so ComfyUI sees models as they download.
+# Services start immediately — models appear as sync progresses.
 
+echo "▸ [5/5] Starting services (models syncing in background)..."
 MODELS=/workspace/models
-if [ -d "$MODELS" ]; then
+if [ -d "$MODELS" ] || mkdir -p "$MODELS"; then
     shopt -s nullglob
+    # Create model subdirs in workspace if they don't exist
+    for sub in diffusion_models checkpoints clip clip_vision vae loras upscale_models text_encoders; do
+        mkdir -p "$MODELS/$sub"
+    done
+
+    # Symlink workspace model dirs into ComfyUI
     mkdir -p /comfyui/models/text_encoders
     for f in "$MODELS/clip/"*.safetensors; do
         ln -sf "$f" "/comfyui/models/text_encoders/$(basename "$f")" || true
@@ -167,13 +172,51 @@ if [ -d "$MODELS" ]; then
             [ -f "$f" ] && ln -sf "$f" "/comfyui/models/$sub/$(basename "$f")" || true
         done
     done
+
+    # Also create ComfyUI extra_model_paths so it auto-discovers new files
+    cat > /comfyui/extra_model_paths.yaml << 'YAML'
+workspace:
+    base_path: /workspace/models
+    checkpoints: checkpoints
+    clip: clip
+    clip_vision: clip_vision
+    diffusion_models: diffusion_models
+    loras: loras
+    upscale_models: upscale_models
+    text_encoders: text_encoders
+    vae: vae
+YAML
+    echo "  ✅ Model paths configured"
     shopt -u nullglob
-    echo "  ✅ models symlinked"
 fi
 
 echo ""
 echo "▸ Starting services..."
 (bash /workspace/manage.sh start) > >(tee -a "$LOGDIR/services.log") 2>&1
+
+# Wait for model sync to finish (non-blocking — services already running)
+echo ""
+echo "▸ Waiting for background model sync to complete..."
+wait $SYNC_PID
+SYNC_RC=$?
+[ $SYNC_RC -eq 0 ] && echo "  ✅ All models synced" || echo "  ⚠️  sync_models exited with code $SYNC_RC"
+
+# Re-symlink any new models that appeared after initial symlink
+if [ -d "$MODELS" ]; then
+    shopt -s nullglob
+    for f in "$MODELS/clip/"*.safetensors; do
+        ln -sf "$f" "/comfyui/models/text_encoders/$(basename "$f")" 2>/dev/null || true
+    done
+    for sub in diffusion_models checkpoints clip clip_vision vae loras upscale_models text_encoders; do
+        src_sub="$sub"
+        [ "$sub" = "latent_upscale_models" ] && src_sub="upscale_models"
+        for f in "$MODELS/$src_sub/"*.safetensors "$MODELS/$src_sub/"*.pth; do
+            [ -f "$f" ] && ln -sf "$f" "/comfyui/models/$sub/$(basename "$f")" 2>/dev/null || true
+        done
+    done
+    shopt -u nullglob
+    echo "  ✅ Models re-symlinked"
+fi
 
 echo ""
 echo "═══ BOOTSTRAP DONE  $(date) ═══"
@@ -181,3 +224,4 @@ for f in "$LOGDIR"/*.log; do
     size=$(du -sh "$f" 2>/dev/null | cut -f1)
     echo "  $size  $f"
 done
+
