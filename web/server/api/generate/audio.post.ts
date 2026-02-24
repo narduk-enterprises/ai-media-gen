@@ -28,7 +28,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { mediaItemId, prompt, endpoint } = parsed.data
-  const apiUrl = resolveApiUrl(endpoint, 'video')
+  const apiUrl = await resolveApiUrl(endpoint, 'video')
   const db = useDatabase()
 
   const source = await db

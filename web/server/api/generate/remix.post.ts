@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
 
   const count = Math.min(Math.max(body.count || 1, 1), 10)
   const temperature = body.temperature ?? 0.9
-  const apiUrl = resolveApiUrl(body.endpoint, 'video')
+  const apiUrl = await resolveApiUrl(body.endpoint, 'video')
 
   try {
     const response = await $fetch<{ prompts: string[]; elapsed_seconds: number }>(`${apiUrl}/generate/remix`, {

@@ -1,47 +1,95 @@
 /**
- * ai.ts — GPU Pod API routing.
+ * ai.ts — Smart GPU Pod routing.
  *
- * Resolves the correct pod URL for a given generation profile.
- * Supports multi-pod routing: image pods, video pods, or full pods.
+ * Auto-discovers running pods via RunPod API, counts active jobs per pod
+ * in D1, and routes to the least-loaded pod.
  *
- * Profile routing is determined server-side:
- *   - Each API route specifies its profile ('image' or 'video')
- *   - The resolver checks pod URLs stored in env/runtime config
- *   - Falls back to a single URL for backward compatibility
+ * Priority:
+ *   1. Explicit URL override from frontend (backward compat for scripts)
+ *   2. Least-loaded running pod (fewest processing items in D1)
+ *   3. Profile-specific env vars (NUXT_POD_IMAGE_URL, NUXT_POD_VIDEO_URL)
+ *   4. Global NUXT_COMFY_URL fallback
  */
+import { eq } from 'drizzle-orm'
+import { mediaItems } from '../database/schema'
 import { getPodUrl } from './podClient'
 
 export type EndpointType = string
 export type PodProfile = 'image' | 'video' | 'full'
 
 /**
- * Resolve the GPU Pod API URL, considering pod profiles.
+ * Resolve the GPU Pod API URL with smart least-loaded routing.
  *
- * Priority:
- *   1. Explicit URL override from the frontend (backward compatible)
- *   2. Profile-specific pod URL from env (NUXT_POD_IMAGE_URL, NUXT_POD_VIDEO_URL)
- *   3. Global NUXT_COMFY_URL fallback
+ * This is an async function — all callers are inside async API route handlers.
  */
-export function resolveApiUrl(urlOverride?: string, profile?: PodProfile): string {
-  // 1. Explicit URL from client settings
+export async function resolveApiUrl(urlOverride?: string, _profile?: PodProfile): Promise<string> {
+  // 1. Explicit URL from client settings or scripts
   if (urlOverride && (urlOverride.startsWith('http://') || urlOverride.startsWith('https://'))) {
     return urlOverride.replace(/\/+$/, '')
   }
 
-  // 2. Profile-specific pod URL from env
-  if (profile) {
+  // 2. Smart routing: find least-loaded running pod
+  try {
+    const pods = await getRunPods()
+    const running = pods.filter(p => p.status === 'RUNNING')
+
+    if (running.length > 0) {
+      const db = useDatabase()
+
+      // Count processing jobs per pod URL
+      const processing = await db.select({ metadata: mediaItems.metadata })
+        .from(mediaItems)
+        .where(eq(mediaItems.status, 'processing'))
+
+      const jobCountByUrl = new Map<string, number>()
+      for (const item of processing) {
+        if (!item.metadata) continue
+        try {
+          const meta = JSON.parse(item.metadata)
+          const podUrl = meta.apiUrl || meta.podUrl || ''
+          if (podUrl) {
+            jobCountByUrl.set(podUrl, (jobCountByUrl.get(podUrl) || 0) + 1)
+          }
+        } catch {}
+      }
+
+      // Pick pod with fewest active jobs
+      let bestUrl = ''
+      let bestCount = Infinity
+
+      for (const pod of running) {
+        const url = `https://${pod.id}-8188.proxy.runpod.net`
+        const count = jobCountByUrl.get(url) || 0
+        if (count < bestCount) {
+          bestCount = count
+          bestUrl = url
+        }
+      }
+
+      if (bestUrl) {
+        console.log(`[Router] → ${bestUrl} (${bestCount} active jobs, ${running.length} pods available)`)
+        return bestUrl
+      }
+    }
+  } catch (e: any) {
+    // RunPod API may be unavailable — fall through to env vars
+    console.warn(`[Router] RunPod API unavailable, falling back to env vars: ${e.message}`)
+  }
+
+  // 3. Profile-specific env var fallback
+  if (_profile) {
     try {
       const config = useRuntimeConfig() as any
-      if (profile === 'image' && config.podImageUrl) {
+      if (_profile === 'image' && config.podImageUrl) {
         return config.podImageUrl.replace(/\/+$/, '')
       }
-      if (profile === 'video' && config.podVideoUrl) {
+      if (_profile === 'video' && config.podVideoUrl) {
         return config.podVideoUrl.replace(/\/+$/, '')
       }
     } catch {}
   }
 
-  // 3. Global fallback
+  // 4. Global fallback
   return getPodUrl()
 }
 
@@ -60,7 +108,7 @@ export async function callRunPod(
   input: Record<string, any>,
   apiUrl?: string,
 ): Promise<any> {
-  const url = resolveApiUrl(apiUrl)
+  const url = await resolveApiUrl(apiUrl)
 
   const response = await $fetch<any>(`${url}/runsync`, {
     method: 'POST',
@@ -80,7 +128,7 @@ export async function callRunPodAsync(
   input: Record<string, any>,
   apiUrl?: string,
 ): Promise<{ jobId: string; apiUrl: string }> {
-  const url = resolveApiUrl(apiUrl)
+  const url = await resolveApiUrl(apiUrl)
 
   const response = await $fetch<any>(`${url}/run`, {
     method: 'POST',

@@ -2,7 +2,12 @@
 definePageMeta({ middleware: 'auth', ssr: false })
 useSeoMeta({ title: 'GPU Pods' })
 
-const { gpuServerUrl } = useAppSettings()
+// Active pods with live job counts (for display only — routing is server-side)
+const { data: activePodData } = useFetch<{ pods: { id: string; activeJobs: number }[] }>('/api/runpod/active-pods', { default: () => ({ pods: [] }) })
+function getActiveJobs(podId: string): number {
+  const found = activePodData.value?.pods?.find((p: any) => p.id === podId)
+  return found?.activeJobs ?? 0
+}
 
 // ─── Fetch Pods ─────────────────────────────────────────────────────────────
 const { data, pending, error, refresh } = useFetch('/api/runpod/pods')
@@ -190,13 +195,7 @@ function copyUrl(podId: string) {
   setTimeout(() => { copyStatus.value[podId] = false }, 2000)
 }
 
-function isActive(podId: string) {
-  return gpuServerUrl.value?.includes(podId)
-}
 
-function setAsTarget(podId: string) {
-  gpuServerUrl.value = getProxyUrl(podId)
-}
 </script>
 
 <template>
@@ -251,13 +250,15 @@ function setAsTarget(podId: string) {
         v-for="pod in data.pods" 
         :key="pod.id" 
         class="transition-all"
-        :class="isActive(pod.id) ? 'ring-2 ring-primary-500 border-transparent shadow-sm' : ''"
       >
         <template #header>
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="font-mono text-sm text-slate-500">{{ pod.id }}</span>
-              <UBadge v-if="isActive(pod.id)" color="primary" variant="subtle" size="sm">Active Target</UBadge>
+              <UBadge v-if="pod.status === 'RUNNING' && getActiveJobs(pod.id) > 0" color="warning" variant="subtle" size="sm">
+                {{ getActiveJobs(pod.id) }} active {{ getActiveJobs(pod.id) === 1 ? 'job' : 'jobs' }}
+              </UBadge>
+              <UBadge v-else-if="pod.status === 'RUNNING'" color="success" variant="subtle" size="sm">Idle</UBadge>
             </div>
             
             <div class="flex items-center gap-1.5">
@@ -329,17 +330,6 @@ function setAsTarget(podId: string) {
                 Stop Pod
               </UButton>
             </div>
-            
-            <UButton 
-              v-if="pod.status === 'RUNNING' && !isActive(pod.id)" 
-              color="neutral" 
-              variant="soft" 
-              size="sm" 
-              icon="i-heroicons-link" 
-              @click="setAsTarget(pod.id)"
-            >
-              Use as Target
-            </UButton>
           </div>
         </template>
       </UCard>

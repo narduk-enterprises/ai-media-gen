@@ -1,74 +1,13 @@
 <script setup lang="ts">
-import type { PodEndpoint, PodProfile } from '~/composables/useAppSettings'
-
 definePageMeta({ middleware: 'auth', ssr: false })
 useSeoMeta({ title: 'Settings' })
 
 const { user, logout } = useAuth()
-const { pods, addPod, removePod, updatePod, gpuServerUrl } = useAppSettings()
 
-const profileOptions = [
-  { label: 'Image Only', value: 'image' as PodProfile },
-  { label: 'Video Only', value: 'video' as PodProfile },
-  { label: 'Full (All)', value: 'full' as PodProfile },
-]
-
-// ─── Health Check ────────────────────────────────────────────────
-const healthStatuses = ref<Record<number, 'idle' | 'checking' | 'ok' | 'error'>>({})
-const healthInfos = ref<Record<number, string>>({})
-
-async function checkPodHealth(index: number) {
-  const pod = pods.value[index]
-  if (!pod?.url?.trim()) return
-  healthStatuses.value[index] = 'checking'
-  healthInfos.value[index] = ''
-  try {
-    const result = await $fetch<{ ok: boolean; vram?: string; version?: string; mode?: string; devices?: string[]; error?: string }>('/api/generate/comfyui-health', {
-      params: { url: pod.url },
-    })
-    if (result.ok) {
-      healthStatuses.value[index] = 'ok'
-      const parts: string[] = []
-      if (result.mode === 'pod_server') parts.push(`Pod Server v${result.version || '?'}`)
-      if (result.vram) parts.push(result.vram)
-      if (result.devices?.length) parts.push(result.devices[0]!)
-      healthInfos.value[index] = parts.join(' · ') || 'Connected'
-    } else {
-      healthStatuses.value[index] = 'error'
-      healthInfos.value[index] = result.error || 'Unreachable'
-    }
-  } catch (e: any) {
-    healthStatuses.value[index] = 'error'
-    healthInfos.value[index] = e?.data?.message || e?.message || 'Check failed'
-  }
-}
-
-function handleAddPod() {
-  addPod({ url: '', profile: 'full', label: '' })
-}
-
-function handleRemovePod(index: number) {
-  removePod(index)
-  delete healthStatuses.value[index]
-  delete healthInfos.value[index]
-}
-
-function handleUpdatePodUrl(index: number, url: string) {
-  const pod = pods.value[index]!
-  updatePod(index, { ...pod, url })
-  healthStatuses.value[index] = 'idle'
-  healthInfos.value[index] = ''
-}
-
-function handleUpdatePodProfile(index: number, profile: PodProfile) {
-  const pod = pods.value[index]!
-  updatePod(index, { ...pod, profile })
-}
-
-function handleUpdatePodLabel(index: number, label: string) {
-  const pod = pods.value[index]!
-  updatePod(index, { ...pod, label })
-}
+// ─── Active Pods (read-only, fetched from RunPod API) ──────────────────────
+const { data: activePods, pending: podsPending, refresh: refreshPods } = useFetch<{ pods: { id: string; name: string; url: string; activeJobs: number }[] }>('/api/runpod/active-pods', {
+  default: () => ({ pods: [] }),
+})
 
 // ─── Recovery ───────────────────────────────────────────────────────────
 const recovering = ref(false)
@@ -114,113 +53,58 @@ async function handleLogout() {
       </div>
     </UCard>
 
-    <!-- ═══ GPU Pods ═══ -->
+    <!-- ═══ GPU Pods (Read-Only Status) ═══ -->
     <UCard class="mb-6" variant="outline">
       <template #header>
         <div class="flex items-center justify-between">
           <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">GPU Pods</h2>
-          <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-plus" @click="handleAddPod">
-            Add Pod
-          </UButton>
+          <div class="flex items-center gap-2">
+            <UBadge v-if="activePods?.pods?.length" color="success" variant="subtle" size="sm">
+              {{ activePods.pods.length }} running
+            </UBadge>
+            <UButton size="xs" variant="ghost" color="neutral" icon="i-heroicons-arrow-path" :loading="podsPending" @click="refreshPods()" />
+          </div>
         </div>
       </template>
 
       <p class="text-xs text-slate-500 mb-4">
-        Configure GPU pods for media generation. Each pod can be assigned a profile:
-        <strong>Image</strong> (SDXL checkpoints, upscalers),
-        <strong>Video</strong> (LTX-2, Wan 2.2),
-        or <strong>Full</strong> (everything).
-        Requests are automatically routed to the right pod.
+        Running pods are auto-discovered from RunPod. Jobs are automatically routed to the least-loaded pod.
+        Manage pods on the <NuxtLink to="/pods" class="text-primary-500 hover:underline">Pods</NuxtLink> page.
       </p>
 
-      <!-- Empty state -->
-      <div v-if="pods.length === 0" class="text-center py-8 text-slate-400">
-        <p class="text-sm mb-2">No GPU pods configured</p>
-        <p class="text-xs">Add a pod to enable image and video generation.</p>
+      <!-- Loading -->
+      <div v-if="podsPending && !activePods?.pods?.length" class="py-6 text-center text-slate-400">
+        <UIcon name="i-heroicons-arrow-path" class="w-5 h-5 animate-spin mx-auto mb-2" />
+        <p class="text-xs">Checking running pods...</p>
       </div>
 
-      <!-- Pod list -->
-      <div v-for="(pod, index) in pods" :key="index" class="mb-4 p-4 rounded-lg border border-slate-200 bg-slate-50/50">
-        <div class="flex items-start gap-3">
-          <!-- Profile badge -->
-          <UBadge
-            :color="pod.profile === 'image' ? 'info' : pod.profile === 'video' ? 'warning' : 'success'"
-            variant="subtle"
-            size="sm"
-            class="mt-1 shrink-0"
-          >
-            {{ pod.profile === 'image' ? '🖼️ Image' : pod.profile === 'video' ? '🎬 Video' : '⚡ Full' }}
-          </UBadge>
+      <!-- No pods -->
+      <div v-else-if="!activePods?.pods?.length" class="text-center py-6 text-slate-400">
+        <UIcon name="i-heroicons-server" class="w-6 h-6 mx-auto mb-2 text-slate-300" />
+        <p class="text-xs">No running pods detected.</p>
+        <p class="text-[10px] mt-1">Deploy or start a pod from the <NuxtLink to="/pods" class="text-primary-500 hover:underline">Pods</NuxtLink> page.</p>
+      </div>
 
-          <div class="flex-1 space-y-2">
-            <!-- Label -->
-            <UInput
-              :model-value="pod.label || ''"
-              placeholder="Pod label (optional)"
-              size="xs"
-              class="w-full"
-              @update:model-value="handleUpdatePodLabel(index, $event as string)"
-            />
-
-            <!-- URL + health check -->
-            <div class="flex gap-2">
-              <UInput
-                :model-value="pod.url"
-                placeholder="https://your-pod-url.proxy.runpod.net"
-                size="sm"
-                class="flex-1"
-                @update:model-value="handleUpdatePodUrl(index, $event as string)"
-              />
-              <UButton
-                size="sm"
-                variant="outline"
-                :color="healthStatuses[index] === 'ok' ? 'success' : healthStatuses[index] === 'error' ? 'error' : 'neutral'"
-                :loading="healthStatuses[index] === 'checking'"
-                @click="checkPodHealth(index)"
-              >
-                {{ healthStatuses[index] === 'ok' ? '✓' : healthStatuses[index] === 'error' ? '✕' : '⚡' }}
-              </UButton>
-            </div>
-
-            <!-- Profile selector -->
-            <USelect
-              :model-value="pod.profile"
-              :items="profileOptions"
-              size="xs"
-              class="w-40"
-              @update:model-value="handleUpdatePodProfile(index, $event as PodProfile)"
-            />
-
-            <!-- Health info -->
-            <div v-if="healthInfos[index]" class="mt-1">
-              <div
-                class="px-2 py-1 rounded text-[11px] inline-flex items-center gap-1"
-                :class="{
-                  'bg-emerald-50 text-emerald-700': healthStatuses[index] === 'ok',
-                  'bg-red-50 text-red-600': healthStatuses[index] === 'error',
-                }"
-              >
-                <span
-                  v-if="healthStatuses[index] === 'ok'"
-                  class="inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"
-                />
-                <span
-                  v-if="healthStatuses[index] === 'error'"
-                  class="inline-block w-1.5 h-1.5 bg-red-500 rounded-full"
-                />
-                {{ healthInfos[index] }}
-              </div>
+      <!-- Pod list (read-only) -->
+      <div v-else class="space-y-2">
+        <div v-for="pod in activePods.pods" :key="pod.id" class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100">
+          <div class="flex items-center gap-3">
+            <span class="relative flex h-2.5 w-2.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+            </span>
+            <div>
+              <p class="text-sm font-medium text-slate-800">{{ pod.name || pod.id }}</p>
+              <p class="text-[10px] font-mono text-slate-400">{{ pod.url }}</p>
             </div>
           </div>
-
-          <!-- Remove button -->
-          <UButton
-            size="xs"
-            variant="ghost"
-            color="error"
-            icon="i-lucide-trash-2"
-            @click="handleRemovePod(index)"
-          />
+          <UBadge
+            :color="pod.activeJobs > 0 ? 'warning' : 'success'"
+            variant="subtle"
+            size="sm"
+          >
+            {{ pod.activeJobs > 0 ? `${pod.activeJobs} active` : 'Idle' }}
+          </UBadge>
         </div>
       </div>
 

@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { prompt, prompts, negativePrompt, count, steps, width, height, loraStrength, cfg, sampler, scheduler, customLoras, model, seed, attributes, sweepId, sweepLabel, endpoint } = parsed.data
-  const apiUrl = resolveApiUrl(endpoint, 'image')
+  const apiUrl = await resolveApiUrl(endpoint, 'image')
 
   const settingsObj: Record<string, any> = {
     negativePrompt, steps, width, height, seed, model, loraStrength,

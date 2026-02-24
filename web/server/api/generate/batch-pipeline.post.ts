@@ -121,7 +121,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Resolve the pod URL — from request body or env fallback
-  const apiUrl = resolveApiUrl(data.endpoint, 'video')
+  const apiUrl = await resolveApiUrl(data.endpoint, 'video')
 
   await db.insert(mediaItems).values({
     id: videoId,

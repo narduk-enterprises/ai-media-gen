@@ -28,7 +28,7 @@ export interface GenerationResult {
 const MAX_IMAGES_PER_BATCH = 16
 
 export function useGeneration() {
-  const { effectiveEndpoint } = useAppSettings()
+  // Pod routing is server-side — no endpoint needed from frontend
   const queue = useQueue()
 
   const submitting = ref(false)
@@ -105,7 +105,7 @@ export function useGeneration() {
           prompt: chunk[0], prompts: chunk,
           negativePrompt: opts.negativePrompt, count: chunk.length,
           steps: opts.steps, width: opts.width, height: opts.height,
-          attributes: {}, endpoint: effectiveEndpoint.value,
+          attributes: {},
           loraStrength: opts.loraStrength ?? 1.0, model: opts.model ?? 'wan22',
           seed: opts.seed ?? -1,
           ...(opts.cfg != null ? { cfg: opts.cfg } : {}),
@@ -161,7 +161,7 @@ export function useGeneration() {
           negativePrompt: opts.negativePrompt || '',
           steps: opts.steps || 20, width: opts.width || 1024, height: opts.height || 1024,
           cfg: opts.cfg || 3.5, denoise: opts.denoise || 0.75,
-          endpoint: effectiveEndpoint.value,
+
         },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
@@ -208,7 +208,7 @@ export function useGeneration() {
         cfg: opts.cfg ?? 3.5,
         width: opts.width ?? 1280,
         height: opts.height ?? 720,
-        endpoint: effectiveEndpoint.value,
+
       }
       if (opts.prompt) body.prompt = opts.prompt
       if (opts.negativePrompt) body.negativePrompt = opts.negativePrompt
@@ -245,7 +245,7 @@ export function useGeneration() {
         body: {
           mediaItemId,
           prompt: `ambient music for: ${promptHint || 'image'}`,
-          endpoint: effectiveEndpoint.value,
+
         },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
@@ -268,7 +268,7 @@ export function useGeneration() {
     try {
       const result = await $fetch<{ item: MediaItemResult }>('/api/generate/upscale', {
         method: 'POST',
-        body: { mediaItemId, scale, endpoint: effectiveEndpoint.value },
+        body: { mediaItemId, scale },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
       if (result.item) {
@@ -327,7 +327,7 @@ export function useGeneration() {
               numFrames: nf, steps: opts.steps ?? 4,
               cfg: opts.cfg, fps: opts.fps,
               width: opts.width ?? 832, height: opts.height ?? 480,
-              endpoint: effectiveEndpoint.value,
+
               loraStrength: opts.loraStrength ?? 1.0, model: opts.model ?? 'wan22',
               seed: opts.seed ?? -1,
               ...(opts.audioPrompt ? { audioPrompt: opts.audioPrompt } : {}),
@@ -432,7 +432,7 @@ export function useGeneration() {
             videoFps: opts.videoFps ?? 16,
             loraStrength: opts.loraStrength ?? 1.0,
             imageStrength: opts.imageStrength ?? 1.0,
-            endpoint: effectiveEndpoint.value,
+
             ...(batchGenId ? { generationId: batchGenId } : {}),
           },
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
