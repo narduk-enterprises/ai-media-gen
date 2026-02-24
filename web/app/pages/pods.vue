@@ -45,7 +45,7 @@ const MODEL_GROUPS = [
   { value: 'ltx2', label: 'LTX-2 19B', icon: '🎥', sizeGb: 25, category: 'Video' },
   { value: 'ltx2_camera', label: 'LTX-2 Camera LoRAs', icon: '📷', sizeGb: 2, category: 'Video' },
   { value: 'upscale', label: 'RealESRGAN Upscale', icon: '🔍', sizeGb: 1, category: 'Shared' },
-  { value: 'shared', label: 'Captioning Models', icon: '💬', sizeGb: 8, category: 'Shared' },
+  { value: 'shared', label: 'AI Remix + Caption', icon: '💬', sizeGb: 8, category: 'Shared' },
 ]
 
 const estimatedDiskGb = computed(() => {
