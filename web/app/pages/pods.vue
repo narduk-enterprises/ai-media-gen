@@ -24,13 +24,20 @@ const deployState = reactive({
   cloudType: 'SECURE',
   dataCenter: 'ANY',
   volumeInGb: 50,
-  containerDiskInGb: 25
+  containerDiskInGb: 25,
+  profile: 'full' as 'image' | 'video' | 'full'
 })
 
 const cloudTypes = [
   { label: 'Secure Cloud', value: 'SECURE' },
   { label: 'Community Cloud', value: 'COMMUNITY' },
   { label: 'Any', value: 'ALL' }
+]
+
+const podProfiles = [
+  { label: '🖼️ Image Only (SDXL, Upscale ~15GB)', value: 'image' },
+  { label: '🎬 Video Only (LTX-2, Wan 2.2 ~80GB)', value: 'video' },
+  { label: '⚡ Full (Everything ~100GB)', value: 'full' },
 ]
 
 watch(showDeployModal, async (open) => {
@@ -125,7 +132,8 @@ async function deployPod() {
       cloudType: deployState.cloudType,
       dataCenterId: deployState.dataCenter,
       volumeInGb: deployState.volumeInGb,
-      containerDiskInGb: deployState.containerDiskInGb
+      containerDiskInGb: deployState.containerDiskInGb,
+      profile: deployState.profile,
     }
     await $fetch('/api/runpod/deploy', {
       method: 'POST',
@@ -429,6 +437,18 @@ function setAsTarget(podId: string) {
 
             <UFormField label="Container Disk (GB)" name="containerDiskInGb" required>
               <UInput v-model="deployState.containerDiskInGb" type="number" min="1" class="w-full" size="lg" />
+            </UFormField>
+
+            <UFormField label="Pod Profile" name="profile" required>
+              <USelect
+                v-model="deployState.profile"
+                :items="podProfiles"
+                class="w-full"
+                size="lg"
+              />
+              <p class="text-xs text-slate-400 mt-1">
+                Controls which models are synced. Image pods need ~15GB, video ~80GB, full ~100GB.
+              </p>
             </UFormField>
           </div>
           

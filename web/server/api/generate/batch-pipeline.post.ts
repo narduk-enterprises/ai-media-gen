@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
 import { submitItemToComfyUI } from '../../utils/submitItem'
-import { getPodUrl } from '../../utils/podClient'
+import { resolveApiUrl } from '../../utils/ai'
 import { generations, mediaItems, users } from '../../database/schema'
 
 const BATCH_KEY = 'overnight-batch-2026'
@@ -121,7 +121,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Resolve the pod URL — from request body or env fallback
-  const apiUrl = data.endpoint || getPodUrl()
+  const apiUrl = resolveApiUrl(data.endpoint, 'video')
 
   await db.insert(mediaItems).values({
     id: videoId,

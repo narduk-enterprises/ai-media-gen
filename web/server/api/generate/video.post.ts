@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const { mediaItemId, model, prompt: customPrompt, negativePrompt, numFrames, steps, cfg, width, height, fps, loraStrength, imageStrength, endpoint } = parsed.data
-    const apiUrl = resolveApiUrl(endpoint)
+    const apiUrl = resolveApiUrl(endpoint, 'video')
     const db = useDatabase()
 
     // Fetch media item

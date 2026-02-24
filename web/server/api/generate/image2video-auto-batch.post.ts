@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { mediaItemIds, basePrompt, audioPrompt, negativePrompt, steps, numFrames, width, height, fps, loraStrength, imageStrength, endpoint } = parsed.data
-  const apiUrl = resolveApiUrl(endpoint)
+  const apiUrl = resolveApiUrl(endpoint, 'video')
   const db = useDatabase()
   const now = new Date().toISOString()
 

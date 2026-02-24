@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { mediaItemId, scale, endpoint } = parsed.data
-  const apiUrl = resolveApiUrl(endpoint)
+  const apiUrl = resolveApiUrl(endpoint, 'image')
   const db = useDatabase()
 
   const source = await db

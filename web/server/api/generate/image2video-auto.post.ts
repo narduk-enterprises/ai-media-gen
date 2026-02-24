@@ -55,7 +55,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (!image) throw createError({ statusCode: 400, message: 'Image is required' })
-  const apiUrl = resolveApiUrl(endpoint)
+  const apiUrl = resolveApiUrl(endpoint, 'video')
   const db = useDatabase()
   const now = new Date().toISOString()
 

@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const data = parsed.data
-  const apiUrl = resolveApiUrl(data.endpoint)
+  const apiUrl = resolveApiUrl(data.endpoint, 'video')
   const db = useDatabase()
   const now = new Date().toISOString()
 

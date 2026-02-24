@@ -1,50 +1,74 @@
 <script setup lang="ts">
+import type { PodEndpoint, PodProfile } from '~/composables/useAppSettings'
+
 definePageMeta({ middleware: 'auth', ssr: false })
 useSeoMeta({ title: 'Settings' })
 
 const { user, logout } = useAuth()
-const { gpuServerUrl } = useAppSettings()
+const { pods, addPod, removePod, updatePod, gpuServerUrl } = useAppSettings()
+
+const profileOptions = [
+  { label: 'Image Only', value: 'image' as PodProfile },
+  { label: 'Video Only', value: 'video' as PodProfile },
+  { label: 'Full (All)', value: 'full' as PodProfile },
+]
 
 // ─── Health Check ────────────────────────────────────────────────
-const healthStatus = ref<'idle' | 'checking' | 'ok' | 'error'>('idle')
-const healthInfo = ref('')
+const healthStatuses = ref<Record<number, 'idle' | 'checking' | 'ok' | 'error'>>({})
+const healthInfos = ref<Record<number, string>>({})
 
-async function checkHealth() {
-  const url = gpuServerUrl.value?.trim()
-  if (!url) return
-  healthStatus.value = 'checking'
-  healthInfo.value = ''
+async function checkPodHealth(index: number) {
+  const pod = pods.value[index]
+  if (!pod?.url?.trim()) return
+  healthStatuses.value[index] = 'checking'
+  healthInfos.value[index] = ''
   try {
     const result = await $fetch<{ ok: boolean; vram?: string; version?: string; mode?: string; devices?: string[]; error?: string }>('/api/generate/comfyui-health', {
-      params: { url },
+      params: { url: pod.url },
     })
     if (result.ok) {
-      healthStatus.value = 'ok'
+      healthStatuses.value[index] = 'ok'
       const parts: string[] = []
       if (result.mode === 'pod_server') parts.push(`Pod Server v${result.version || '?'}`)
       if (result.vram) parts.push(result.vram)
       if (result.devices?.length) parts.push(result.devices[0]!)
-      healthInfo.value = parts.join(' · ') || 'Connected'
+      healthInfos.value[index] = parts.join(' · ') || 'Connected'
     } else {
-      healthStatus.value = 'error'
-      healthInfo.value = result.error || 'Unreachable'
+      healthStatuses.value[index] = 'error'
+      healthInfos.value[index] = result.error || 'Unreachable'
     }
   } catch (e: any) {
-    healthStatus.value = 'error'
-    healthInfo.value = e?.data?.message || e?.message || 'Check failed'
+    healthStatuses.value[index] = 'error'
+    healthInfos.value[index] = e?.data?.message || e?.message || 'Check failed'
   }
 }
 
-// Auto-check on URL change (debounced)
-let healthTimer: ReturnType<typeof setTimeout> | null = null
-watch(gpuServerUrl, (val) => {
-  healthStatus.value = 'idle'
-  healthInfo.value = ''
-  if (healthTimer) clearTimeout(healthTimer)
-  if (val?.trim()) {
-    healthTimer = setTimeout(() => checkHealth(), 1200)
-  }
-})
+function handleAddPod() {
+  addPod({ url: '', profile: 'full', label: '' })
+}
+
+function handleRemovePod(index: number) {
+  removePod(index)
+  delete healthStatuses.value[index]
+  delete healthInfos.value[index]
+}
+
+function handleUpdatePodUrl(index: number, url: string) {
+  const pod = pods.value[index]!
+  updatePod(index, { ...pod, url })
+  healthStatuses.value[index] = 'idle'
+  healthInfos.value[index] = ''
+}
+
+function handleUpdatePodProfile(index: number, profile: PodProfile) {
+  const pod = pods.value[index]!
+  updatePod(index, { ...pod, profile })
+}
+
+function handleUpdatePodLabel(index: number, label: string) {
+  const pod = pods.value[index]!
+  updatePod(index, { ...pod, label })
+}
 
 // ─── Recovery ───────────────────────────────────────────────────────────
 const recovering = ref(false)
@@ -90,55 +114,114 @@ async function handleLogout() {
       </div>
     </UCard>
 
-    <!-- ═══ GPU Server ═══ -->
+    <!-- ═══ GPU Pods ═══ -->
     <UCard class="mb-6" variant="outline">
       <template #header>
-        <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">GPU Server</h2>
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">GPU Pods</h2>
+          <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-plus" @click="handleAddPod">
+            Add Pod
+          </UButton>
+        </div>
       </template>
 
       <p class="text-xs text-slate-500 mb-4">
-        Enter the URL of your GPU pod running
-        <code class="bg-slate-100 px-1 rounded text-[11px]">pod_server.py</code>.
-        All image and video generation will use this server.
+        Configure GPU pods for media generation. Each pod can be assigned a profile:
+        <strong>Image</strong> (SDXL checkpoints, upscalers),
+        <strong>Video</strong> (LTX-2, Wan 2.2),
+        or <strong>Full</strong> (everything).
+        Requests are automatically routed to the right pod.
       </p>
 
-      <UFormField label="Server URL" size="sm">
-        <div class="flex gap-2">
-          <UInput
-            v-model="gpuServerUrl"
-            placeholder="https://your-pod-url.proxy.runpod.net"
-            size="sm"
-            class="flex-1"
-          />
-          <UButton
-            size="sm"
-            variant="outline"
-            :color="healthStatus === 'ok' ? 'success' : healthStatus === 'error' ? 'error' : 'neutral'"
-            :loading="healthStatus === 'checking'"
-            @click="checkHealth"
-          >
-            {{ healthStatus === 'ok' ? '✓ Online' : healthStatus === 'error' ? '✕ Offline' : 'Check' }}
-          </UButton>
-        </div>
-      </UFormField>
-
-      <!-- Health status -->
-      <div v-if="healthInfo" class="mt-2">
-        <div
-          class="px-3 py-2 rounded-lg text-xs flex items-center gap-2"
-          :class="{
-            'bg-emerald-50 text-emerald-700': healthStatus === 'ok',
-            'bg-red-50 text-red-600': healthStatus === 'error',
-          }"
-        >
-          <span v-if="healthStatus === 'ok'" class="inline-block w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-          <span v-if="healthStatus === 'error'" class="inline-block w-2 h-2 bg-red-500 rounded-full" />
-          {{ healthInfo }}
-        </div>
+      <!-- Empty state -->
+      <div v-if="pods.length === 0" class="text-center py-8 text-slate-400">
+        <p class="text-sm mb-2">No GPU pods configured</p>
+        <p class="text-xs">Add a pod to enable image and video generation.</p>
       </div>
 
-      <div v-if="gpuServerUrl" class="mt-1">
-        <UButton variant="link" color="error" size="xs" @click="gpuServerUrl = ''; healthStatus = 'idle'; healthInfo = ''">Clear</UButton>
+      <!-- Pod list -->
+      <div v-for="(pod, index) in pods" :key="index" class="mb-4 p-4 rounded-lg border border-slate-200 bg-slate-50/50">
+        <div class="flex items-start gap-3">
+          <!-- Profile badge -->
+          <UBadge
+            :color="pod.profile === 'image' ? 'info' : pod.profile === 'video' ? 'warning' : 'success'"
+            variant="subtle"
+            size="sm"
+            class="mt-1 shrink-0"
+          >
+            {{ pod.profile === 'image' ? '🖼️ Image' : pod.profile === 'video' ? '🎬 Video' : '⚡ Full' }}
+          </UBadge>
+
+          <div class="flex-1 space-y-2">
+            <!-- Label -->
+            <UInput
+              :model-value="pod.label || ''"
+              placeholder="Pod label (optional)"
+              size="xs"
+              class="w-full"
+              @update:model-value="handleUpdatePodLabel(index, $event as string)"
+            />
+
+            <!-- URL + health check -->
+            <div class="flex gap-2">
+              <UInput
+                :model-value="pod.url"
+                placeholder="https://your-pod-url.proxy.runpod.net"
+                size="sm"
+                class="flex-1"
+                @update:model-value="handleUpdatePodUrl(index, $event as string)"
+              />
+              <UButton
+                size="sm"
+                variant="outline"
+                :color="healthStatuses[index] === 'ok' ? 'success' : healthStatuses[index] === 'error' ? 'error' : 'neutral'"
+                :loading="healthStatuses[index] === 'checking'"
+                @click="checkPodHealth(index)"
+              >
+                {{ healthStatuses[index] === 'ok' ? '✓' : healthStatuses[index] === 'error' ? '✕' : '⚡' }}
+              </UButton>
+            </div>
+
+            <!-- Profile selector -->
+            <USelect
+              :model-value="pod.profile"
+              :items="profileOptions"
+              size="xs"
+              class="w-40"
+              @update:model-value="handleUpdatePodProfile(index, $event as PodProfile)"
+            />
+
+            <!-- Health info -->
+            <div v-if="healthInfos[index]" class="mt-1">
+              <div
+                class="px-2 py-1 rounded text-[11px] inline-flex items-center gap-1"
+                :class="{
+                  'bg-emerald-50 text-emerald-700': healthStatuses[index] === 'ok',
+                  'bg-red-50 text-red-600': healthStatuses[index] === 'error',
+                }"
+              >
+                <span
+                  v-if="healthStatuses[index] === 'ok'"
+                  class="inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"
+                />
+                <span
+                  v-if="healthStatuses[index] === 'error'"
+                  class="inline-block w-1.5 h-1.5 bg-red-500 rounded-full"
+                />
+                {{ healthInfos[index] }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Remove button -->
+          <UButton
+            size="xs"
+            variant="ghost"
+            color="error"
+            icon="i-lucide-trash-2"
+            @click="handleRemovePod(index)"
+          />
+        </div>
       </div>
 
       <!-- Recovery -->

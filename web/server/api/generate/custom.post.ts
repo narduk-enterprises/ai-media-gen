@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { workflow, label, expectVideo, endpoint } = parsed.data
-  const apiUrl = resolveApiUrl(endpoint)
+  const apiUrl = resolveApiUrl(endpoint, 'video')
 
   const db = useDatabase()
   const generationId = crypto.randomUUID()

@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { prompt, negativePrompt, image, model, steps, width, height, cfg, denoise, seed } = parsed.data
-  const apiUrl = resolveApiUrl()
+  const apiUrl = resolveApiUrl(undefined, 'image')
 
   const db = useDatabase()
   const generationId = crypto.randomUUID()

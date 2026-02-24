@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
     characterMode, characterPrompt, heroImage, endpoint,
   } = parsed.data
 
-  const apiUrl = resolveApiUrl(endpoint)
+  const apiUrl = resolveApiUrl(endpoint, 'video')
   const db = useDatabase()
   const now = new Date().toISOString()
 

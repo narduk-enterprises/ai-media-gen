@@ -40,8 +40,11 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    // ComfyUI direct connection
+    // ComfyUI direct connection (global fallback for all pods)
     comfyUrl: process.env.COMFY_URL || '',
+    // Profile-specific pod URLs (optional — override per generation type)
+    podImageUrl: process.env.POD_IMAGE_URL || '',
+    podVideoUrl: process.env.POD_VIDEO_URL || '',
     webhookSecret: process.env.WEBHOOK_SECRET || '',
     
     // RunPod API (for pod management)

@@ -3,7 +3,7 @@
 # setup-machine.sh — Bootstrap a fresh GPU pod
 #
 # Usage:
-#   bash scripts/setup-machine.sh <ip> <port>
+#   bash scripts/setup-machine.sh <ip> <port> [--profile image|video|full]
 #
 # Architecture:
 #   1. SCPs admin server, manage.sh, sync_models.py, workflows
@@ -27,15 +27,23 @@
 # ═══════════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-IP="${1:?Usage: $0 <ip> <port>}"
-PORT="${2:?Usage: $0 <ip> <port>}"
+IP="${1:?Usage: $0 <ip> <port> [--profile image|video|full]}"
+PORT="${2:?Usage: $0 <ip> <port> [--profile image|video|full]}"
+PROFILE="full"  # default
+shift 2
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --profile) PROFILE="$2"; shift 2 ;;
+    *) echo "Unknown arg: $1"; exit 1 ;;
+  esac
+done
 KEY="$HOME/.ssh/id_ed25519"
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10"
 SSH="ssh $SSH_OPTS root@$IP -p $PORT -i $KEY"
 SCP="scp $SSH_OPTS -P $PORT -i $KEY"
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "═══ setup-machine.sh ═══  $IP:$PORT"
+echo "═══ setup-machine.sh ═══  $IP:$PORT  profile=$PROFILE"
 
 # ─────────────────────────────────────────────────────────────
 # PHASE 1 — Upload
@@ -65,6 +73,7 @@ echo "  ✅ pods will auto-start on reboot"
 # ─────────────────────────────────────────────────────────────
 echo ""
 echo "▸ Writing on-pod setup script..."
+$SSH "echo '$PROFILE' > /workspace/.pod_profile"
 
 cat > /tmp/_pod_setup.sh << 'PODSCRIPT'
 #!/bin/bash
@@ -87,12 +96,16 @@ run_logged() {
 }
 
 # ══ STEP 1: Model sync in BACKGROUND ══
+# Read pod profile written by setup-machine.sh
+POD_PROFILE="$(cat /workspace/.pod_profile 2>/dev/null || echo full)"
+echo "  Pod profile: $POD_PROFILE"
+
 echo "▸ [1/4] Starting model sync in background..."
 if [ -d "/workspace/.cache/huggingface/hub" ]; then
     rm -rf /workspace/.cache/huggingface/hub/*/blobs /workspace/.cache/huggingface/hub/.locks
 fi
 (
-    python3 -u /workspace/sync_models.py > >(tee -a "$LOGDIR/sync_models.log") 2>&1
+    python3 -u /workspace/sync_models.py --profile "$POD_PROFILE" > >(tee -a "$LOGDIR/sync_models.log") 2>&1
 ) &
 SYNC_PID=$!
 echo "  Model sync running (PID $SYNC_PID)"

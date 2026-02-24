@@ -1,22 +1,47 @@
 /**
- * ai.ts — Backward-compatible shim.
+ * ai.ts — GPU Pod API routing.
  *
- * Routes that still import callRunPod/resolveApiUrl from here will
- * get working implementations. These routes are candidates for cleanup
- * in Phase 2 when we consolidate to fewer endpoints.
+ * Resolves the correct pod URL for a given generation profile.
+ * Supports multi-pod routing: image pods, video pods, or full pods.
+ *
+ * Profile routing is determined server-side:
+ *   - Each API route specifies its profile ('image' or 'video')
+ *   - The resolver checks pod URLs stored in env/runtime config
+ *   - Falls back to a single URL for backward compatibility
  */
 import { getPodUrl } from './podClient'
 
 export type EndpointType = string
+export type PodProfile = 'image' | 'video' | 'full'
 
 /**
- * Resolve the GPU Pod API URL.
- * Accepts a direct URL string or falls back to NUXT_COMFY_URL config.
+ * Resolve the GPU Pod API URL, considering pod profiles.
+ *
+ * Priority:
+ *   1. Explicit URL override from the frontend (backward compatible)
+ *   2. Profile-specific pod URL from env (NUXT_POD_IMAGE_URL, NUXT_POD_VIDEO_URL)
+ *   3. Global NUXT_COMFY_URL fallback
  */
-export function resolveApiUrl(urlOverride?: string): string {
+export function resolveApiUrl(urlOverride?: string, profile?: PodProfile): string {
+  // 1. Explicit URL from client settings
   if (urlOverride && (urlOverride.startsWith('http://') || urlOverride.startsWith('https://'))) {
     return urlOverride.replace(/\/+$/, '')
   }
+
+  // 2. Profile-specific pod URL from env
+  if (profile) {
+    try {
+      const config = useRuntimeConfig() as any
+      if (profile === 'image' && config.podImageUrl) {
+        return config.podImageUrl.replace(/\/+$/, '')
+      }
+      if (profile === 'video' && config.podVideoUrl) {
+        return config.podVideoUrl.replace(/\/+$/, '')
+      }
+    } catch {}
+  }
+
+  // 3. Global fallback
   return getPodUrl()
 }
 
