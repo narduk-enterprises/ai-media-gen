@@ -10,7 +10,7 @@ function getActiveJobs(podId: string): number {
 }
 
 // ─── Fetch Pods ─────────────────────────────────────────────────────────────
-const { data, pending, error, refresh } = useFetch('/api/runpod/pods')
+const { data, pending, error, refresh } = useFetch('/api/runpod/pods', { server: false })
 
 // ─── Deploy Pod ─────────────────────────────────────────────────────────────
 const showDeployModal = ref(false)
