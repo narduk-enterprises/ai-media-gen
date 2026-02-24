@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { downloadMedia } from '~/composables/useGallery'
+
 export interface LightboxItem {
   id: string
   url: string
@@ -46,14 +48,6 @@ onUnmounted(() => {
   if (import.meta.client) window.removeEventListener('keydown', handleKeydown)
 })
 
-function download() {
-  if (!currentItem.value) return
-  const ext = currentItem.value.type === 'video' ? 'mp4' : 'png'
-  const a = document.createElement('a')
-  a.href = currentItem.value.url
-  a.download = `media-${index.value + 1}.${ext}`
-  a.click()
-}
 </script>
 
 <template>
@@ -126,7 +120,7 @@ function download() {
             size="sm"
             icon="i-lucide-download"
             class="text-white/60 hover:text-white"
-            @click="download"
+            @click="downloadMedia(currentItem?.url, currentItem?.type)"
           >
             Download
           </UButton>

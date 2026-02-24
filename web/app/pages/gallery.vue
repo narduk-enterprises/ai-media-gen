@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDate } from '~/composables/useGallery'
+import { formatDate, downloadMedia } from '~/composables/useGallery'
 
 definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Gallery' })
@@ -90,10 +90,6 @@ function goToVideo(id: string) { navigateTo({ path: '/create', query: { tab: 'im
 function goToReimagine(id: string) { navigateTo({ path: '/create', query: { tab: 'img2img', mediaId: id } }) }
 async function upscaleImage(id: string) { await gen.upscale(id) }
 
-function downloadMedia(url: string, type: string = 'image') {
-  const a = document.createElement('a')
-  a.href = url; a.download = `gallery.${type === 'video' ? 'mp4' : 'png'}`; a.click()
-}
 </script>
 
 <template>

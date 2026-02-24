@@ -64,11 +64,12 @@ export function useGallery() {
   return { generations, total, pending, loadingMore, hasMore, error, refresh: fetchGenerations, loadMore }
 }
 
-/** Return up to 4 media thumbnails (images and videos) for a generation. */
-export function thumbnails(gen: GenerationResult): MediaItemResult[] {
-  return gen.items
-    .filter(i => (i.type === 'image' || i.type === 'video') && i.url)
-    .slice(0, 4)
+/** Trigger a browser download for a media URL. */
+export function downloadMedia(url: string, type: string = 'image') {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `gallery.${type === 'video' ? 'mp4' : 'png'}`
+  a.click()
 }
 
 /** Human-friendly relative date string. */
