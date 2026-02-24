@@ -7,6 +7,54 @@ const { gpuServerUrl } = useAppSettings()
 // ─── Fetch Pods ─────────────────────────────────────────────────────────────
 const { data, pending, error, refresh } = useFetch('/api/runpod/pods')
 
+// ─── Deploy Pod ─────────────────────────────────────────────────────────────
+const showDeployModal = ref(false)
+const optionsPending = ref(false)
+const templates = ref<any[]>([])
+const gpuTypes = ref<any[]>([])
+const deploying = ref(false)
+
+const deployState = reactive({
+  name: 'GPU Pod',
+  templateId: '',
+  gpuTypeId: 'NVIDIA RTX A6000',
+  gpuCount: 1
+})
+
+watch(showDeployModal, async (open) => {
+  if (open && templates.value.length === 0) {
+    optionsPending.value = true
+    try {
+      const res = await $fetch<{ templates: any[], gpuTypes: any[] }>('/api/runpod/options')
+      templates.value = res.templates || []
+      gpuTypes.value = res.gpuTypes || []
+      
+      const defaultTemplate = templates.value.find(t => t.name.includes('ai-media-gen'))
+      if (defaultTemplate) deployState.templateId = defaultTemplate.id
+    } catch (e: any) {
+      alert(`Failed to load options: ${e?.message}`)
+    } finally {
+      optionsPending.value = false
+    }
+  }
+})
+
+async function deployPod() {
+  deploying.value = true
+  try {
+    await $fetch('/api/runpod/deploy', {
+      method: 'POST',
+      body: deployState
+    })
+    showDeployModal.value = false
+    setTimeout(refresh, 2000)
+  } catch (e: any) {
+    alert(`Failed to deploy pod: ${e?.data?.statusMessage || e.message}`)
+  } finally {
+    deploying.value = false
+  }
+}
+
 // ─── Start / Stop Pods ────────────────────────────────────────────────────
 const actionLoading = ref<Record<string, boolean>>({})
 
@@ -72,13 +120,22 @@ function setAsTarget(podId: string) {
         <h1 class="font-display text-2xl sm:text-3xl font-bold text-slate-800">GPU Pods</h1>
         <p class="text-sm text-slate-500 mt-1">Manage your active AI generation instances.</p>
       </div>
-      <UButton 
-        icon="i-heroicons-arrow-path" 
-        color="neutral" 
-        variant="ghost" 
-        :loading="pending" 
-        @click="refresh"
-      />
+      <div class="flex items-center gap-3">
+        <UButton 
+          icon="i-heroicons-arrow-path" 
+          color="neutral" 
+          variant="ghost" 
+          :loading="pending" 
+          @click="refresh()"
+        />
+        <UButton
+          icon="i-heroicons-plus"
+          color="primary"
+          @click="showDeployModal = true"
+        >
+          Deploy Pod
+        </UButton>
+      </div>
     </div>
 
     <!-- Error State -->
@@ -149,9 +206,8 @@ function setAsTarget(podId: string) {
                   color="neutral" 
                   variant="ghost" 
                   size="xs" 
-                  class="opacity-0 group-hover:opacity-100 transition-opacity p-0"
+                  class="opacity-0 group-hover:opacity-100 transition-opacity p-0! rounded-full"
                   @click="copyUrl(pod.id)"
-                  :ui="{ rounded: 'rounded-full' }"
                 />
               </div>
             </div>
@@ -201,5 +257,65 @@ function setAsTarget(podId: string) {
         </template>
       </UCard>
     </div>
+
+    <!-- Deploy Modal -->
+    <UModal v-model="showDeployModal">
+      <UCard>
+        <template #header>
+          <div class="flex items-center justify-between">
+            <h3 class="text-base font-semibold leading-6 text-slate-900">
+              Deploy New GPU Pod
+            </h3>
+            <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showDeployModal = false" />
+          </div>
+        </template>
+
+        <div v-if="optionsPending" class="py-12 flex justify-center items-center gap-3 text-slate-500">
+          <UIcon name="i-heroicons-arrow-path" class="w-5 h-5 animate-spin" />
+          <span>Loading templates and GPUs...</span>
+        </div>
+        
+        <UForm v-else :state="deployState" @submit="deployPod" class="space-y-5">
+          <UFormField label="Pod Name" name="name" required>
+            <UInput v-model="deployState.name" class="w-full" />
+          </UFormField>
+          
+          <UFormField label="RunPod Template" name="templateId" required>
+            <USelectMenu
+              v-model="deployState.templateId"
+              :options="templates"
+              value-key="id"
+              label-key="name"
+              placeholder="Select Template"
+              class="w-full"
+            />
+          </UFormField>
+
+          <UFormField label="GPU Type" name="gpuTypeId" required>
+            <USelectMenu
+              v-model="deployState.gpuTypeId"
+              :options="gpuTypes"
+              value-key="id"
+              label-key="displayName"
+              placeholder="Select GPU"
+              class="w-full"
+            >
+              <template #item="{ item }">
+                <span v-if="item">{{ (item as any).displayName }} <span class="text-xs text-slate-400 font-mono ml-1">({{ (item as any).memoryInGb }}GB)</span></span>
+              </template>
+            </USelectMenu>
+          </UFormField>
+
+          <UFormField label="GPU Count" name="gpuCount" required>
+            <UInput v-model="deployState.gpuCount" type="number" min="1" max="8" class="w-full" />
+          </UFormField>
+          
+          <div class="flex justify-end gap-3 pt-2">
+            <UButton color="neutral" variant="ghost" @click="showDeployModal = false">Cancel</UButton>
+            <UButton type="submit" color="primary" :loading="deploying">Deploy Instance</UButton>
+          </div>
+        </UForm>
+      </UCard>
+    </UModal>
   </div>
 </template>

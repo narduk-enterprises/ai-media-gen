@@ -114,3 +114,57 @@ export async function stopRunPod(podId: string): Promise<void> {
   `
   await fetchRunPodGraphQL(query, { input: { podId } })
 }
+
+/**
+ * Get available RunPod templates and GPU types.
+ */
+export async function getRunPodOptions(): Promise<{ templates: any[], gpuTypes: any[] }> {
+  const query = `
+    query {
+      myself {
+        podTemplates {
+          id
+          name
+          imageName
+        }
+      }
+      gpuTypes {
+        id
+        displayName
+        memoryInGb
+      }
+    }
+  `
+  const data = await fetchRunPodGraphQL<any>(query)
+  return {
+    templates: data.myself.podTemplates || [],
+    gpuTypes: data.gpuTypes || []
+  }
+}
+
+/**
+ * Deploy a new pod on demand.
+ */
+export async function deployRunPod(name: string, templateId: string, gpuTypeId: string, gpuCount: number): Promise<string> {
+  const query = `
+    mutation($input: PodFindAndDeployOnDemandInput!) {
+      podFindAndDeployOnDemand(input: $input) {
+        id
+      }
+    }
+  `
+  const data = await fetchRunPodGraphQL<any>(query, {
+    input: {
+      cloudType: "ALL",
+      gpuCount,
+      volumeInGb: 50,
+      containerDiskInGb: 25,
+      minVcpuCount: 2,
+      minMemoryInGb: 15,
+      gpuTypeId,
+      name,
+      templateId
+    }
+  })
+  return data.podFindAndDeployOnDemand.id
+}
