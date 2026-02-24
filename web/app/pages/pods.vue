@@ -129,6 +129,7 @@ async function deployPod() {
     }
     await $fetch('/api/runpod/deploy', {
       method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
       body: payload
     })
     showDeployModal.value = false
@@ -143,6 +144,7 @@ async function startPod(podId: string) {
   try {
     await $fetch('/api/runpod/start', {
       method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
       body: { podId }
     })
     // RunPod API takes a few seconds to reflect desiredStatus changes, so we wait before refreshing
@@ -158,6 +160,7 @@ async function stopPod(podId: string) {
   try {
     await $fetch('/api/runpod/stop', {
       method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
       body: { podId }
     })
     setTimeout(refresh, 2000)

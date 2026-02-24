@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "AI Media Generation Monorepo Scripts",
   "scripts": {
-    "dev": "npm run dev --prefix web",
+    "dev": "doppler run -c prd -- npm run dev --prefix web",
     "build": "npm run build --prefix web",
     "deploy": "npm run deploy --prefix web"
   },
