@@ -12,7 +12,6 @@ import { mediaItems } from '../../database/schema'
 import { checkJobStatus } from '../../utils/podClient'
 import { completeMediaItem, updateGenerationStatus } from '../../utils/completeItem'
 import { useMediaBucket } from '../../utils/r2'
-import { broadcast } from '../../utils/sseBroadcast'
 
 interface WebhookPayload {
   job_id: string
@@ -24,19 +23,27 @@ interface WebhookPayload {
 }
 
 export default defineEventHandler(async (event) => {
-  // ── Verify signature ─────────────────────────────────────────
+  // ── Read body ONCE (CF Workers only allows single read) ─────
+  const rawBody = await readRawBody(event) || ''
+  let payload: WebhookPayload
+
+  try {
+    payload = JSON.parse(rawBody)
+  } catch {
+    throw createError({ statusCode: 400, message: 'Invalid JSON body' })
+  }
+
+  // ── Verify HMAC signature ─────────────────────────────────────
   const config = useRuntimeConfig()
   const secret = config.webhookSecret
   if (secret) {
     const signature = getHeader(event, 'x-webhook-signature') || ''
-    const body = await readRawBody(event) || ''
 
-    // Compute expected HMAC-SHA256
     const encoder = new TextEncoder()
     const key = await crypto.subtle.importKey(
       'raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
     )
-    const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(body))
+    const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody))
     const expected = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')
 
     if (signature !== expected) {
@@ -45,8 +52,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // ── Parse payload ────────────────────────────────────────────
-  const payload = await readBody<WebhookPayload>(event)
+  // ── Validate payload ────────────────────────────────────────
   if (!payload?.job_id || !payload?.status) {
     throw createError({ statusCode: 400, message: 'Missing job_id or status' })
   }
@@ -74,7 +80,6 @@ export default defineEventHandler(async (event) => {
 
   // ── Handle completion ────────────────────────────────────────
   if (payload.status === 'completed') {
-    // Fetch the full result from the pod (includes base64 data)
     const meta = item.metadata ? JSON.parse(item.metadata) : {}
     const podUrl = meta.apiUrl || meta.podUrl || ''
 
@@ -82,14 +87,6 @@ export default defineEventHandler(async (event) => {
     if (result) {
       const outcome = await completeMediaItem(db, mediaBucket, item.id, result)
       console.log(`[Webhook] ✅ ${item.id.slice(0, 8)} → ${outcome}`)
-
-      // Broadcast to SSE clients
-      const gen = await db.select({ userId: mediaItems.generationId })
-        .from(mediaItems).where(eq(mediaItems.id, item.id)).limit(1)
-      if (gen[0]) {
-        broadcast(item.generationId, 'item:completed', { itemId: item.id, status: outcome })
-      }
-
       return { ok: true, action: outcome }
     }
 
@@ -109,8 +106,6 @@ export default defineEventHandler(async (event) => {
       .where(eq(mediaItems.id, item.id))
     await updateGenerationStatus(db, item.generationId)
     console.log(`[Webhook] ❌ ${item.id.slice(0, 8)} failed: ${error}`)
-
-    broadcast(item.generationId, 'item:failed', { itemId: item.id, error })
 
     return { ok: true, action: 'failed' }
   }
