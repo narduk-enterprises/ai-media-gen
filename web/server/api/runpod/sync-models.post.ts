@@ -10,13 +10,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'podId is required' })
   }
   const groups: string[] = body.groups || []
+  const verify: boolean = body.verify || false
   const podUrl = `https://${body.podId}-8188.proxy.runpod.net`
 
   try {
     await $fetch(`${podUrl}/sync-models`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: { groups },
+      body: { groups, verify },
       timeout: 10_000,
     })
     return { success: true, message: `Model sync started for groups: ${groups.join(', ') || 'all'}` }

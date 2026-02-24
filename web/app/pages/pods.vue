@@ -80,11 +80,13 @@ function selectPreset(preset: 'image' | 'video' | 'all' | 'none') {
 const showSyncModal = ref(false)
 const syncTargetPod = ref('')
 const syncGroups = ref<string[]>([])
+const syncVerify = ref(false)
 const syncing = ref(false)
 
 function openSyncModal(podId: string) {
   syncTargetPod.value = podId
   syncGroups.value = []
+  syncVerify.value = false
   showSyncModal.value = true
 }
 
@@ -101,7 +103,7 @@ async function triggerSync() {
     await $fetch('/api/runpod/sync-models', {
       method: 'POST',
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      body: { podId: syncTargetPod.value, groups: syncGroups.value },
+      body: { podId: syncTargetPod.value, groups: syncGroups.value, verify: syncVerify.value },
     })
     showSyncModal.value = false
     alert(`✅ Sync started for: ${syncGroups.value.join(', ')}. Check pod logs for progress.`)
@@ -872,6 +874,10 @@ onUnmounted(() => {
             <span class="ml-auto text-[10px] opacity-60">{{ group.sizeGb }}GB</span>
           </button>
         </div>
+        <label class="flex items-center gap-2 px-1 py-2 cursor-pointer select-none">
+          <input v-model="syncVerify" type="checkbox" class="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" />
+          <span class="text-xs text-slate-600">Verify checksums (re-download if corrupted)</span>
+        </label>
         <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
           <UButton color="neutral" variant="ghost" @click="showSyncModal = false">Cancel</UButton>
           <UButton color="primary" :loading="syncing" :disabled="syncGroups.length === 0" @click="triggerSync">

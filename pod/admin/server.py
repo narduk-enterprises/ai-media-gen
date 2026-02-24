@@ -36,7 +36,7 @@ _sync_lock = threading.Lock()
 _sync_state = {"running": False, "log": "", "started_at": None, "finished_at": None, "exit_code": None}
 
 
-def _run_sync(groups=None):
+def _run_sync(groups=None, verify=False):
     global _sync_state
     with _sync_lock:
         _sync_state = {"running": True, "log": "", "started_at": time.time(), "finished_at": None, "exit_code": None}
@@ -44,6 +44,8 @@ def _run_sync(groups=None):
         cmd = ["python3", "-u", SYNC_SCRIPT]
         if groups:
             cmd += ["--groups", ",".join(groups)]
+        if verify:
+            cmd += ["--verify"]
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
@@ -2212,11 +2214,12 @@ class AdminHandler(BaseHTTPRequestHandler):
             content_length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(content_length)) if content_length else {}
             groups = body.get("groups", [])
+            verify = body.get("verify", False)
             with _sync_lock:
                 if _sync_state["running"]:
                     return self._json(409, {"error": "Sync already running"})
-            threading.Thread(target=_run_sync, args=(groups,), daemon=True).start()
-            return self._json(200, {"status": "started", "groups": groups})
+            threading.Thread(target=_run_sync, args=(groups, verify), daemon=True).start()
+            return self._json(200, {"status": "started", "groups": groups, "verify": verify})
 
         if path == "/generate/test":
             # Quick test generation — creates a tiny job to verify pipeline

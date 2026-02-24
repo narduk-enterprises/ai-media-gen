@@ -4,6 +4,7 @@ Model Sync Utility — Downloads HuggingFace + Civitai models for ComfyUI.
 
 Uses snapshot_download with allow_patterns for all models.
 Downloads directly to /workspace/models/ — no intermediate cache.
+Supports SHA256 checksum verification (--verify flag to re-check existing files).
 
 Supports individual model groups for fine-grained control:
   --groups juggernaut,pony,upscale   → Only those groups
@@ -31,6 +32,7 @@ import sys
 import shutil
 import re
 import argparse
+import hashlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
@@ -56,12 +58,43 @@ except ImportError:
 MODELS_DIR = "/workspace/models"
 MIN_DISK_GB = 2
 MAX_PARALLEL = 4  # Parallel download threads
+VERIFY_MODE = False  # Set via --verify flag
 
 # Thread-safe printing
 _print_lock = threading.Lock()
 def tprint(msg):
     with _print_lock:
         print(msg, flush=True)
+
+
+def compute_sha256(filepath, chunk_size=8192 * 1024):
+    """Compute SHA256 hash of a file. Returns hex digest string."""
+    h = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def verify_file(filepath, expected_sha256, label=""):
+    """Verify a file's SHA256 hash. Returns True if valid, False if mismatch.
+    If expected_sha256 is None, computes and logs the hash for future reference."""
+    if not os.path.exists(filepath):
+        return False
+    actual = compute_sha256(filepath)
+    if expected_sha256 is None:
+        tprint(f"  ℹ️  {label or os.path.basename(filepath)} sha256={actual}")
+        return True  # No expected hash to compare against
+    if actual != expected_sha256:
+        tprint(f"  ❌ CHECKSUM MISMATCH {label or os.path.basename(filepath)}")
+        tprint(f"     expected: {expected_sha256}")
+        tprint(f"     actual:   {actual}")
+        return False
+    tprint(f"  ✓  {label or os.path.basename(filepath)} checksum OK")
+    return True
 
 # ── Profile → Group Mappings (legacy compat) ────────────────────────────────
 PROFILE_TO_GROUPS = {
@@ -283,6 +316,7 @@ def sync_repo(entry, token):
 
     # Individual files — check which ones we still need
     files = entry["files"]
+    hashes = entry.get("sha256", {})  # repo_path -> expected sha256
     needed = {}
     for repo_path, sub_dir in files.items():
         basename = os.path.basename(repo_path)
@@ -292,6 +326,14 @@ def sync_repo(entry, token):
             # Safetensors models should be >10MB; smaller = corrupted/partial
             min_size = 10_000_000 if basename.endswith('.safetensors') else 1000
             if fsize > min_size:
+                # Verify checksum if in verify mode or hash is available
+                expected_hash = hashes.get(repo_path)
+                if VERIFY_MODE and expected_hash:
+                    if not verify_file(target_path, expected_hash, basename):
+                        tprint(f"  🔄 {basename} — deleting corrupt file, will re-download")
+                        os.remove(target_path)
+                        needed[repo_path] = sub_dir
+                        continue
                 tprint(f"  [√] {basename} ({sub_dir}/) — {fsize / (1024**2):.0f}MB")
             else:
                 tprint(f"  ⚠️  {basename} only {fsize / (1024**2):.1f}MB — re-downloading")
@@ -327,8 +369,19 @@ def sync_repo(entry, token):
             os.makedirs(dst_dir, exist_ok=True)
 
             if os.path.exists(src):
+                # Verify downloaded file checksum
+                expected_hash = hashes.get(repo_path)
+                if expected_hash:
+                    if not verify_file(src, expected_hash, basename):
+                        tprint(f"  ❌ {basename} downloaded but CHECKSUM MISMATCH — discarding")
+                        os.remove(src)
+                        fail_count += 1
+                        continue
                 shutil.move(src, dst)
                 tprint(f"  [✓] {basename} -> {sub_dir}/")
+                # Log hash for files without a known hash
+                if not expected_hash:
+                    verify_file(dst, None, basename)
             else:
                 tprint(f"  ❌ {basename} not found after download")
                 fail_count += 1
@@ -352,11 +405,22 @@ def sync_civitai_item(item):
     version_id = item["version_id"]
     subdir = item["subdir"]
     filename = item["filename"]
+    expected_hash = item.get("sha256")
     target_path = os.path.join(MODELS_DIR, subdir, filename)
 
     if os.path.exists(target_path) and os.path.getsize(target_path) > 10_000_000:
-        tprint(f"  [√] {filename} — exists")
-        return 1, 0
+        # Verify existing file if in verify mode and hash is known
+        if VERIFY_MODE and expected_hash:
+            tprint(f"  🔍 Verifying {filename}...")
+            if not verify_file(target_path, expected_hash, filename):
+                tprint(f"  🔄 {filename} — checksum mismatch, deleting for re-download")
+                os.remove(target_path)
+                # Fall through to download
+            else:
+                return 1, 0
+        else:
+            tprint(f"  [√] {filename} — exists")
+            return 1, 0
 
     free_gb = get_free_gb(MODELS_DIR)
     if free_gb < MIN_DISK_GB:
@@ -381,6 +445,17 @@ def sync_civitai_item(item):
             for chunk in r.iter_content(chunk_size=8192):
                 f.write(chunk)
         size_mb = os.path.getsize(target_path) / (1024**2)
+
+        # Verify downloaded file
+        if expected_hash:
+            if not verify_file(target_path, expected_hash, filename):
+                tprint(f"  ❌ {filename} downloaded but CHECKSUM MISMATCH — deleting")
+                os.remove(target_path)
+                return 0, 1
+        else:
+            # Log hash for future reference
+            verify_file(target_path, None, filename)
+
         tprint(f"  [✓] {filename} -> {subdir}/ ({size_mb:.0f} MB)")
         return 1, 0
     except Exception as e:
@@ -391,6 +466,7 @@ def sync_civitai_item(item):
 
 
 def main():
+    global VERIFY_MODE
     parser = argparse.ArgumentParser(description="Sync ComfyUI models")
     parser.add_argument(
         "--profile",
@@ -404,7 +480,14 @@ def main():
         default=None,
         help="Comma-separated model groups to sync (e.g., juggernaut,pony,upscale)",
     )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        default=False,
+        help="Verify SHA256 checksums of existing files and re-download if mismatched",
+    )
     args = parser.parse_args()
+    VERIFY_MODE = args.verify
 
     # Resolve groups from args
     if args.groups:
@@ -434,6 +517,7 @@ def main():
     groups_label = ",".join(sorted(groups_set)) if groups_set else "all"
     print(f"Starting model sync to {MODELS_DIR}")
     print(f"  Groups: {groups_label}")
+    print(f"  Verify mode: {'ON' if VERIFY_MODE else 'OFF'}")
     print(f"  Volume free: {free_gb:.1f} GB")
     print(f"  HF repos: {len(repos)} (skipped {skipped}) | Civitai: {len(civitai)} | Workers: {MAX_PARALLEL}")
     print(flush=True)
