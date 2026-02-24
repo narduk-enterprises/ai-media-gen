@@ -1,0 +1,13 @@
+{
+  "name": "ai-media-gen-root",
+  "version": "1.0.0",
+  "description": "AI Media Generation Monorepo Scripts",
+  "scripts": {
+    "dev": "npm run dev --prefix web",
+    "build": "npm run build --prefix web",
+    "deploy": "npm run deploy --prefix web"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
