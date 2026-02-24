@@ -3,9 +3,6 @@ name: Deploy to GPU Pod
 on:
   push:
     branches: [main]
-    paths:
-      - 'pod/admin/**'
-      - 'pod/scripts/**'
 
   workflow_dispatch:
 
