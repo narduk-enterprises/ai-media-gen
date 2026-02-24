@@ -2,6 +2,7 @@
  * POST /api/runpod/update-pod
  *
  * Pull latest code from git and restart services on a running pod.
+ * Falls back to a full pod restart (stop+start) if /run-command isn't available.
  * Accepts { podId }
  */
 export default defineEventHandler(async (event) => {
@@ -10,7 +11,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'podId is required' })
   }
 
-  const podUrl = `https://${body.podId}-8188.proxy.runpod.net`
+  const podId = body.podId
+  const podUrl = `https://${podId}-8188.proxy.runpod.net`
 
   // Pull latest code, copy files to workspace, restart services via supervisorctl
   const updateScript = [
@@ -25,6 +27,7 @@ export default defineEventHandler(async (event) => {
     'supervisorctl -c /workspace/supervisord.conf restart all',
   ].join(' && ')
 
+  // Try the fast path: /run-command endpoint
   try {
     const result = await $fetch<{ status: string; exit_code?: number; stdout?: string }>(`${podUrl}/run-command`, {
       method: 'POST',
@@ -38,6 +41,31 @@ export default defineEventHandler(async (event) => {
       output: result.stdout,
     }
   } catch (e: any) {
+    // /run-command not available — fall back to full pod restart
+    const statusCode = e?.statusCode || e?.status || 0
+    if (statusCode === 404 || statusCode === 502 || statusCode === 503 || e?.message?.includes('fetch failed')) {
+      console.log(`[update-pod] /run-command not available on ${podId} (${statusCode}), falling back to restart`)
+      try {
+        await stopRunPod(podId)
+        // Wait for pod to stop
+        const maxWait = 60_000
+        const start = Date.now()
+        while (Date.now() - start < maxWait) {
+          await new Promise(r => setTimeout(r, 3000))
+          const pods = await getRunPods()
+          const pod = pods.find((p: any) => p.id === podId)
+          if (!pod || pod.status === 'EXITED' || pod.status === 'STOPPED') break
+        }
+        await new Promise(r => setTimeout(r, 2000))
+        await startRunPod(podId)
+        return {
+          success: true,
+          message: 'Pod restarting — will auto-update code and verify models on boot (takes ~2 min)',
+        }
+      } catch (restartErr: any) {
+        throw createError({ statusCode: 502, message: `Failed to restart pod: ${restartErr?.message || 'Unknown error'}` })
+      }
+    }
     throw createError({ statusCode: 502, message: `Failed to reach pod: ${e?.message || 'Unknown error'}` })
   }
 })
