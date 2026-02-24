@@ -72,20 +72,30 @@ def _run_sync(groups=None, verify=False):
 
 
 def _get_comfy_health():
-    """Check ComfyUI status via its system_stats endpoint."""
+    """Check ComfyUI status via its system_stats and queue endpoints."""
     import urllib.request
     try:
         url = f"http://127.0.0.1:{COMFY_PORT}/system_stats"
         resp = urllib.request.urlopen(url, timeout=3)
         data = json.loads(resp.read())
         device = data.get("devices", [{}])[0]
-        return {
+        result = {
             "status": "running",
             "vram_free_gb": round(device.get("vram_free", 0) / 1073741824, 1),
             "vram_total_gb": round(device.get("vram_total", 0) / 1073741824, 1),
             "torch_vram_free_gb": round(device.get("torch_vram_free", 0) / 1073741824, 1),
             "gpu_name": device.get("name", "unknown"),
         }
+        # Get queue depth
+        try:
+            q_resp = urllib.request.urlopen(f"http://127.0.0.1:{COMFY_PORT}/queue", timeout=2)
+            q_data = json.loads(q_resp.read())
+            result["queue_pending"] = len(q_data.get("queue_pending", []))
+            result["queue_running"] = len(q_data.get("queue_running", []))
+        except Exception:
+            result["queue_pending"] = 0
+            result["queue_running"] = 0
+        return result
     except Exception:
         return {"status": "stopped"}
 

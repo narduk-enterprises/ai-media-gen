@@ -10,8 +10,6 @@
  *   3. Profile-specific env vars (NUXT_POD_IMAGE_URL, NUXT_POD_VIDEO_URL)
  *   4. Global NUXT_COMFY_URL fallback
  */
-import { eq } from 'drizzle-orm'
-import { mediaItems } from '../database/schema'
 import { getPodUrl } from './podClient'
 
 export type EndpointType = string
@@ -34,59 +32,43 @@ export async function resolveApiUrl(urlOverride?: string, _profile?: PodProfile)
     const running = pods.filter(p => p.status === 'RUNNING')
 
     if (running.length > 0) {
-      // Health-check all pods in parallel (3s timeout — skip unresponsive ones)
+      // Health-check all pods in parallel — returns queue depth for real-time load balancing
       const podUrls = running.map(p => `https://${p.id}-8188.proxy.runpod.net`)
+
+      type HealthResult = { url: string; queueDepth: number }
       const healthResults = await Promise.allSettled(
-        podUrls.map(url =>
-          $fetch(`${url}/health`, { timeout: 3_000 })
-            .then(() => url)
-            .catch(() => null),
-        ),
+        podUrls.map(async (url): Promise<HealthResult | null> => {
+          try {
+            const health = await $fetch<{
+              comfy?: { status?: string; queue_pending?: number; queue_running?: number }
+            }>(`${url}/health`, { timeout: 3_000 })
+
+            // Skip pods where ComfyUI isn't running yet
+            if (health.comfy?.status !== 'running') return null
+
+            const pending = health.comfy?.queue_pending ?? 0
+            const running = health.comfy?.queue_running ?? 0
+            return { url, queueDepth: pending + running }
+          } catch {
+            return null
+          }
+        }),
       )
 
-      const healthyUrls = healthResults
+      const healthy = healthResults
         .map(r => (r.status === 'fulfilled' ? r.value : null))
-        .filter((url): url is string => url !== null)
+        .filter((r): r is HealthResult => r !== null)
 
-      if (healthyUrls.length === 0) {
-        console.warn(`[Router] ${running.length} pod(s) RUNNING but none responding to /health — still starting up?`)
+      if (healthy.length === 0) {
+        console.warn(`[Router] ${running.length} pod(s) RUNNING but none healthy — still starting up?`)
         // Fall through to env var fallback
       } else {
-        const db = useDatabase()
-
-        // Count processing jobs per pod URL
-        const processing = await db.select({ metadata: mediaItems.metadata })
-          .from(mediaItems)
-          .where(eq(mediaItems.status, 'processing'))
-
-        const jobCountByUrl = new Map<string, number>()
-        for (const item of processing) {
-          if (!item.metadata) continue
-          try {
-            const meta = JSON.parse(item.metadata)
-            const podUrl = meta.apiUrl || meta.podUrl || ''
-            if (podUrl) {
-              jobCountByUrl.set(podUrl, (jobCountByUrl.get(podUrl) || 0) + 1)
-            }
-          } catch {}
-        }
-
-        // Pick healthy pod with fewest active jobs
-        let bestUrl = ''
-        let bestCount = Infinity
-
-        for (const url of healthyUrls) {
-          const count = jobCountByUrl.get(url) || 0
-          if (count < bestCount) {
-            bestCount = count
-            bestUrl = url
-          }
-        }
-
-        if (bestUrl) {
-          console.log(`[Router] → ${bestUrl} (${bestCount} active jobs, ${healthyUrls.length}/${running.length} pods healthy)`)
-          return bestUrl
-        }
+        // Pick pod with lowest queue depth (ties go to first found)
+        healthy.sort((a, b) => a.queueDepth - b.queueDepth)
+        const best = healthy[0]!
+        const summary = healthy.map(h => `${new URL(h.url).hostname.split('-8188')[0]}=${h.queueDepth}`).join(', ')
+        console.log(`[Router] → ${best.url} (queue: ${best.queueDepth}, ${healthy.length}/${running.length} pods healthy) [${summary}]`)
+        return best.url
       }
     }
   } catch (e: any) {
