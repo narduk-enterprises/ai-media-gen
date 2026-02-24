@@ -63,7 +63,7 @@ export default defineNuxtConfig({
   },
 
   site: {
-    url: process.env.SITE_URL || 'http://localhost:3000',
+    url: process.env.SITE_URL || 'https://ai-media-gen.narduk.workers.dev',
     name: 'AI Media Gen'
   },
 
