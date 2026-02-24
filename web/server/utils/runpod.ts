@@ -116,6 +116,18 @@ export async function stopRunPod(podId: string): Promise<void> {
 }
 
 /**
+ * Terminate (permanently delete) a pod.
+ */
+export async function terminateRunPod(podId: string): Promise<void> {
+  const query = `
+    mutation($input: PodTerminateInput!) {
+      podTerminate(input: $input)
+    }
+  `
+  await fetchRunPodGraphQL(query, { input: { podId } })
+}
+
+/**
  * Get available RunPod templates and GPU types.
  */
 export async function getRunPodOptions(): Promise<{ templates: any[], gpuTypes: any[], dataCenters: any[] }> {

@@ -184,6 +184,21 @@ async function stopPod(podId: string) {
   }
 }
 
+async function terminatePod(podId: string) {
+  if (!confirm('⚠️ This will PERMANENTLY DELETE this pod and its volume. This cannot be undone. Continue?')) return
+
+  try {
+    await $fetch('/api/runpod/terminate', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: { podId }
+    })
+    setTimeout(refresh, 2000)
+  } catch (e: any) {
+    alert(`Failed to terminate pod: ${e?.data?.message || e.message}`)
+  }
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 function getProxyUrl(podId: string, port = 8188) {
   return `https://${podId}-${port}.proxy.runpod.net`
@@ -376,6 +391,16 @@ onUnmounted(() => {
                 Stop Pod
               </UButton>
             </div>
+            <UButton
+              icon="i-heroicons-trash"
+              color="error"
+              variant="ghost"
+              size="sm"
+              loading-auto
+              @click="terminatePod(pod.id)"
+            >
+              Terminate
+            </UButton>
           </div>
         </template>
       </UCard>
