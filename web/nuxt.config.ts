@@ -49,6 +49,8 @@ export default defineNuxtConfig({
     
     // RunPod API (for pod management)
     runpodApiKey: process.env.RUNPOD_API_KEY || process.env.AI_API_KEY || '',
+    // GitHub PAT (for pod bootstrap — cloning private repo)
+    githubPat: process.env.GITHUB_PAT || '',
 
     // Apple Sign-In
     appleTeamId: process.env.APPLE_TEAM_ID || '',

@@ -150,7 +150,10 @@ export async function getRunPodOptions(): Promise<{ templates: any[], gpuTypes: 
 }
 
 /**
- * Deploy a new pod on demand.
+ * Deploy a new pod on demand with automated setup.
+ *
+ * Injects env vars (GITHUB_PAT, POD_PROFILE) and a dockerStartCmd
+ * that clones the repo and runs bootstrap.sh on first boot.
  */
 export async function deployRunPod(
   name: string,
@@ -161,9 +164,15 @@ export async function deployRunPod(
     cloudType?: string,
     dataCenterId?: string,
     volumeInGb?: number,
-    containerDiskInGb?: number
+    containerDiskInGb?: number,
+    profile?: string,
   }
 ): Promise<string> {
+  const config = useRuntimeConfig() as any
+  const githubPat = config.githubPat || process.env.GITHUB_PAT || ''
+  const repoUrl = 'loganrenz/ai-media-gen'
+  const profile = options?.profile || 'full'
+
   const query = `
     mutation($input: PodFindAndDeployOnDemandInput!) {
       podFindAndDeployOnDemand(input: $input) {
@@ -171,7 +180,19 @@ export async function deployRunPod(
       }
     }
   `
-  
+
+  // Build the bootstrap one-liner that runs as dockerStartCmd.
+  // It clones the repo using GITHUB_PAT and runs bootstrap.sh.
+  const bootstrapCmd = [
+    'bash -c \'',
+    'apt-get update -qq && apt-get install -y -qq git > /dev/null 2>&1;',
+    'REPO_DIR=/workspace/_repo;',
+    'if [ -d "$REPO_DIR/.git" ]; then cd "$REPO_DIR" && git pull --ff-only 2>/dev/null || true;',
+    'else git clone --depth 1 https://${GITHUB_PAT}@github.com/${REPO_URL}.git "$REPO_DIR"; fi;',
+    'bash "$REPO_DIR/pod/scripts/bootstrap.sh"',
+    '\'',
+  ].join(' ')
+
   const input: any = {
     gpuCount,
     volumeInGb: options?.volumeInGb || 50,
@@ -180,15 +201,21 @@ export async function deployRunPod(
     minMemoryInGb: 15,
     gpuTypeId,
     name,
-    templateId
+    templateId,
+    env: [
+      { key: 'GITHUB_PAT', value: githubPat },
+      { key: 'POD_PROFILE', value: profile },
+      { key: 'REPO_URL', value: repoUrl },
+    ],
+    dockerStartCmd: bootstrapCmd,
   }
-  
+
   if (options?.cloudType) {
     input.cloudType = options.cloudType
   } else {
     input.cloudType = "ALL"
   }
-  
+
   if (options?.dataCenterId && options.dataCenterId !== 'ANY') {
     input.dataCenterId = options.dataCenterId
   }

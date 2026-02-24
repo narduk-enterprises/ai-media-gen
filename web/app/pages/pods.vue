@@ -140,13 +140,15 @@ async function deployPod() {
       containerDiskInGb: deployState.containerDiskInGb,
       profile: deployState.profile,
     }
-    await $fetch('/api/runpod/deploy', {
+    const res = await $fetch<{ podId: string }>('/api/runpod/deploy', {
       method: 'POST',
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
       body: payload
     })
     showDeployModal.value = false
-    setTimeout(refresh, 2000)
+    // Start polling setup status for the new pod
+    startSetupPolling(res.podId)
+    setTimeout(refresh, 3000)
   } catch (e: any) {
     alert(`Failed to deploy pod: ${e?.data?.statusMessage || e.message}`)
   }
@@ -194,8 +196,36 @@ function copyUrl(podId: string) {
   copyStatus.value[podId] = true
   setTimeout(() => { copyStatus.value[podId] = false }, 2000)
 }
+// ─── Setup Status Tracking ────────────────────────────────────────────────
+const setupStatus = ref<Record<string, { status: string; message: string }>>({})
+const setupTimers = ref<Record<string, ReturnType<typeof setInterval>>>({})
 
+function startSetupPolling(podId: string) {
+  setupStatus.value[podId] = { status: 'starting', message: 'Pod is booting...' }
 
+  const timer = setInterval(async () => {
+    try {
+      const result = await $fetch<{ status: string; message: string }>('/api/runpod/setup-status', {
+        params: { podId },
+      })
+      setupStatus.value[podId] = result
+
+      if (result.status === 'ready') {
+        clearInterval(timer)
+        delete setupTimers.value[podId]
+        refresh()
+      }
+    } catch {
+      // Ignore transient errors during setup
+    }
+  }, 10_000)
+
+  setupTimers.value[podId] = timer
+}
+
+onUnmounted(() => {
+  Object.values(setupTimers.value).forEach(t => clearInterval(t))
+})
 </script>
 
 <template>
@@ -306,6 +336,22 @@ function copyUrl(podId: string) {
         </div>
 
         <template #footer>
+          <!-- Setup progress indicator -->
+          <div v-if="setupStatus[pod.id]" class="mb-3 p-3 rounded-lg text-xs" :class="{
+            'bg-amber-50 text-amber-700': setupStatus[pod.id]?.status === 'installing',
+            'bg-blue-50 text-blue-700': setupStatus[pod.id]?.status === 'starting',
+            'bg-emerald-50 text-emerald-700': setupStatus[pod.id]?.status === 'ready',
+          }">
+            <div class="flex items-center gap-2">
+              <UIcon v-if="setupStatus[pod.id]?.status !== 'ready'" name="i-heroicons-arrow-path" class="w-3.5 h-3.5 animate-spin" />
+              <UIcon v-else name="i-heroicons-check-circle" class="w-3.5 h-3.5" />
+              <span class="font-medium">
+                {{ setupStatus[pod.id]?.status === 'starting' ? '🚀 Booting...' : setupStatus[pod.id]?.status === 'installing' ? '⚙️ Setting up...' : '✅ Ready!' }}
+              </span>
+            </div>
+            <p class="mt-1 text-[10px] opacity-75">{{ setupStatus[pod.id]?.message }}</p>
+          </div>
+
           <div class="flex justify-between items-center gap-2">
             <div>
               <UButton
