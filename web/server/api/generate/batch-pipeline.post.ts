@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
-import { waitUntil } from 'cloudflare:workers'
 import { submitItemToComfyUI } from '../../utils/submitItem'
 import { getPodUrl } from '../../utils/podClient'
 import { generations, mediaItems, users } from '../../database/schema'
@@ -136,7 +135,7 @@ export default defineEventHandler(async (event) => {
 
   console.log(`[Batch ${data.mode}] Queued: ${videoId.slice(0, 8)} → gen ${genId.slice(0, 8)}`)
 
-  waitUntil(submitItemToComfyUI(db, videoId))
+ event.waitUntil(submitItemToComfyUI(db, videoId))
 
   return {
     generation: { id: genId },

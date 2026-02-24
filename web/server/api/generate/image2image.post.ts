@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl } from '../../utils/ai'
 import { submitItemToComfyUI } from '../../utils/submitItem'
@@ -66,7 +65,7 @@ export default defineEventHandler(async (event) => {
 
   console.log(`[I2I] Item queued: ${itemId.slice(0, 8)}`)
 
-  waitUntil(submitItemToComfyUI(db, itemId))
+ event.waitUntil(submitItemToComfyUI(db, itemId))
 
   return {
     generation: { id: generationId, prompt, imageCount: 1, status: 'processing', settings, createdAt: now },

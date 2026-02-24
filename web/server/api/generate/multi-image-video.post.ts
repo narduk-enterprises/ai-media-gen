@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl } from '../../utils/ai'
 import { submitItemToComfyUI } from '../../utils/submitItem'
@@ -150,7 +149,7 @@ export default defineEventHandler(async (event) => {
   const i2vCount = segments.filter(s => s.type === 'image2video').length
   console.log(`[MultiVideo] Queued ${numSegments}-shot video (~${effectiveDuration}s): ${videoId.slice(0, 8)} [${t2vCount} T2V, ${i2vCount} I2V]`)
 
-  waitUntil(submitItemToComfyUI(db, videoId))
+ event.waitUntil(submitItemToComfyUI(db, videoId))
 
   return {
     generation: { id: genId, prompt: promptLabel, imageCount: 1, status: 'processing', createdAt: now },

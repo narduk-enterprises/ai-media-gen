@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
-import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl } from '../../utils/ai'
 import { submitItemToComfyUI } from '../../utils/submitItem'
@@ -96,7 +95,7 @@ export default defineEventHandler(async (event) => {
 
   console.log(`[Upscale] Item queued: ${enhancedId.slice(0, 8)} (${scale}x ${isVideo ? 'video' : 'image'})`)
 
-  waitUntil(submitItemToComfyUI(db, enhancedId))
+ event.waitUntil(submitItemToComfyUI(db, enhancedId))
 
   return {
     item: {

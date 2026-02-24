@@ -7,7 +7,6 @@
  * Uses shared completeMediaItem() for all completion logic.
  */
 import { eq, inArray, and, isNull, or } from 'drizzle-orm'
-import { waitUntil } from 'cloudflare:workers'
 import { mediaItems } from '../database/schema'
 import { checkJobStatus } from './podClient'
 import { completeMediaItem, updateGenerationStatus } from './completeItem'
@@ -68,7 +67,7 @@ export function backgroundComplete(event: H3Event, itemIds: string[]) {
   const mediaBucket = useMediaBucket(event)
 
   console.log(`[BG] Scheduling background completion for ${itemIds.length} items`)
-  waitUntil(doBackgroundWork(db, mediaBucket, itemIds))
+ event.waitUntil(doBackgroundWork(db, mediaBucket, itemIds))
 }
 
 async function doBackgroundWork(db: DB, mediaBucket: R2Bucket | null, itemIds: string[]) {

@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
-import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl, callRunPod } from '../../utils/ai'
 import { submitItemToComfyUI } from '../../utils/submitItem'
@@ -151,7 +150,7 @@ export default defineEventHandler(async (event) => {
     console.log(`[AutoVideo] ✅ ${items.length} items created for gen ${genId.slice(0, 8)}`)
 
     // Submit each job asynchronously in the background
-    waitUntil((async () => {
+   event.waitUntil((async () => {
       for (const item of items) {
         await submitItemToComfyUI(db, item.id)
       }

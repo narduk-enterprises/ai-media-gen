@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
-import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl, callRunPod } from '../../utils/ai'
 import { submitItemToComfyUI } from '../../utils/submitItem'
@@ -77,7 +76,7 @@ export default defineEventHandler(async (event) => {
   console.log(`[AutoVideoBatch] Created gen ${genId.slice(0, 8)} with ${items.length} placeholder items`)
 
   // ═══ Process everything in the background ═══
-  waitUntil((async () => {
+ event.waitUntil((async () => {
     const bucket = useMediaBucket(event)
 
     for (const item of items) {

@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
-import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl } from '../../utils/ai'
 import { submitItemToComfyUI } from '../../utils/submitItem'
@@ -102,7 +101,7 @@ export default defineEventHandler(async (event) => {
   console.log(`[Image] ${count} items queued for generation ${generationId.slice(0, 8)}`)
 
   // Submit to ComfyUI in background
-  waitUntil((async () => {
+ event.waitUntil((async () => {
     for (const item of items) {
       await submitItemToComfyUI(db, item.id)
     }

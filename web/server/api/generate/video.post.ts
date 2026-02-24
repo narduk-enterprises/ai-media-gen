@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
-import { waitUntil } from 'cloudflare:workers'
 import { requireAuth } from '../../utils/auth'
 import { resolveApiUrl } from '../../utils/ai'
 import { submitImage2Video } from '../../utils/podClient'
@@ -124,7 +123,7 @@ export default defineEventHandler(async (event) => {
     console.log(`[I2V] Item queued: ${videoId.slice(0, 8)}`)
 
     // Submit directly to pod in background (we already have the base64 in memory)
-    waitUntil((async () => {
+   event.waitUntil((async () => {
       try {
         const response = await submitImage2Video(inputPayload, apiUrl)
         await db.update(mediaItems)
