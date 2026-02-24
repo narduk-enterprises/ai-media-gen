@@ -13,6 +13,8 @@ const optionsPending = ref(false)
 const templates = ref<any[]>([])
 const gpuTypes = ref<any[]>([])
 const dataCenters = ref<any[]>([])
+const availableDataCenters = ref<string[]>([])
+const loadingAvailability = ref(false)
 
 const deployState = reactive({
   name: 'GPU Pod',
@@ -61,13 +63,54 @@ watch(showDeployModal, async (open) => {
       if (defaultTemplate) deployState.template = defaultTemplate.value
       
       const defaultGpu = gpuTypes.value.find(g => g.label === 'NVIDIA RTX A6000')
-      if (defaultGpu) deployState.gpuType = defaultGpu.value
+      if (defaultGpu) {
+        deployState.gpuType = defaultGpu.value
+        setTimeout(checkAvailability, 50)
+      }
     } catch (e: any) {
       alert(`Failed to load options: ${e?.message}`)
     } finally {
       optionsPending.value = false
     }
   }
+})
+
+const computedDataCenters = computed(() => {
+  return dataCenters.value.map(dc => {
+    if (dc.value === 'ANY') return dc
+    // If not loaded yet, assume available so we don't flash everything disabled
+    const isAvail = availableDataCenters.value.length === 0 || availableDataCenters.value.includes(dc.value)
+    return {
+      label: isAvail ? dc.label : `${dc.label} (Out of Stock)`,
+      value: dc.value,
+      disabled: !isAvail && availableDataCenters.value.length > 0
+    }
+  })
+})
+
+async function checkAvailability() {
+  if (!deployState.gpuType || dataCenters.value.length === 0) return
+  loadingAvailability.value = true
+  try {
+    const dcQuery = dataCenters.value.filter(d => d.value !== 'ANY').map(d => d.value).join(',')
+    const res = await $fetch<{ available: string[] }>(`/api/runpod/availability`, {
+      query: { gpuType: deployState.gpuType, gpuCount: deployState.gpuCount, dataCenters: dcQuery }
+    })
+    availableDataCenters.value = res.available
+    
+    // Auto-select "ANY" if current selection is completely out of stock globally
+    if (deployState.dataCenter !== 'ANY' && !availableDataCenters.value.includes(deployState.dataCenter)) {
+      deployState.dataCenter = 'ANY'
+    }
+  } catch(e) {
+    console.warn("Failed to fetch availability", e)
+  } finally {
+    loadingAvailability.value = false
+  }
+}
+
+watch([() => deployState.gpuType, () => deployState.gpuCount], () => {
+  checkAvailability()
 })
 
 async function deployPod() {
@@ -343,9 +386,16 @@ function setAsTarget(podId: string) {
             </UFormField>
 
             <UFormField label="Data Center" name="dataCenter" required>
+              <template #label>
+                <div class="flex items-center gap-2">
+                  <span>Data Center</span>
+                  <UIcon v-if="loadingAvailability" name="i-heroicons-arrow-path" class="w-3.5 h-3.5 animate-spin text-primary" />
+                </div>
+              </template>
               <USelect
                 v-model="deployState.dataCenter"
-                :items="dataCenters"
+                :items="computedDataCenters"
+                :disabled="loadingAvailability"
                 class="w-full"
               />
             </UFormField>
