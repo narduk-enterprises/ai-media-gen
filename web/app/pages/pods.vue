@@ -13,7 +13,6 @@ const optionsPending = ref(false)
 const templates = ref<any[]>([])
 const gpuTypes = ref<any[]>([])
 const dataCenters = ref<any[]>([])
-const deploying = ref(false)
 
 const deployState = reactive({
   name: 'GPU Pod',
@@ -72,7 +71,6 @@ watch(showDeployModal, async (open) => {
 })
 
 async function deployPod() {
-  deploying.value = true
   try {
     const payload = {
       name: deployState.name,
@@ -92,16 +90,11 @@ async function deployPod() {
     setTimeout(refresh, 2000)
   } catch (e: any) {
     alert(`Failed to deploy pod: ${e?.data?.statusMessage || e.message}`)
-  } finally {
-    deploying.value = false
   }
 }
 
 // ─── Start / Stop Pods ────────────────────────────────────────────────────
-const actionLoading = ref<Record<string, boolean>>({})
-
 async function startPod(podId: string) {
-  actionLoading.value[podId] = true
   try {
     await $fetch('/api/runpod/start', {
       method: 'POST',
@@ -111,15 +104,12 @@ async function startPod(podId: string) {
     setTimeout(refresh, 2000)
   } catch (e: any) {
     alert(`Failed to start pod: ${e?.data?.message || e.message}`)
-  } finally {
-    actionLoading.value[podId] = false
   }
 }
 
 async function stopPod(podId: string) {
   if (!confirm('Are you sure you want to stop this pod? Generations will fail if it goes offline.')) return
 
-  actionLoading.value[podId] = true
   try {
     await $fetch('/api/runpod/stop', {
       method: 'POST',
@@ -128,8 +118,6 @@ async function stopPod(podId: string) {
     setTimeout(refresh, 2000)
   } catch (e: any) {
     alert(`Failed to stop pod: ${e?.data?.message || e.message}`)
-  } finally {
-    actionLoading.value[podId] = false
   }
 }
 
@@ -167,7 +155,7 @@ function setAsTarget(podId: string) {
           icon="i-heroicons-arrow-path" 
           color="neutral" 
           variant="ghost" 
-          :loading="pending" 
+          loading-auto
           @click="refresh()"
         />
         <UButton
@@ -184,6 +172,7 @@ function setAsTarget(podId: string) {
     <UAlert
       v-if="error"
       color="error"
+      variant="soft"
       title="Failed to Load Pods"
       :description="error?.data?.statusMessage || error?.message || 'Check your RunPod API key configuration.'"
       class="mb-6"
@@ -267,7 +256,7 @@ function setAsTarget(podId: string) {
                 icon="i-heroicons-play"
                 color="primary"
                 size="sm"
-                :loading="actionLoading[pod.id]"
+                loading-auto
                 @click="startPod(pod.id)"
               >
                 Start Pod
@@ -278,7 +267,7 @@ function setAsTarget(podId: string) {
                 color="error"
                 variant="outline"
                 size="sm"
-                :loading="actionLoading[pod.id]"
+                loading-auto
                 @click="stopPod(pod.id)"
               >
                 Stop Pod
@@ -372,7 +361,7 @@ function setAsTarget(podId: string) {
           
           <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <UButton color="neutral" variant="ghost" @click="showDeployModal = false">Cancel</UButton>
-            <UButton type="submit" color="primary" :loading="deploying">Deploy Instance</UButton>
+            <UButton type="submit" color="primary" loading-auto>Deploy Instance</UButton>
           </div>
         </UForm>
       </template>
