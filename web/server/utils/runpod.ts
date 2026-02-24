@@ -18,7 +18,7 @@ export interface RunPodInfo {
  */
 export async function fetchRunPodGraphQL<T>(query: string, variables: Record<string, any> = {}): Promise<T> {
   const config = useRuntimeConfig()
-  const apiKey = config.runpodApiKey
+  const apiKey = config.runpodApiKey || process.env.RUNPOD_API_KEY || process.env.AI_API_KEY
   
   if (!apiKey) {
     throw createError({ statusCode: 500, statusMessage: 'RunPod API Key is not configured (RUNPOD_API_KEY / AI_API_KEY)' })
