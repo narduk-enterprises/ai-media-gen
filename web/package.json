@@ -10,7 +10,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "typecheck": "npx nuxt typecheck",
-    "deploy": "nuxt build && wrangler deploy"
+    "deploy": "doppler run -- nuxt build && doppler run -- wrangler deploy"
   },
   "dependencies": {
     "@mlc-ai/web-llm": "^0.2.81",
