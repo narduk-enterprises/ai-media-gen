@@ -28,9 +28,21 @@ const deployState = reactive({
   gpuCount: 1,
   cloudType: 'SECURE',
   dataCenter: 'ANY',
-  volumeInGb: 50,
-  containerDiskInGb: 25,
-  profile: 'full' as 'image' | 'video' | 'full'
+  volumeInGb: 75,
+  containerDiskInGb: 30,
+  profile: 'image' as 'image' | 'video' | 'full'
+})
+
+const PROFILE_SIZES: Record<string, { volume: number; disk: number }> = {
+  image: { volume: 75, disk: 30 },
+  video: { volume: 150, disk: 40 },
+  full: { volume: 200, disk: 40 },
+}
+
+watch(() => deployState.profile, (profile) => {
+  const sizes = PROFILE_SIZES[profile] ?? PROFILE_SIZES.full!
+  deployState.volumeInGb = sizes!.volume
+  deployState.containerDiskInGb = sizes!.disk
 })
 
 const cloudTypes = [
