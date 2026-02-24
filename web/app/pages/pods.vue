@@ -17,11 +17,11 @@ const deploying = ref(false)
 
 const deployState = reactive({
   name: 'GPU Pod',
-  templateId: '',
-  gpuTypeId: 'NVIDIA RTX A6000',
+  template: null as any,
+  gpuType: null as any,
   gpuCount: 1,
-  cloudType: 'SECURE',
-  dataCenterId: 'ANY',
+  cloudType: { label: 'Secure Cloud', value: 'SECURE' },
+  dataCenter: { label: 'Any Data Center', value: 'ANY' },
   volumeInGb: 50,
   containerDiskInGb: 25
 })
@@ -59,7 +59,10 @@ watch(showDeployModal, async (open) => {
       ]
       
       const defaultTemplate = templates.value.find(t => t.label.includes('ai-media-gen'))
-      if (defaultTemplate) deployState.templateId = defaultTemplate.value
+      if (defaultTemplate) deployState.template = defaultTemplate
+      
+      const defaultGpu = gpuTypes.value.find(g => g.label === 'NVIDIA RTX A6000')
+      if (defaultGpu) deployState.gpuType = defaultGpu
     } catch (e: any) {
       alert(`Failed to load options: ${e?.message}`)
     } finally {
@@ -71,9 +74,19 @@ watch(showDeployModal, async (open) => {
 async function deployPod() {
   deploying.value = true
   try {
+    const payload = {
+      name: deployState.name,
+      templateId: deployState.template?.value,
+      gpuTypeId: deployState.gpuType?.value,
+      gpuCount: deployState.gpuCount,
+      cloudType: deployState.cloudType?.value,
+      dataCenterId: deployState.dataCenter?.value,
+      volumeInGb: deployState.volumeInGb,
+      containerDiskInGb: deployState.containerDiskInGb
+    }
     await $fetch('/api/runpod/deploy', {
       method: 'POST',
-      body: deployState
+      body: payload
     })
     showDeployModal.value = false
     setTimeout(refresh, 2000)
@@ -310,23 +323,21 @@ function setAsTarget(podId: string) {
               <UInput v-model="deployState.name" class="w-full" />
             </UFormField>
             
-            <UFormField label="RunPod Template" name="templateId" required>
+            <UFormField label="RunPod Template" name="template" required>
               <USelectMenu
-                v-model="deployState.templateId"
+                v-model="deployState.template"
                 :items="templates"
                 placeholder="Select Template"
                 class="w-full"
-                value-key="value"
               />
             </UFormField>
 
-            <UFormField label="GPU Type" name="gpuTypeId" required>
+            <UFormField label="GPU Type" name="gpuType" required>
               <USelectMenu
-                v-model="deployState.gpuTypeId"
+                v-model="deployState.gpuType"
                 :items="gpuTypes"
                 placeholder="Select GPU"
                 class="w-full"
-                value-key="value"
               >
                 <template #item-label="{ item }">
                   <span v-if="item">{{ (item as any).label }} <span class="text-xs text-slate-400 font-mono ml-1">({{ (item as any).memoryInGb }}GB)</span></span>
@@ -343,16 +354,14 @@ function setAsTarget(podId: string) {
                 v-model="deployState.cloudType"
                 :items="cloudTypes"
                 class="w-full"
-                value-key="value"
               />
             </UFormField>
 
-            <UFormField label="Data Center" name="dataCenterId" required>
+            <UFormField label="Data Center" name="dataCenter" required>
               <USelectMenu
-                v-model="deployState.dataCenterId"
+                v-model="deployState.dataCenter"
                 :items="dataCenters"
                 class="w-full"
-                value-key="value"
               />
             </UFormField>
 
