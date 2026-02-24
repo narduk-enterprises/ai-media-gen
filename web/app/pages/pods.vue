@@ -326,6 +326,52 @@ function copyUrl(podId: string) {
   copyStatus.value[podId] = true
   setTimeout(() => { copyStatus.value[podId] = false }, 2000)
 }
+
+// ─── Live Pod Health (VRAM, Disk from admin server) ───────────────────────
+interface PodHealth {
+  comfy: { status: string; vram_free_gb?: number; vram_total_gb?: number; gpu_name?: string }
+  disk: { total_gb?: number; used_gb?: number; free_gb?: number }
+}
+const podHealth = ref<Record<string, PodHealth>>({})
+
+async function fetchPodHealth(podId: string) {
+  try {
+    const result = await $fetch<PodHealth>('/api/runpod/pod-health', { params: { podId } })
+    podHealth.value[podId] = result
+  } catch {
+    // Pod may not be reachable yet
+  }
+}
+
+// ─── Auto-Refresh Pods + Health ───────────────────────────────────────────
+let podsRefreshTimer: ReturnType<typeof setInterval> | null = null
+let healthRefreshTimer: ReturnType<typeof setInterval> | null = null
+
+function startAutoRefresh() {
+  // Refresh pod list every 15s
+  podsRefreshTimer = setInterval(() => refresh(), 15_000)
+  // Refresh health for all running pods every 10s
+  healthRefreshTimer = setInterval(() => {
+    const pods = data.value?.pods || []
+    for (const pod of pods) {
+      if (pod.status === 'RUNNING') {
+        fetchPodHealth(pod.id)
+      }
+    }
+  }, 10_000)
+}
+
+onMounted(() => {
+  startAutoRefresh()
+  // Initial health fetch after pods load
+  setTimeout(() => {
+    const pods = data.value?.pods || []
+    for (const pod of pods) {
+      if (pod.status === 'RUNNING') fetchPodHealth(pod.id)
+    }
+  }, 2000)
+})
+
 // ─── Setup Status Tracking ────────────────────────────────────────────────
 const setupStatus = ref<Record<string, { status: string; message: string }>>({})
 const setupTimers = ref<Record<string, ReturnType<typeof setInterval>>>({})
@@ -355,6 +401,9 @@ function startSetupPolling(podId: string) {
 
 onUnmounted(() => {
   Object.values(setupTimers.value).forEach(t => clearInterval(t))
+  Object.values(podLogsTimers.value).forEach(t => clearInterval(t))
+  if (podsRefreshTimer) clearInterval(podsRefreshTimer)
+  if (healthRefreshTimer) clearInterval(healthRefreshTimer)
 })
 </script>
 
@@ -444,38 +493,66 @@ onUnmounted(() => {
 
           <!-- Metrics bar (only when running) -->
           <div v-if="pod.status === 'RUNNING'" class="grid grid-cols-3 gap-3">
-            <!-- GPU Utilization -->
-            <div class="text-center">
+            <!-- GPU / VRAM Utilization -->
+            <div class="text-center" :title="podHealth[pod.id]?.comfy?.vram_total_gb
+              ? `VRAM: ${((podHealth[pod.id].comfy.vram_total_gb! - (podHealth[pod.id].comfy.vram_free_gb || 0))).toFixed(1)}GB / ${podHealth[pod.id].comfy.vram_total_gb!.toFixed(1)}GB\nGPU: ${podHealth[pod.id].comfy.gpu_name || pod.gpuName}\nComfyUI: ${podHealth[pod.id].comfy.status}`
+              : `GPU Util: ${pod.gpuUtilPercent}%`">
               <div class="relative w-12 h-12 mx-auto">
                 <svg viewBox="0 0 36 36" class="w-12 h-12">
                   <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" stroke-width="3" />
-                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#8b5cf6" stroke-width="3" :stroke-dasharray="`${pod.gpuUtilPercent}, 100`" stroke-linecap="round" />
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#8b5cf6" stroke-width="3"
+                    :stroke-dasharray="`${podHealth[pod.id]?.comfy?.vram_total_gb
+                      ? Math.round(((podHealth[pod.id].comfy.vram_total_gb! - (podHealth[pod.id].comfy.vram_free_gb || 0)) / podHealth[pod.id].comfy.vram_total_gb!) * 100)
+                      : pod.gpuUtilPercent}, 100`"
+                    stroke-linecap="round" />
                 </svg>
-                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-slate-700">{{ pod.gpuUtilPercent }}%</span>
+                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-slate-700">
+                  {{ podHealth[pod.id]?.comfy?.vram_total_gb
+                    ? `${((podHealth[pod.id].comfy.vram_total_gb! - (podHealth[pod.id].comfy.vram_free_gb || 0))).toFixed(0)}G`
+                    : `${pod.gpuUtilPercent}%` }}
+                </span>
               </div>
-              <p class="text-[10px] text-slate-500 mt-1">GPU</p>
+              <p class="text-[10px] text-slate-500 mt-1">VRAM</p>
             </div>
-            <!-- Memory -->
-            <div class="text-center">
+            <!-- ComfyUI Status -->
+            <div class="text-center" :title="podHealth[pod.id]?.comfy ? `ComfyUI: ${podHealth[pod.id].comfy.status}` : 'Checking...'">
               <div class="relative w-12 h-12 mx-auto">
                 <svg viewBox="0 0 36 36" class="w-12 h-12">
                   <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" stroke-width="3" />
-                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#3b82f6" stroke-width="3" :stroke-dasharray="`${pod.memoryTotalGb ? Math.round((pod.memoryUsedGb / pod.memoryTotalGb) * 100) : 0}, 100`" stroke-linecap="round" />
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none"
+                    :stroke="podHealth[pod.id]?.comfy?.status === 'running' ? '#10b981' : '#f59e0b'" stroke-width="3"
+                    :stroke-dasharray="podHealth[pod.id]?.comfy?.status === 'running' ? '100, 100' : '25, 100'"
+                    stroke-linecap="round" />
                 </svg>
-                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-slate-700">{{ pod.memoryTotalGb }}G</span>
+                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold"
+                  :class="podHealth[pod.id]?.comfy?.status === 'running' ? 'text-emerald-600' : 'text-amber-600'">
+                  {{ podHealth[pod.id]?.comfy?.status === 'running' ? '✓' : '⏳' }}
+                </span>
               </div>
-              <p class="text-[10px] text-slate-500 mt-1">Memory</p>
+              <p class="text-[10px] text-slate-500 mt-1">Comfy</p>
             </div>
             <!-- Disk -->
-            <div class="text-center">
+            <div class="text-center" :title="podHealth[pod.id]?.disk?.total_gb
+              ? `Disk: ${podHealth[pod.id].disk.used_gb?.toFixed(1)}GB / ${podHealth[pod.id].disk.total_gb?.toFixed(1)}GB\nFree: ${podHealth[pod.id].disk.free_gb?.toFixed(1)}GB`
+              : `Volume: ${pod.volumeInGb}GB`">
               <div class="relative w-12 h-12 mx-auto">
                 <svg viewBox="0 0 36 36" class="w-12 h-12">
                   <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" stroke-width="3" />
-                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" stroke-width="3" :stroke-dasharray="`${pod.diskTotalGb ? Math.round((pod.diskUsedGb / pod.diskTotalGb) * 100) : 0}, 100`" stroke-linecap="round" />
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none"
+                    :stroke="(podHealth[pod.id]?.disk?.total_gb && podHealth[pod.id].disk.used_gb! / podHealth[pod.id].disk.total_gb! > 0.85) ? '#ef4444' : '#10b981'"
+                    stroke-width="3"
+                    :stroke-dasharray="`${podHealth[pod.id]?.disk?.total_gb
+                      ? Math.round((podHealth[pod.id].disk.used_gb! / podHealth[pod.id].disk.total_gb!) * 100)
+                      : 0}, 100`"
+                    stroke-linecap="round" />
                 </svg>
-                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-slate-700">{{ pod.volumeInGb }}G</span>
+                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-slate-700">
+                  {{ podHealth[pod.id]?.disk?.used_gb
+                    ? `${podHealth[pod.id].disk.used_gb!.toFixed(0)}G`
+                    : `${pod.volumeInGb}G` }}
+                </span>
               </div>
-              <p class="text-[10px] text-slate-500 mt-1">Volume</p>
+              <p class="text-[10px] text-slate-500 mt-1">Disk</p>
             </div>
           </div>
 
