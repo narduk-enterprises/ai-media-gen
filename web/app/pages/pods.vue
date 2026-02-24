@@ -26,11 +26,21 @@ watch(showDeployModal, async (open) => {
     optionsPending.value = true
     try {
       const res = await $fetch<{ templates: any[], gpuTypes: any[] }>('/api/runpod/options')
-      templates.value = res.templates || []
-      gpuTypes.value = res.gpuTypes || []
       
-      const defaultTemplate = templates.value.find(t => t.name.includes('ai-media-gen'))
-      if (defaultTemplate) deployState.templateId = defaultTemplate.id
+      // Nuxt UI 4 requires objects with `label` and `value` properties.
+      templates.value = (res.templates || []).map(t => ({
+        label: t.name,
+        value: t.id
+      }))
+      
+      gpuTypes.value = (res.gpuTypes || []).map(g => ({
+        label: g.displayName,
+        value: g.id,
+        memoryInGb: g.memoryInGb
+      }))
+      
+      const defaultTemplate = templates.value.find(t => t.label.includes('ai-media-gen'))
+      if (defaultTemplate) deployState.templateId = defaultTemplate.value
     } catch (e: any) {
       alert(`Failed to load options: ${e?.message}`)
     } finally {
@@ -283,9 +293,7 @@ function setAsTarget(podId: string) {
           <UFormField label="RunPod Template" name="templateId" required>
             <USelectMenu
               v-model="deployState.templateId"
-              :options="templates"
-              value-key="id"
-              label-key="name"
+              :items="templates"
               placeholder="Select Template"
               class="w-full"
             />
@@ -294,14 +302,12 @@ function setAsTarget(podId: string) {
           <UFormField label="GPU Type" name="gpuTypeId" required>
             <USelectMenu
               v-model="deployState.gpuTypeId"
-              :options="gpuTypes"
-              value-key="id"
-              label-key="displayName"
+              :items="gpuTypes"
               placeholder="Select GPU"
               class="w-full"
             >
-              <template #item="{ item }">
-                <span v-if="item">{{ (item as any).displayName }} <span class="text-xs text-slate-400 font-mono ml-1">({{ (item as any).memoryInGb }}GB)</span></span>
+              <template #item-label="{ item }">
+                <span v-if="item">{{ (item as any).label }} <span class="text-xs text-slate-400 font-mono ml-1">({{ (item as any).memoryInGb }}GB)</span></span>
               </template>
             </USelectMenu>
           </UFormField>
