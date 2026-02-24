@@ -237,7 +237,7 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
             <UIcon v-if="selectedIds.has(item.id)" name="i-lucide-check" class="w-3.5 h-3.5" />
           </div>
 
-          <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="none" class="w-full h-auto bg-slate-100 block" @mouseenter="!isSelectionMode && ($event.target as HTMLVideoElement).play()" @mouseleave="!isSelectionMode && ($event.target as HTMLVideoElement).pause()" />
+          <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="metadata" class="w-full h-auto bg-slate-100 block" @mouseenter="!isSelectionMode && ($event.target as HTMLVideoElement).play()" @mouseleave="!isSelectionMode && ($event.target as HTMLVideoElement).pause()" />
           <NuxtImg v-else :src="item.url" :alt="item.prompt" :width="largeGrid ? 512 : 300" class="w-full h-auto bg-slate-100 block" loading="lazy" />
 
           <!-- Video badge -->
