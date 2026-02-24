@@ -56,6 +56,7 @@ except ImportError:
     sys.exit(1)
 
 MODELS_DIR = "/workspace/models"
+HF_CACHE_DIR = "/tmp/hf_cache"  # Controlled location — cleaned after each download
 MIN_DISK_GB = 2
 MAX_PARALLEL = 4  # Parallel download threads
 VERIFY_MODE = False  # Set via --verify flag
@@ -95,6 +96,30 @@ def verify_file(filepath, expected_sha256, label=""):
         return False
     tprint(f"  ✓  {label or os.path.basename(filepath)} checksum OK")
     return True
+
+
+def _clean_hf_cache():
+    """Remove HF cache directories to free disk space after each download."""
+    for d in [HF_CACHE_DIR, "/root/.cache/huggingface", "/workspace/.cache/huggingface"]:
+        if os.path.exists(d):
+            shutil.rmtree(d, ignore_errors=True)
+
+
+def _clean_orphaned_tmps():
+    """Remove leftover .tmp_* directories from previous crashed downloads."""
+    if not os.path.isdir(MODELS_DIR):
+        return
+    for name in os.listdir(MODELS_DIR):
+        if name.startswith(".tmp_"):
+            path = os.path.join(MODELS_DIR, name)
+            if os.path.isdir(path):
+                size_mb = sum(
+                    os.path.getsize(os.path.join(d, f))
+                    for d, _, files in os.walk(path)
+                    for f in files
+                ) / (1024**2)
+                tprint(f"  🧹 Removing orphaned {name} ({size_mb:.0f}MB)")
+                shutil.rmtree(path, ignore_errors=True)
 
 # ── Profile → Group Mappings (legacy compat) ────────────────────────────────
 PROFILE_TO_GROUPS = {
@@ -307,11 +332,16 @@ def sync_repo(entry, token):
 
         try:
             tprint(f"  ⬇ {repo} (full repo)...")
-            snapshot_download(repo, token=token, local_dir=target_dir)
+            snapshot_download(
+                repo, token=token, local_dir=target_dir,
+                cache_dir=HF_CACHE_DIR, local_dir_use_symlinks=False,
+            )
+            _clean_hf_cache()
             tprint(f"  [✓] {repo} ready")
             return 1, 0
         except Exception as e:
             tprint(f"  ❌ Failed: {repo}: {e}")
+            _clean_hf_cache()
             return 0, 1
 
     # Individual files — check which ones we still need
@@ -358,6 +388,7 @@ def sync_repo(entry, token):
         tmp_dir = os.path.join(MODELS_DIR, f".tmp_{repo.replace('/', '--')}")
         snapshot_download(
             repo, token=token, local_dir=tmp_dir, allow_patterns=allow_patterns,
+            cache_dir=HF_CACHE_DIR, local_dir_use_symlinks=False,
         )
 
         fail_count = 0
@@ -387,12 +418,14 @@ def sync_repo(entry, token):
                 fail_count += 1
 
         shutil.rmtree(tmp_dir, ignore_errors=True)
+        _clean_hf_cache()
         return len(files) - fail_count, fail_count
 
     except Exception as e:
         tprint(f"  ❌ Failed downloading from {repo}: {e}")
         tmp_dir = os.path.join(MODELS_DIR, f".tmp_{repo.replace('/', '--')}")
         shutil.rmtree(tmp_dir, ignore_errors=True)
+        _clean_hf_cache()
         return len(files) - len(needed), len(needed)
 
 
@@ -506,6 +539,10 @@ def main():
         print("Warning: HF_TOKEN not set.")
 
     os.makedirs(MODELS_DIR, exist_ok=True)
+
+    # Clean up orphaned caches and temp dirs before starting
+    _clean_orphaned_tmps()
+    _clean_hf_cache()
 
     # Filter repos and civitai models by groups
     repos = [r for r in REPOS if should_include(r, groups_set)]
