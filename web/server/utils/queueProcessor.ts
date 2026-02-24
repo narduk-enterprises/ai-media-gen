@@ -132,13 +132,48 @@ async function submitPhase(db: DB) {
           status: 'processing',
           runpodJobId: response.job_id,
           submittedAt: new Date().toISOString(),
-          metadata: JSON.stringify({ ...meta, podJobId: response.job_id }),
+          metadata: JSON.stringify({ ...meta, podJobId: response.job_id, apiUrl: podUrl }),
         })
         .where(eq(mediaItems.id, item.id))
 
-      console.log(`[Queue] ✅ Submitted ${item.id.slice(0, 8)} → Pod job ${response.job_id}`)
+      console.log(`[Queue] ✅ Submitted ${item.id.slice(0, 8)} → Pod job ${response.job_id} on ${podUrl}`)
       return true
     } catch (e: any) {
+      const errMsg = e?.data?.error?.message || e?.data?.message || e?.message || ''
+      const isRetryable = isRetryableError(errMsg, e)
+      const meta = parseItemMeta(item)
+      const retryCount = meta._retryCount || 0
+      const failedPods: string[] = meta._failedPods || []
+      const podUrl = meta.apiUrl || meta.podUrl || ''
+
+      if (isRetryable && retryCount < MAX_RETRIES) {
+        // Track this pod as failed so we route elsewhere next time
+        if (podUrl && !failedPods.includes(podUrl)) failedPods.push(podUrl)
+
+        // Clear the pinned pod URL so it re-routes through resolveApiUrl
+        const retryMeta = {
+          ...meta,
+          apiUrl: undefined,
+          podUrl: undefined,
+          _retryCount: retryCount + 1,
+          _failedPods: failedPods,
+          _lastError: errMsg.slice(0, 200),
+        }
+
+        await db.update(mediaItems)
+          .set({
+            status: 'queued',
+            runpodJobId: null,
+            submittedAt: null,
+            error: null,
+            metadata: JSON.stringify(retryMeta),
+          })
+          .where(eq(mediaItems.id, item.id))
+
+        console.log(`[Queue] ♻️ ${item.id.slice(0, 8)} retryable error → re-queued (retry ${retryCount + 1}/${MAX_RETRIES}, excluding ${failedPods.length} pod(s)): ${errMsg.slice(0, 100)}`)
+        return false
+      }
+
       console.error(`[Queue] ❌ Failed to submit ${item.id.slice(0, 8)}:`, e.message)
       await db.update(mediaItems)
         .set({ status: 'failed', error: `Pod submit failed: ${e.message}` })
@@ -248,4 +283,31 @@ async function cleanupPhase(db: DB) {
 
   if (retried > 0) console.log(`[Queue] Cleanup: ${retried} retried, ${staleMarked} permanently failed`)
   return { staleMarked }
+}
+
+/**
+ * Detect errors that may succeed on a different pod.
+ * - ComfyUI 400: model not available (not synced on that pod)
+ * - Connection refused / timeout (pod still starting)
+ * - SafetensorError (corrupt model file on that pod)
+ */
+function isRetryableError(msg: string, error?: any): boolean {
+  const statusCode = error?.statusCode || error?.status || 0
+
+  // ComfyUI 400 — model/checkpoint not found on this pod
+  if (statusCode === 400 && (msg.includes('not in list') || msg.includes('value_not_in_list') || msg.includes('not in ['))) {
+    return true
+  }
+
+  // Corrupt model file on this pod
+  if (msg.includes('SafetensorError') || msg.includes('incomplete metadata') || msg.includes('file not fully covered')) {
+    return true
+  }
+
+  // Pod not reachable (still starting or down)
+  if (msg.includes('ECONNREFUSED') || msg.includes('fetch failed') || msg.includes('ETIMEDOUT') || statusCode === 502 || statusCode === 503) {
+    return true
+  }
+
+  return false
 }
