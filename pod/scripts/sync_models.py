@@ -31,6 +31,8 @@ import sys
 import shutil
 import re
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 try:
     import requests
@@ -53,6 +55,13 @@ except ImportError:
 
 MODELS_DIR = "/workspace/models"
 MIN_DISK_GB = 2
+MAX_PARALLEL = 4  # Parallel download threads
+
+# Thread-safe printing
+_print_lock = threading.Lock()
+def tprint(msg):
+    with _print_lock:
+        print(msg, flush=True)
 
 # ── Profile → Group Mappings (legacy compat) ────────────────────────────────
 PROFILE_TO_GROUPS = {
@@ -255,21 +264,21 @@ def sync_repo(entry, token):
     if is_full:
         target_dir = os.path.join(MODELS_DIR, entry["target"])
         if os.path.exists(target_dir) and len(os.listdir(target_dir)) > 3:
-            print(f"  [√] {repo} — already downloaded", flush=True)
+            tprint(f"  [√] {repo} — already downloaded")
             return 0, 0
 
         free_gb = get_free_gb(MODELS_DIR)
         if free_gb < MIN_DISK_GB:
-            print(f"  ⚠️  Only {free_gb:.1f}GB free — skipping {repo}", flush=True)
+            tprint(f"  ⚠️  Only {free_gb:.1f}GB free — skipping {repo}")
             return 0, 1
 
         try:
-            print(f"  Downloading full repo: {repo}...", flush=True)
+            tprint(f"  ⬇ {repo} (full repo)...")
             snapshot_download(repo, token=token, local_dir=target_dir)
-            print(f"  [✓] {repo} ready", flush=True)
+            tprint(f"  [✓] {repo} ready")
             return 1, 0
         except Exception as e:
-            print(f"  ❌ Failed: {repo}: {e}", flush=True)
+            tprint(f"  ❌ Failed: {repo}: {e}")
             return 0, 1
 
     # Individual files — check which ones we still need
@@ -279,7 +288,7 @@ def sync_repo(entry, token):
         basename = os.path.basename(repo_path)
         target_path = os.path.join(MODELS_DIR, sub_dir, basename)
         if os.path.exists(target_path) and os.path.getsize(target_path) > 0:
-            print(f"  [√] {basename} ({sub_dir}/) — already exists", flush=True)
+            tprint(f"  [√] {basename} ({sub_dir}/) — exists")
         else:
             needed[repo_path] = sub_dir
 
@@ -288,13 +297,12 @@ def sync_repo(entry, token):
 
     free_gb = get_free_gb(MODELS_DIR)
     if free_gb < MIN_DISK_GB:
-        print(f"  ⚠️  Only {free_gb:.1f}GB free — skipping {repo}", flush=True)
+        tprint(f"  ⚠️  Only {free_gb:.1f}GB free — skipping {repo}")
         return len(files) - len(needed), len(needed)
 
     allow_patterns = list(needed.keys())
-    print(f"  Syncing {len(needed)} files from {repo}...", flush=True)
-    for f in allow_patterns:
-        print(f"    -> {os.path.basename(f)}", flush=True)
+    names = ", ".join(os.path.basename(f) for f in allow_patterns)
+    tprint(f"  ⬇ {repo} ({len(needed)} files: {names})")
 
     try:
         tmp_dir = os.path.join(MODELS_DIR, f".tmp_{repo.replace('/', '--')}")
@@ -312,72 +320,66 @@ def sync_repo(entry, token):
 
             if os.path.exists(src):
                 shutil.move(src, dst)
-                print(f"  [✓] {basename} -> {sub_dir}/", flush=True)
+                tprint(f"  [✓] {basename} -> {sub_dir}/")
             else:
-                print(f"  ❌ {basename} not found after download", flush=True)
+                tprint(f"  ❌ {basename} not found after download")
                 fail_count += 1
 
         shutil.rmtree(tmp_dir, ignore_errors=True)
         return len(files) - fail_count, fail_count
 
     except Exception as e:
-        print(f"  ❌ Failed downloading from {repo}: {e}", flush=True)
+        tprint(f"  ❌ Failed downloading from {repo}: {e}")
         tmp_dir = os.path.join(MODELS_DIR, f".tmp_{repo.replace('/', '--')}")
         shutil.rmtree(tmp_dir, ignore_errors=True)
         return len(files) - len(needed), len(needed)
 
 
-def sync_civitai(groups_set):
-    """Download models from Civitai using the API."""
+def sync_civitai_item(item):
+    """Download a single Civitai model. Returns (success, fail) counts."""
     token = os.environ.get("CIVITAI_TOKEN")
     if not token:
-        print("\n ⚠️  CIVITAI_TOKEN not set — skipping Civitai downloads", flush=True)
-        return
+        return 0, 1
 
-    models = [m for m in CIVITAI_MODELS if should_include(m, groups_set)]
-    if not models:
-        print(f"\n=== Civitai: no models for selected groups ===", flush=True)
-        return
+    version_id = item["version_id"]
+    subdir = item["subdir"]
+    filename = item["filename"]
+    target_path = os.path.join(MODELS_DIR, subdir, filename)
 
-    print(f"\n=== Starting Civitai sync ({len(models)} models) ===", flush=True)
-    for item in models:
-        version_id = item["version_id"]
-        subdir = item["subdir"]
-        filename = item["filename"]
-        target_path = os.path.join(MODELS_DIR, subdir, filename)
+    if os.path.exists(target_path) and os.path.getsize(target_path) > 10_000_000:
+        tprint(f"  [√] {filename} — exists")
+        return 1, 0
 
-        if os.path.exists(target_path) and os.path.getsize(target_path) > 10_000_000:
-            print(f"  [√] {filename} — already exists", flush=True)
-            continue
+    free_gb = get_free_gb(MODELS_DIR)
+    if free_gb < MIN_DISK_GB:
+        tprint(f"  ⚠️  Only {free_gb:.1f}GB free — skipping {filename}")
+        return 0, 1
 
-        free_gb = get_free_gb(MODELS_DIR)
-        if free_gb < MIN_DISK_GB:
-            print(f"  ⚠️  Only {free_gb:.1f}GB free — skipping {filename}", flush=True)
-            continue
+    url = f"https://civitai.com/api/download/models/{version_id}?token={token}"
+    tprint(f"  ⬇ Civitai: {filename}...")
 
-        url = f"https://civitai.com/api/download/models/{version_id}?token={token}"
-        print(f"  → Downloading {filename}...", flush=True)
+    try:
+        r = requests.get(url, stream=True, timeout=120)
+        r.raise_for_status()
 
-        try:
-            r = requests.get(url, stream=True, timeout=120)
-            r.raise_for_status()
+        content_disp = r.headers.get("content-disposition", "")
+        match = re.search(r'filename="(.+?)"', content_disp)
+        if match:
+            filename = match.group(1)
+            target_path = os.path.join(MODELS_DIR, subdir, filename)
 
-            content_disp = r.headers.get("content-disposition", "")
-            match = re.search(r'filename="(.+?)"', content_disp)
-            if match:
-                filename = match.group(1)
-                target_path = os.path.join(MODELS_DIR, subdir, filename)
-
-            os.makedirs(os.path.dirname(target_path), exist_ok=True)
-            with open(target_path, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            size_mb = os.path.getsize(target_path) / (1024**2)
-            print(f"  [✓] {filename} saved to {subdir}/ ({size_mb:.0f} MB)", flush=True)
-        except Exception as e:
-            print(f"  ❌ Failed {version_id}: {e}", flush=True)
-            if os.path.exists(target_path) and os.path.getsize(target_path) < 10_000_000:
-                os.remove(target_path)
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        with open(target_path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+        size_mb = os.path.getsize(target_path) / (1024**2)
+        tprint(f"  [✓] {filename} -> {subdir}/ ({size_mb:.0f} MB)")
+        return 1, 0
+    except Exception as e:
+        tprint(f"  ❌ Failed Civitai {version_id}: {e}")
+        if os.path.exists(target_path) and os.path.getsize(target_path) < 10_000_000:
+            os.remove(target_path)
+        return 0, 1
 
 
 def main():
@@ -406,7 +408,6 @@ def main():
     elif args.profile:
         groups_set = set(PROFILE_TO_GROUPS.get(args.profile, ALL_GROUPS))
     else:
-        # Default: sync everything
         groups_set = None
 
     token = os.environ.get("HF_TOKEN")
@@ -415,29 +416,47 @@ def main():
 
     os.makedirs(MODELS_DIR, exist_ok=True)
 
-    # Filter repos by groups
+    # Filter repos and civitai models by groups
     repos = [r for r in REPOS if should_include(r, groups_set)]
+    civitai = [m for m in CIVITAI_MODELS if should_include(m, groups_set)]
     skipped = len(REPOS) - len(repos)
 
     free_gb = get_free_gb(MODELS_DIR)
-    total_files = sum(len(r.get("files", {})) for r in repos) + sum(1 for r in repos if r.get("full"))
+    total_items = len(repos) + len(civitai)
     groups_label = ",".join(sorted(groups_set)) if groups_set else "all"
     print(f"Starting model sync to {MODELS_DIR}")
     print(f"  Groups: {groups_label}")
     print(f"  Volume free: {free_gb:.1f} GB")
-    print(f"  Repos: {len(repos)} (skipped {skipped}) | Total items: {total_files}")
+    print(f"  HF repos: {len(repos)} (skipped {skipped}) | Civitai: {len(civitai)} | Workers: {MAX_PARALLEL}")
     print(flush=True)
 
     total_success = 0
     total_fail = 0
 
-    for entry in repos:
-        success, fail = sync_repo(entry, token)
-        total_success += success
-        total_fail += fail
+    # ── Parallel downloads ──
+    with ThreadPoolExecutor(max_workers=MAX_PARALLEL) as pool:
+        futures = {}
 
-    # ── Civitai downloads ──
-    sync_civitai(groups_set)
+        # Submit all HF repos
+        for entry in repos:
+            f = pool.submit(sync_repo, entry, token)
+            futures[f] = entry["repo"]
+
+        # Submit all Civitai items
+        for item in civitai:
+            f = pool.submit(sync_civitai_item, item)
+            futures[f] = f"civitai:{item['filename']}"
+
+        # Collect results as they complete
+        for future in as_completed(futures):
+            name = futures[future]
+            try:
+                success, fail = future.result()
+                total_success += success
+                total_fail += fail
+            except Exception as e:
+                tprint(f"  ❌ Unexpected error in {name}: {e}")
+                total_fail += 1
 
     print("\n" + "=" * 50)
     print(f"Sync Complete! Groups: {groups_label} | Success: {total_success} | Failed: {total_fail}")
@@ -466,3 +485,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
