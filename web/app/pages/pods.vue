@@ -257,6 +257,24 @@ async function stopPod(podId: string) {
   }
 }
 
+const podUpdating = ref<Record<string, boolean>>({})
+async function updatePod(podId: string) {
+  if (!confirm('Update this pod? This will pull latest code and restart ComfyUI + Admin server.')) return
+  podUpdating.value[podId] = true
+  try {
+    const result = await $fetch<{ success: boolean; message: string; output?: string }>('/api/runpod/update-pod', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: { podId },
+    })
+    alert(result.message)
+  } catch (e: any) {
+    alert(`Update failed: ${e?.data?.message || e.message}`)
+  } finally {
+    podUpdating.value[podId] = false
+  }
+}
+
 async function terminatePod(podId: string) {
   if (!confirm('⚠️ This will PERMANENTLY DELETE this pod and its volume. This cannot be undone. Continue?')) return
 
@@ -663,6 +681,17 @@ onUnmounted(() => {
               </UButton>
             </div>
             <div class="flex items-center gap-1">
+              <UButton
+                v-if="pod.status === 'RUNNING'"
+                icon="i-heroicons-cloud-arrow-up"
+                color="info"
+                variant="ghost"
+                size="sm"
+                :loading="podUpdating[pod.id]"
+                @click="updatePod(pod.id)"
+              >
+                Update
+              </UButton>
               <UButton
                 v-if="pod.status === 'RUNNING'"
                 icon="i-heroicons-arrow-down-tray"

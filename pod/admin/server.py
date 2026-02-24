@@ -36,13 +36,16 @@ _sync_lock = threading.Lock()
 _sync_state = {"running": False, "log": "", "started_at": None, "finished_at": None, "exit_code": None}
 
 
-def _run_sync():
+def _run_sync(groups=None):
     global _sync_state
     with _sync_lock:
         _sync_state = {"running": True, "log": "", "started_at": time.time(), "finished_at": None, "exit_code": None}
     try:
+        cmd = ["python3", "-u", SYNC_SCRIPT]
+        if groups:
+            cmd += ["--groups", ",".join(groups)]
         proc = subprocess.Popen(
-            ["python3", "-u", SYNC_SCRIPT],
+            cmd,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
         )
         output_lines = []
@@ -2173,12 +2176,47 @@ class AdminHandler(BaseHTTPRequestHandler):
             threading.Thread(target=_do_restart, daemon=True).start()
             return
 
+        if path == "/run-command":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length)) if content_length else {}
+            command = body.get("command")
+            if not command:
+                return self._json(400, {"error": "command is required"})
+            background = body.get("background", False)
+            print(f"[Admin] run-command: {command} (bg={background})")
+
+            if background:
+                def _run_bg():
+                    try:
+                        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=600)
+                        print(f"[Admin] bg-command done: rc={result.returncode}")
+                    except Exception as e:
+                        print(f"[Admin] bg-command error: {e}")
+                threading.Thread(target=_run_bg, daemon=True).start()
+                return self._json(200, {"status": "started", "background": True})
+            else:
+                try:
+                    result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=120)
+                    return self._json(200, {
+                        "status": "done",
+                        "exit_code": result.returncode,
+                        "stdout": result.stdout[-5000:] if result.stdout else "",
+                        "stderr": result.stderr[-2000:] if result.stderr else "",
+                    })
+                except subprocess.TimeoutExpired:
+                    return self._json(504, {"error": "Command timed out (120s)"})
+                except Exception as e:
+                    return self._json(500, {"error": str(e)})
+
         if path == "/sync-models":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length)) if content_length else {}
+            groups = body.get("groups", [])
             with _sync_lock:
                 if _sync_state["running"]:
                     return self._json(409, {"error": "Sync already running"})
-            threading.Thread(target=_run_sync, daemon=True).start()
-            return self._json(200, {"status": "started"})
+            threading.Thread(target=_run_sync, args=(groups,), daemon=True).start()
+            return self._json(200, {"status": "started", "groups": groups})
 
         if path == "/generate/test":
             # Quick test generation — creates a tiny job to verify pipeline
