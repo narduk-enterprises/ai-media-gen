@@ -11,6 +11,8 @@ export interface MediaItemResult {
   parentId: string | null
   prompt?: string | null
   qualityScore?: number | null
+  submittedAt?: string | null
+  completedAt?: string | null
 }
 
 export interface GenerationResult {

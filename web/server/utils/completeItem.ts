@@ -63,7 +63,7 @@ export async function completeMediaItem(
     }
 
     await db.update(mediaItems)
-      .set({ url, status: 'complete' })
+      .set({ url, status: 'complete', completedAt: new Date().toISOString() })
       .where(eq(mediaItems.id, itemId))
 
     console.log(`[Complete] ✅ ${itemId.slice(0, 8)} complete`)
@@ -74,7 +74,7 @@ export async function completeMediaItem(
   if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(result.status)) {
     const error = result.error || `RunPod job ${result.status.toLowerCase()}`
     await db.update(mediaItems)
-      .set({ status: 'failed', error })
+      .set({ status: 'failed', error, completedAt: new Date().toISOString() })
       .where(eq(mediaItems.id, itemId))
 
     console.log(`[Complete] ❌ ${itemId.slice(0, 8)} ${result.status}: ${error}`)

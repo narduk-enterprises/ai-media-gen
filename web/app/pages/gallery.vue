@@ -4,6 +4,17 @@ import { formatDate, downloadMedia } from '~/composables/useGallery'
 definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Gallery' })
 
+function formatDuration(submittedAt?: string, completedAt?: string): string | null {
+  if (!submittedAt || !completedAt) return null
+  const ms = new Date(completedAt).getTime() - new Date(submittedAt).getTime()
+  if (ms < 0 || isNaN(ms)) return null
+  const secs = Math.round(ms / 1000)
+  if (secs < 60) return `${secs}s`
+  const mins = Math.floor(secs / 60)
+  const remainSecs = secs % 60
+  return remainSecs > 0 ? `${mins}m ${remainSecs}s` : `${mins}m`
+}
+
 const { generations, total, pending, loadingMore, hasMore, error, refresh, loadMore, deleteItems } = useGallery()
 const gen = useGeneration()
 const actionLoading = gen.actionLoading
@@ -82,6 +93,7 @@ const largeGrid = useCookie<boolean>('gallery-grid', { default: () => true })
 interface GalleryMedia {
   id: string; url: string; generationId: string; prompt: string
   settings: Record<string, any> | null; createdAt: string; type: string
+  submittedAt?: string; completedAt?: string
 }
 
 const parsedSettingsCache = computed(() => {
@@ -99,7 +111,7 @@ const allMedia = computed<GalleryMedia[]>(() => {
     const settings = parsedSettingsCache.value.get(g.id) ?? null
     for (const item of g.items) {
       if ((item.type === 'image' || item.type === 'video') && item.url && item.status === 'complete')
-        result.push({ id: item.id, url: item.url, generationId: g.id, prompt: g.prompt, settings, createdAt: g.createdAt, type: item.type })
+        result.push({ id: item.id, url: item.url, generationId: g.id, prompt: g.prompt, settings, createdAt: g.createdAt, type: item.type, submittedAt: item.submittedAt, completedAt: item.completedAt })
     }
   }
   return result
@@ -296,6 +308,10 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
             </div>
             <div v-if="currentItem.settings" class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs border-t border-white/10 pt-3">
               <span class="text-white/40">Created</span><span>{{ formatDate(currentItem.createdAt) }}</span>
+              <template v-if="formatDuration(currentItem.submittedAt, currentItem.completedAt)">
+                <span class="text-white/40">Gen Time</span>
+                <span class="text-emerald-400 font-medium">{{ formatDuration(currentItem.submittedAt, currentItem.completedAt) }}</span>
+              </template>
               <template v-for="(val, key) in currentItem.settings" :key="key">
                 <template v-if="key !== 'prompt' && val !== undefined && val !== null && val !== ''">
                   <span class="text-white/40 capitalize">{{ key.replace(/_/g, ' ') }}</span>

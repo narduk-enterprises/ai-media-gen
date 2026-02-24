@@ -12,7 +12,7 @@ Endpoints:
   POST /sync-models   → Start model sync (async)
   GET  /sync-status   → Status of running sync job
 """
-import json, os, subprocess, sys, threading, time, shutil, pathlib, signal
+import json, os, subprocess, sys, threading, time, shutil, pathlib, signal, hashlib, hmac
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 
@@ -698,6 +698,57 @@ def _cleanup_old_jobs():
                 shutil.rmtree(job_dir)
             except OSError:
                 pass
+
+
+def _fire_callback(job_id):
+    """POST lightweight completion/failure notification to the callback URL.
+    Does NOT send base64 blobs — the web server fetches result data separately.
+    Retries 3× with exponential backoff (1s, 3s, 9s)."""
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if not job:
+            return
+        callback_url = job.get("callback_url")
+        callback_secret = job.get("callback_secret", "")
+        if not callback_url:
+            return
+        payload = {
+            "job_id": job_id,
+            "status": job["status"],
+            "result_type": job.get("result_type"),
+            "has_video": job.get("result_type") == "video",
+            "has_image": job.get("result_type") == "image",
+            "error": job.get("error"),
+        }
+
+    body = json.dumps(payload).encode("utf-8")
+    # Sign with HMAC-SHA256 if secret provided
+    signature = ""
+    if callback_secret:
+        signature = hmac.new(callback_secret.encode(), body, hashlib.sha256).hexdigest()
+
+    delays = [1, 3, 9]
+    for attempt, delay in enumerate(delays, 1):
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                callback_url,
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Webhook-Signature": signature,
+                },
+                method="POST",
+            )
+            resp = urllib.request.urlopen(req, timeout=10)
+            print(f"[Callback] ✅ {job_id[:8]} → {callback_url} (attempt {attempt}, HTTP {resp.status})")
+            return
+        except Exception as e:
+            print(f"[Callback] ⚠️ {job_id[:8]} attempt {attempt}/{len(delays)} failed: {e}")
+            if attempt < len(delays):
+                time.sleep(delay)
+
+    print(f"[Callback] ❌ {job_id[:8]} all {len(delays)} attempts failed for {callback_url}")
     if to_remove:
         print(f"[Cleanup] Removed {len(to_remove)} old jobs")
 
@@ -1276,6 +1327,7 @@ def _run_multi_segment(job_id, request_data):
             _jobs[job_id]["status"] = "failed"
             _jobs[job_id]["error"] = str(e)
     finally:
+        _fire_callback(job_id)
         _cleanup_old_jobs()
 
 
@@ -1788,6 +1840,7 @@ def _run_single_generation(job_id, action, data):
             _jobs[job_id]["status"] = "failed"
             _jobs[job_id]["error"] = str(e)
     finally:
+        _fire_callback(job_id)
         _cleanup_old_jobs()
 
 
@@ -2363,6 +2416,8 @@ class AdminHandler(BaseHTTPRequestHandler):
 
         def _start_single_job(action, data):
             job_id = str(uuid.uuid4())
+            callback_url = data.pop("callback_url", None)
+            callback_secret = data.pop("callback_secret", None)
             with _jobs_lock:
                 _jobs[job_id] = {
                     "job_id": job_id,
@@ -2375,6 +2430,8 @@ class AdminHandler(BaseHTTPRequestHandler):
                     "video_base64": None,
                     "image_base64": None,
                     "created_at": time.time(),
+                    "callback_url": callback_url or "",
+                    "callback_secret": callback_secret or "",
                 }
             threading.Thread(target=_run_single_generation, args=(job_id, action, data), daemon=True).start()
             return job_id
@@ -2487,6 +2544,9 @@ class AdminHandler(BaseHTTPRequestHandler):
                 if "image" not in seg:
                     seg["image"] = "auto"
 
+            callback_url = data.pop("callback_url", None)
+            callback_secret = data.pop("callback_secret", None)
+
             job_id = str(uuid.uuid4())
             with _jobs_lock:
                 _jobs[job_id] = {
@@ -2499,6 +2559,8 @@ class AdminHandler(BaseHTTPRequestHandler):
                     "error": None,
                     "video_base64": None,
                     "created_at": time.time(),
+                    "callback_url": callback_url or "",
+                    "callback_secret": callback_secret or "",
                 }
 
             threading.Thread(target=_run_multi_segment, args=(job_id, data), daemon=True).start()
