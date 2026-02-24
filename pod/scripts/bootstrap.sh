@@ -64,8 +64,48 @@ chmod +x /workspace/manage.sh
 echo "  ✅ Files synced"
 echo ""
 
-# Install post_start.sh for auto-restart
-printf "#!/bin/bash\n[ -f /workspace/manage.sh ] && bash /workspace/manage.sh start\n" > /post_start.sh
+# Install post_start.sh for auto-restart with auto-update
+cat > /post_start.sh << 'RESTART'
+#!/bin/bash
+# Auto-update code and restart services on pod restart
+set -e
+LOGDIR=/workspace/logs
+mkdir -p "$LOGDIR"
+exec > >(tee -a "$LOGDIR/restart.log") 2>&1
+echo "═══ POD RESTART $(date) ═══"
+
+# Pull latest code
+if [ -d /workspace/_repo/.git ]; then
+  echo "▸ Pulling latest code..."
+  cd /workspace/_repo && git pull --ff-only 2>/dev/null || true
+  
+  # Copy updated files to workspace
+  cp /workspace/_repo/pod/admin/server.py          /workspace/admin/server.py
+  cp /workspace/_repo/pod/admin/index.html         /workspace/admin/index.html
+  cp /workspace/_repo/pod/admin/workflow_loader.py /workspace/admin/workflow_loader.py
+  cp /workspace/_repo/pod/admin/workflows/*        /workspace/admin/workflows/ 2>/dev/null || true
+  cp /workspace/_repo/pod/scripts/sync_models.py   /workspace/sync_models.py
+  cp /workspace/_repo/pod/scripts/supervisord.conf /workspace/supervisord.conf
+  echo "  ✅ Code updated"
+fi
+
+# Re-sync models with --verify in background
+if [ -f /workspace/sync_models.py ]; then
+  echo "▸ Starting model sync with verification..."
+  SYNC_ARGS="--verify"
+  [ -f /workspace/.model_groups ] && {
+    GROUPS=$(cat /workspace/.model_groups)
+    [ -n "$GROUPS" ] && SYNC_ARGS="--groups $GROUPS --verify"
+  }
+  nohup python3 -u /workspace/sync_models.py $SYNC_ARGS > "$LOGDIR/sync_verify.log" 2>&1 &
+  echo "  Sync PID: $!"
+fi
+
+# Start supervisord
+export COMFY_PORT=${COMFY_PORT:-8189}
+export ADMIN_PORT=${ADMIN_PORT:-8188}
+exec supervisord -n -c /workspace/supervisord.conf
+RESTART
 chmod +x /post_start.sh
 
 # Write profile
@@ -78,8 +118,8 @@ if [ -d "/workspace/.cache/huggingface/hub" ]; then
 fi
 (
     pip install -q huggingface-hub requests hf_transfer 2>&1 | tail -1 || true
-    SYNC_ARGS=""
-    [ -n "$MODEL_GROUPS" ] && SYNC_ARGS="--groups $MODEL_GROUPS"
+    SYNC_ARGS="--verify"
+    [ -n "$MODEL_GROUPS" ] && SYNC_ARGS="--groups $MODEL_GROUPS --verify"
     python3 -u /workspace/sync_models.py $SYNC_ARGS > >(tee -a "$LOGDIR/sync_models.log") 2>&1
 ) &
 SYNC_PID=$!
