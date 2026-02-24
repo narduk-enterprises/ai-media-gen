@@ -82,12 +82,27 @@ const syncTargetPod = ref('')
 const syncGroups = ref<string[]>([])
 const syncVerify = ref(false)
 const syncing = ref(false)
+const syncedGroups = ref<Record<string, { synced: boolean; partial: boolean; files_present: number; files_total: number }>>({}) 
+const loadingSynced = ref(false)
 
-function openSyncModal(podId: string) {
+async function openSyncModal(podId: string) {
   syncTargetPod.value = podId
   syncGroups.value = []
   syncVerify.value = false
+  syncedGroups.value = {}
   showSyncModal.value = true
+  // Fetch synced groups in background
+  loadingSynced.value = true
+  try {
+    syncedGroups.value = await $fetch('/api/runpod/synced-groups', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      params: { podId },
+    })
+  } catch {
+    // Pod may not support this endpoint yet
+  } finally {
+    loadingSynced.value = false
+  }
 }
 
 function toggleSyncGroup(value: string) {
@@ -863,14 +878,22 @@ onUnmounted(() => {
           <button
             v-for="group in MODEL_GROUPS"
             :key="group.value"
-            class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border"
-            :class="syncGroups.includes(group.value)
-              ? 'bg-primary-50 border-primary-300 text-primary-700'
-              : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'"
+            class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border relative"
+            :class="[
+              syncGroups.includes(group.value)
+                ? 'bg-primary-50 border-primary-300 text-primary-700'
+                : syncedGroups[group.value]?.synced
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  : syncedGroups[group.value]?.partial
+                    ? 'bg-amber-50 border-amber-200 text-amber-700'
+                    : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+            ]"
             @click="toggleSyncGroup(group.value)"
           >
             <span>{{ group.icon }}</span>
             <span class="truncate">{{ group.label }}</span>
+            <span v-if="syncedGroups[group.value]?.synced" class="text-emerald-500 text-[10px]">✅</span>
+            <span v-else-if="syncedGroups[group.value]?.partial" class="text-amber-500 text-[10px]">⚠️</span>
             <span class="ml-auto text-[10px] opacity-60">{{ group.sizeGb }}GB</span>
           </button>
         </div>

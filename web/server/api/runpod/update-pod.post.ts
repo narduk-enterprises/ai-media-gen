@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
     'cp /workspace/_repo/pod/scripts/manage-pod.sh /workspace/manage.sh',
     'cp /workspace/_repo/pod/scripts/sync_models.py /workspace/sync_models.py',
     'cp /workspace/_repo/pod/scripts/supervisord.conf /workspace/supervisord.conf',
-    'supervisorctl restart all',
+    'supervisorctl -c /workspace/supervisord.conf restart all',
   ].join(' && ')
 
   try {

@@ -125,6 +125,65 @@ def _list_models():
     return result
 
 
+# Key files that indicate whether a group's models are present.
+# Each group maps to a list of (subdir, filename) tuples.
+_GROUP_KEY_FILES = {
+    "juggernaut": [("checkpoints", "juggernautXL_ragnarokBy.safetensors")],
+    "pony": [("checkpoints", "cyberrealisticPony_v160.safetensors")],
+    "qwen": [
+        ("clip", "qwen_2.5_vl_7b_fp8_scaled.safetensors"),
+        ("diffusion_models", "qwen_image_2512_fp8_e4m3fn.safetensors"),
+    ],
+    "flux2": [
+        ("clip", "mistral_3_small_flux2_bf16.safetensors"),
+        ("diffusion_models", "flux2_dev_fp8mixed.safetensors"),
+    ],
+    "z_image": [("diffusion_models", "z_image_bf16.safetensors")],
+    "z_image_turbo": [("diffusion_models", "z_image_turbo_nvfp4.safetensors")],
+    "wan22": [
+        ("diffusion_models", "wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors"),
+        ("diffusion_models", "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors"),
+    ],
+    "ltx2": [
+        ("checkpoints", "ltx-2-19b-dev-fp8.safetensors"),
+        ("clip", "gemma_3_12B_it_fp4_mixed.safetensors"),
+    ],
+    "ltx2_camera": [("loras", "ltx-2-19b-lora-camera-control-static.safetensors")],
+    "upscale": [("upscale_models", "RealESRGAN_x4.pth")],
+    "shared": [
+        ("transformers/Qwen--Qwen2.5-3B-Instruct", "config.json"),
+        ("transformers/Qwen--Qwen2.5-VL-7B-Instruct", "config.json"),
+    ],
+}
+
+MIN_MODEL_SIZE = 10_000_000  # 10MB — anything smaller is likely a stub
+
+
+def _check_synced_groups():
+    """Check which model groups have their key files present on disk."""
+    result = {}
+    for group, key_files in _GROUP_KEY_FILES.items():
+        present = 0
+        total_size = 0
+        for subdir, filename in key_files:
+            path = os.path.join(MODELS_DIR, subdir, filename)
+            if os.path.exists(path):
+                size = os.path.getsize(path)
+                # For config.json (shared group), any size is fine
+                # For model files, they should be >10MB
+                if filename.endswith(".json") or size > MIN_MODEL_SIZE:
+                    present += 1
+                    total_size += size
+        result[group] = {
+            "synced": present == len(key_files),
+            "partial": 0 < present < len(key_files),
+            "files_present": present,
+            "files_total": len(key_files),
+            "size_mb": round(total_size / (1024 * 1024), 1),
+        }
+    return result
+
+
 def _tail_log(path, lines=50):
     try:
         with open(path, "r") as f:
@@ -2061,6 +2120,9 @@ class AdminHandler(BaseHTTPRequestHandler):
 
         if path == "/models":
             return self._json(200, _list_models())
+
+        if path == "/synced-groups":
+            return self._json(200, _check_synced_groups())
 
         if path == "/logs":
             source = params.get("source", "comfy")
