@@ -10,7 +10,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "typecheck": "npx nuxt typecheck",
-    "deploy": "doppler run -- nuxt build && doppler run -- wrangler deploy"
+    "deploy": "doppler run -- nuxt build && doppler run -- sh -c 'echo \"$RUNPOD_API_KEY\" | wrangler secret put RUNPOD_API_KEY --name ai-media-gen' && doppler run -- wrangler deploy"
   },
   "dependencies": {
     "@mlc-ai/web-llm": "^0.2.81",
