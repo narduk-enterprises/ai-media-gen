@@ -5,19 +5,30 @@ Model Sync Utility — Downloads HuggingFace + Civitai models for ComfyUI.
 Uses snapshot_download with allow_patterns for all models.
 Downloads directly to /workspace/models/ — no intermediate cache.
 
-Supports pod profiles to download only the models needed:
-  --profile image   → SDXL checkpoints, upscalers (~15GB)
-  --profile video   → LTX-2, Wan 2.2, camera LoRAs (~80GB)
-  --profile full    → Everything (~100GB, default)
+Supports individual model groups for fine-grained control:
+  --groups juggernaut,pony,upscale   → Only those groups
+  --profile image                     → All image groups (legacy compat)
+
+Available groups:
+  juggernaut    — Juggernaut XL SDXL checkpoint (~7GB)
+  pony          — CyberRealistic Pony SDXL checkpoint (~7GB)
+  qwen          — Qwen Image + Lightning LoRA (~12GB)
+  flux2         — Flux2 Dev + Turbo LoRA (~15GB)
+  z_image       — Z-Image bf16 max quality (~10GB)
+  z_image_turbo — Z-Image Turbo nvfp4 fast (~8GB)
+  wan22         — Wan 2.2 T2V/I2V + encoders (~40GB)
+  ltx2          — LTX-2 19B + upscaler + distill LoRA (~25GB)
+  ltx2_camera   — LTX-2 camera control LoRAs (~2GB)
+  upscale       — RealESRGAN x2 + x4 (~0.2GB)
+  shared        — Qwen2.5 captioning/remix models (~8GB)
 
 Usage:
-  python3 -u sync_models.py [--profile image|video|full]
+  python3 -u sync_models.py --groups juggernaut,upscale
+  python3 -u sync_models.py --profile image
 """
 import os
 import sys
 import shutil
-import time
-import glob
 import re
 import argparse
 
@@ -43,26 +54,23 @@ except ImportError:
 MODELS_DIR = "/workspace/models"
 MIN_DISK_GB = 2
 
-# ── Profile Definitions ──────────────────────────────────────────────────────
-# Tags determine which profiles include a given model.
-# "image"  = SDXL/Pony checkpoints, upscalers, image-gen models
-# "video"  = LTX-2, Wan 2.2, camera LoRAs, video-related models
-# "shared" = Models used by both (upscalers, shared text encoders)
-
-PROFILE_SETS = {
-    "image": {"image", "shared"},
-    "video": {"video", "shared"},
-    "full":  None,  # None = sync everything
+# ── Profile → Group Mappings (legacy compat) ────────────────────────────────
+PROFILE_TO_GROUPS = {
+    "image": ["juggernaut", "pony", "qwen", "flux2", "z_image", "z_image_turbo", "upscale"],
+    "video": ["wan22", "ltx2", "ltx2_camera", "upscale", "shared"],
+    "full": ["juggernaut", "pony", "qwen", "flux2", "z_image", "z_image_turbo",
+             "wan22", "ltx2", "ltx2_camera", "upscale", "shared"],
 }
 
-# ── All models, grouped by HuggingFace repo ──────────────────────────────────
-# Each entry has a "tags" set indicating which profile groups need it.
+ALL_GROUPS = list(PROFILE_TO_GROUPS["full"])
+
+# ── All models, grouped by name ─────────────────────────────────────────────
 
 REPOS = [
     # ── Wan 2.1 (shared text encoders for Wan 2.2) ──
     {
         "repo": "Comfy-Org/Wan_2.1_ComfyUI_repackaged",
-        "tags": {"video"},
+        "group": "wan22",
         "files": {
             "split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors": "clip",
             "split_files/clip_vision/clip_vision_h.safetensors": "clip_vision",
@@ -71,7 +79,7 @@ REPOS = [
     # ── Wan 2.2 ──
     {
         "repo": "Comfy-Org/Wan_2.2_ComfyUI_Repackaged",
-        "tags": {"video"},
+        "group": "wan22",
         "files": {
             "split_files/vae/wan_2.1_vae.safetensors": "vae",
             "split_files/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors": "diffusion_models",
@@ -85,7 +93,7 @@ REPOS = [
     # ── Qwen Image ──
     {
         "repo": "Comfy-Org/Qwen-Image_ComfyUI",
-        "tags": {"image"},
+        "group": "qwen",
         "files": {
             "split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors": "clip",
             "split_files/vae/qwen_image_vae.safetensors": "vae",
@@ -94,7 +102,7 @@ REPOS = [
     },
     {
         "repo": "lightx2v/Qwen-Image-2512-Lightning",
-        "tags": {"image"},
+        "group": "qwen",
         "files": {
             "Qwen-Image-2512-Lightning-4steps-V1.0-fp32.safetensors": "loras",
         },
@@ -102,7 +110,7 @@ REPOS = [
     # ── Flux2 ──
     {
         "repo": "Comfy-Org/flux2-dev",
-        "tags": {"image"},
+        "group": "flux2",
         "files": {
             "split_files/text_encoders/mistral_3_small_flux2_bf16.safetensors": "clip",
             "split_files/diffusion_models/flux2_dev_fp8mixed.safetensors": "diffusion_models",
@@ -111,24 +119,25 @@ REPOS = [
     },
     {
         "repo": "ByteZSzn/Flux.2-Turbo-ComfyUI",
-        "tags": {"image"},
+        "group": "flux2",
         "files": {
             "Flux_2-Turbo-LoRA_comfyui.safetensors": "loras",
         },
     },
-    # ── Z-Image (Base = max quality, Turbo = fast) ──
+    # ── Z-Image (Base = max quality) ──
     {
         "repo": "Comfy-Org/z_image",
-        "tags": {"image"},
+        "group": "z_image",
         "files": {
             "split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors": "text_encoders",
             "split_files/diffusion_models/z_image_bf16.safetensors": "diffusion_models",
             "split_files/vae/ae.safetensors": "vae",
         },
     },
+    # ── Z-Image Turbo (fast) ──
     {
         "repo": "Comfy-Org/z_image_turbo",
-        "tags": {"image"},
+        "group": "z_image_turbo",
         "files": {
             "split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors": "text_encoders",
             "split_files/diffusion_models/z_image_turbo_nvfp4.safetensors": "diffusion_models",
@@ -139,7 +148,7 @@ REPOS = [
     # ── LTX-2 ──
     {
         "repo": "Lightricks/LTX-2",
-        "tags": {"video"},
+        "group": "ltx2",
         "files": {
             "ltx-2-19b-dev-fp8.safetensors": "checkpoints",
             "ltx-2-spatial-upscaler-x2-1.0.safetensors": "upscale_models",
@@ -148,7 +157,7 @@ REPOS = [
     },
     {
         "repo": "Comfy-Org/ltx-2",
-        "tags": {"video"},
+        "group": "ltx2",
         "files": {
             "split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors": "clip",
         },
@@ -156,125 +165,79 @@ REPOS = [
     # ── LTX-2 Camera LoRAs ──
     {
         "repo": "Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Left",
-        "tags": {"video"},
-        "files": {
-            "ltx-2-19b-lora-camera-control-dolly-left.safetensors": "loras",
-        },
+        "group": "ltx2_camera",
+        "files": {"ltx-2-19b-lora-camera-control-dolly-left.safetensors": "loras"},
     },
     {
         "repo": "Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Right",
-        "tags": {"video"},
-        "files": {
-            "ltx-2-19b-lora-camera-control-dolly-right.safetensors": "loras",
-        },
+        "group": "ltx2_camera",
+        "files": {"ltx-2-19b-lora-camera-control-dolly-right.safetensors": "loras"},
     },
     {
         "repo": "Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-In",
-        "tags": {"video"},
-        "files": {
-            "ltx-2-19b-lora-camera-control-dolly-in.safetensors": "loras",
-        },
+        "group": "ltx2_camera",
+        "files": {"ltx-2-19b-lora-camera-control-dolly-in.safetensors": "loras"},
     },
     {
         "repo": "Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Out",
-        "tags": {"video"},
-        "files": {
-            "ltx-2-19b-lora-camera-control-dolly-out.safetensors": "loras",
-        },
+        "group": "ltx2_camera",
+        "files": {"ltx-2-19b-lora-camera-control-dolly-out.safetensors": "loras"},
     },
     {
         "repo": "Lightricks/LTX-2-19b-LoRA-Camera-Control-Jib-Up",
-        "tags": {"video"},
-        "files": {
-            "ltx-2-19b-lora-camera-control-jib-up.safetensors": "loras",
-        },
+        "group": "ltx2_camera",
+        "files": {"ltx-2-19b-lora-camera-control-jib-up.safetensors": "loras"},
     },
     {
         "repo": "Lightricks/LTX-2-19b-LoRA-Camera-Control-Jib-Down",
-        "tags": {"video"},
-        "files": {
-            "ltx-2-19b-lora-camera-control-jib-down.safetensors": "loras",
-        },
+        "group": "ltx2_camera",
+        "files": {"ltx-2-19b-lora-camera-control-jib-down.safetensors": "loras"},
     },
     {
         "repo": "Lightricks/LTX-2-19b-LoRA-Camera-Control-Static",
-        "tags": {"video"},
-        "files": {
-            "ltx-2-19b-lora-camera-control-static.safetensors": "loras",
-        },
+        "group": "ltx2_camera",
+        "files": {"ltx-2-19b-lora-camera-control-static.safetensors": "loras"},
     },
-    # ── Upscale (shared — needed by both image and video pods) ──
+    # ── Upscale ──
     {
         "repo": "ai-forever/Real-ESRGAN",
-        "tags": {"shared"},
+        "group": "upscale",
         "files": {
             "RealESRGAN_x2.pth": "upscale_models",
             "RealESRGAN_x4.pth": "upscale_models",
         },
     },
-    # ── Transformers (for captioning/remixing — shared) ──
+    # ── Shared (captioning/remixing) ──
     {
         "repo": "Qwen/Qwen2.5-3B-Instruct",
-        "tags": {"shared"},
+        "group": "shared",
         "full": True,
         "target": "transformers/Qwen--Qwen2.5-3B-Instruct",
     },
     {
         "repo": "Qwen/Qwen2.5-VL-7B-Instruct",
-        "tags": {"shared"},
+        "group": "shared",
         "full": True,
         "target": "transformers/Qwen--Qwen2.5-VL-7B-Instruct",
     },
 ]
 
-# ── Civitai LoRAs ────────────────────────────────────────────────────────────
+# ── Civitai Models ───────────────────────────────────────────────────────────
 CIVITAI_MODELS = [
-    {
-        "version_id": 1565668,
-        "filename": "detailz-wan.safetensors",
-        "subdir": "loras",
-        "tags": {"video"},
-    },
-    {
-        "version_id": 2124694,
-        "filename": "instareal-wan-2.2.safetensors",
-        "subdir": "loras",
-        "tags": {"video"},
-    },
-    {
-        "version_id": 2607212,
-        "filename": "nsfw-master-flux-z-image-turbo-v1.safetensors",
-        "subdir": "loras",
-        "tags": {"image"},
-    },
-    {
-        "version_id": 2700613,
-        "filename": "blondeCurlyQ2512.levR.safetensors",
-        "subdir": "loras",
-        "tags": {"image"},
-    },
-    {
-        "version_id": 1759168,
-        "filename": "juggernautXL_ragnarokBy.safetensors",
-        "subdir": "checkpoints",
-        "tags": {"image"},
-    },
-    {
-        "version_id": 2581228,
-        "filename": "cyberrealisticPony_v160.safetensors",
-        "subdir": "checkpoints",
-        "tags": {"image"},
-    },
+    {"version_id": 1565668, "filename": "detailz-wan.safetensors", "subdir": "loras", "group": "wan22"},
+    {"version_id": 2124694, "filename": "instareal-wan-2.2.safetensors", "subdir": "loras", "group": "wan22"},
+    {"version_id": 2607212, "filename": "nsfw-master-flux-z-image-turbo-v1.safetensors", "subdir": "loras", "group": "z_image_turbo"},
+    {"version_id": 2700613, "filename": "blondeCurlyQ2512.levR.safetensors", "subdir": "loras", "group": "qwen"},
+    {"version_id": 1759168, "filename": "juggernautXL_ragnarokBy.safetensors", "subdir": "checkpoints", "group": "juggernaut"},
+    {"version_id": 2581228, "filename": "cyberrealisticPony_v160.safetensors", "subdir": "checkpoints", "group": "pony"},
 ]
 
 
-def should_include(entry, profile):
-    """Check if a model entry should be synced for the given profile."""
-    allowed_tags = PROFILE_SETS.get(profile)
-    if allowed_tags is None:  # "full" profile — everything
+def should_include(entry, groups_set):
+    """Check if a model entry should be synced for the given groups."""
+    if groups_set is None:  # sync everything
         return True
-    entry_tags = entry.get("tags", set())
-    return bool(entry_tags & allowed_tags)
+    return entry.get("group", "") in groups_set
 
 
 def get_free_gb(path):
@@ -290,7 +253,6 @@ def sync_repo(entry, token):
     is_full = entry.get("full", False)
 
     if is_full:
-        # Full repo download (transformers models)
         target_dir = os.path.join(MODELS_DIR, entry["target"])
         if os.path.exists(target_dir) and len(os.listdir(target_dir)) > 3:
             print(f"  [√] {repo} — already downloaded", flush=True)
@@ -311,7 +273,7 @@ def sync_repo(entry, token):
             return 0, 1
 
     # Individual files — check which ones we still need
-    files = entry["files"]  # {repo_path: target_subdir}
+    files = entry["files"]
     needed = {}
     for repo_path, sub_dir in files.items():
         basename = os.path.basename(repo_path)
@@ -324,29 +286,22 @@ def sync_repo(entry, token):
     if not needed:
         return len(files), 0
 
-    # Check disk space
     free_gb = get_free_gb(MODELS_DIR)
     if free_gb < MIN_DISK_GB:
         print(f"  ⚠️  Only {free_gb:.1f}GB free — skipping {repo}", flush=True)
         return len(files) - len(needed), len(needed)
 
-    # Download only the needed files using snapshot_download with allow_patterns
     allow_patterns = list(needed.keys())
     print(f"  Syncing {len(needed)} files from {repo}...", flush=True)
     for f in allow_patterns:
         print(f"    -> {os.path.basename(f)}", flush=True)
 
     try:
-        # Download to a temp dir, then move files to correct ComfyUI subdirs
         tmp_dir = os.path.join(MODELS_DIR, f".tmp_{repo.replace('/', '--')}")
         snapshot_download(
-            repo,
-            token=token,
-            local_dir=tmp_dir,
-            allow_patterns=allow_patterns,
+            repo, token=token, local_dir=tmp_dir, allow_patterns=allow_patterns,
         )
 
-        # Move downloaded files to their target subdirs
         fail_count = 0
         for repo_path, sub_dir in needed.items():
             basename = os.path.basename(repo_path)
@@ -362,32 +317,29 @@ def sync_repo(entry, token):
                 print(f"  ❌ {basename} not found after download", flush=True)
                 fail_count += 1
 
-        # Clean up temp dir
         shutil.rmtree(tmp_dir, ignore_errors=True)
-
         return len(files) - fail_count, fail_count
 
     except Exception as e:
         print(f"  ❌ Failed downloading from {repo}: {e}", flush=True)
-        # Clean up on failure
         tmp_dir = os.path.join(MODELS_DIR, f".tmp_{repo.replace('/', '--')}")
         shutil.rmtree(tmp_dir, ignore_errors=True)
         return len(files) - len(needed), len(needed)
 
 
-def sync_civitai(profile):
+def sync_civitai(groups_set):
     """Download models from Civitai using the API."""
     token = os.environ.get("CIVITAI_TOKEN")
     if not token:
         print("\n ⚠️  CIVITAI_TOKEN not set — skipping Civitai downloads", flush=True)
         return
 
-    models = [m for m in CIVITAI_MODELS if should_include(m, profile)]
+    models = [m for m in CIVITAI_MODELS if should_include(m, groups_set)]
     if not models:
-        print(f"\n=== Civitai: no models for profile '{profile}' ===", flush=True)
+        print(f"\n=== Civitai: no models for selected groups ===", flush=True)
         return
 
-    print(f"\n=== Starting Civitai sync ({len(models)} models for profile '{profile}') ===", flush=True)
+    print(f"\n=== Starting Civitai sync ({len(models)} models) ===", flush=True)
     for item in models:
         version_id = item["version_id"]
         subdir = item["subdir"]
@@ -410,7 +362,6 @@ def sync_civitai(profile):
             r = requests.get(url, stream=True, timeout=120)
             r.raise_for_status()
 
-            # Use real filename from header if present
             content_disp = r.headers.get("content-disposition", "")
             match = re.search(r'filename="(.+?)"', content_disp)
             if match:
@@ -426,7 +377,7 @@ def sync_civitai(profile):
         except Exception as e:
             print(f"  ❌ Failed {version_id}: {e}", flush=True)
             if os.path.exists(target_path) and os.path.getsize(target_path) < 10_000_000:
-                os.remove(target_path)  # clean up partial download
+                os.remove(target_path)
 
 
 def main():
@@ -434,11 +385,29 @@ def main():
     parser.add_argument(
         "--profile",
         choices=["image", "video", "full"],
-        default="full",
-        help="Pod profile: image (SDXL/upscale ~15GB), video (LTX-2/Wan ~80GB), full (everything ~100GB)",
+        default=None,
+        help="Legacy profile (expands to model groups)",
+    )
+    parser.add_argument(
+        "--groups",
+        type=str,
+        default=None,
+        help="Comma-separated model groups to sync (e.g., juggernaut,pony,upscale)",
     )
     args = parser.parse_args()
-    profile = args.profile
+
+    # Resolve groups from args
+    if args.groups:
+        selected = [g.strip() for g in args.groups.split(",") if g.strip()]
+        unknown = [g for g in selected if g not in ALL_GROUPS]
+        if unknown:
+            print(f"⚠️  Unknown groups: {unknown}. Available: {ALL_GROUPS}")
+        groups_set = set(selected)
+    elif args.profile:
+        groups_set = set(PROFILE_TO_GROUPS.get(args.profile, ALL_GROUPS))
+    else:
+        # Default: sync everything
+        groups_set = None
 
     token = os.environ.get("HF_TOKEN")
     if not token:
@@ -446,14 +415,15 @@ def main():
 
     os.makedirs(MODELS_DIR, exist_ok=True)
 
-    # Filter repos by profile
-    repos = [r for r in REPOS if should_include(r, profile)]
+    # Filter repos by groups
+    repos = [r for r in REPOS if should_include(r, groups_set)]
     skipped = len(REPOS) - len(repos)
 
     free_gb = get_free_gb(MODELS_DIR)
     total_files = sum(len(r.get("files", {})) for r in repos) + sum(1 for r in repos if r.get("full"))
+    groups_label = ",".join(sorted(groups_set)) if groups_set else "all"
     print(f"Starting model sync to {MODELS_DIR}")
-    print(f"  Profile: {profile}")
+    print(f"  Groups: {groups_label}")
     print(f"  Volume free: {free_gb:.1f} GB")
     print(f"  Repos: {len(repos)} (skipped {skipped}) | Total items: {total_files}")
     print(flush=True)
@@ -467,10 +437,10 @@ def main():
         total_fail += fail
 
     # ── Civitai downloads ──
-    sync_civitai(profile)
+    sync_civitai(groups_set)
 
     print("\n" + "=" * 50)
-    print(f"Sync Complete! Profile: {profile} | Success: {total_success} | Failed: {total_fail}")
+    print(f"Sync Complete! Groups: {groups_label} | Success: {total_success} | Failed: {total_fail}")
     free_gb = get_free_gb(MODELS_DIR)
     print(f"Volume free: {free_gb:.1f} GB")
     print("=" * 50, flush=True)

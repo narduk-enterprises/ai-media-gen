@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
     dataCenterId: body.dataCenterId,
     volumeInGb: body.volumeInGb,
     containerDiskInGb: body.containerDiskInGb,
-    profile: body.profile || 'full',
+    modelGroups: body.modelGroups || [],
   })
 
   return { success: true, podId }

@@ -28,33 +28,94 @@ const deployState = reactive({
   gpuCount: 1,
   cloudType: 'SECURE',
   dataCenter: 'ANY',
-  volumeInGb: 75,
-  containerDiskInGb: 30,
-  profile: 'image' as 'image' | 'video' | 'full'
+  volumeInGb: 20,
+  containerDiskInGb: 40,
+  modelGroups: ['juggernaut', 'upscale'] as string[],
 })
 
-const PROFILE_SIZES: Record<string, { volume: number; disk: number }> = {
-  image: { volume: 75, disk: 30 },
-  video: { volume: 150, disk: 40 },
-  full: { volume: 200, disk: 40 },
+// Model group definitions with estimated sizes
+const MODEL_GROUPS = [
+  { value: 'juggernaut', label: 'Juggernaut XL', icon: '🖼️', sizeGb: 7, category: 'Image' },
+  { value: 'pony', label: 'CyberRealistic Pony', icon: '🐴', sizeGb: 7, category: 'Image' },
+  { value: 'qwen', label: 'Qwen Image', icon: '✨', sizeGb: 12, category: 'Image' },
+  { value: 'flux2', label: 'Flux2 Dev + Turbo', icon: '⚡', sizeGb: 15, category: 'Image' },
+  { value: 'z_image', label: 'Z-Image (HQ)', icon: '💎', sizeGb: 10, category: 'Image' },
+  { value: 'z_image_turbo', label: 'Z-Image Turbo', icon: '🚀', sizeGb: 8, category: 'Image' },
+  { value: 'wan22', label: 'Wan 2.2 T2V/I2V', icon: '🎬', sizeGb: 40, category: 'Video' },
+  { value: 'ltx2', label: 'LTX-2 19B', icon: '🎥', sizeGb: 25, category: 'Video' },
+  { value: 'ltx2_camera', label: 'LTX-2 Camera LoRAs', icon: '📷', sizeGb: 2, category: 'Video' },
+  { value: 'upscale', label: 'RealESRGAN Upscale', icon: '🔍', sizeGb: 1, category: 'Shared' },
+  { value: 'shared', label: 'Captioning Models', icon: '💬', sizeGb: 8, category: 'Shared' },
+]
+
+const estimatedDiskGb = computed(() => {
+  return deployState.modelGroups.reduce((sum, g) => {
+    const group = MODEL_GROUPS.find(mg => mg.value === g)
+    return sum + (group?.sizeGb || 5)
+  }, 0)
+})
+
+// Auto-update volume when groups change
+watch(() => deployState.modelGroups, () => {
+  deployState.volumeInGb = Math.ceil(estimatedDiskGb.value * 1.3) // 30% headroom
+}, { deep: true })
+
+function toggleGroup(value: string) {
+  const idx = deployState.modelGroups.indexOf(value)
+  if (idx >= 0) deployState.modelGroups.splice(idx, 1)
+  else deployState.modelGroups.push(value)
 }
 
-watch(() => deployState.profile, (profile) => {
-  const sizes = PROFILE_SIZES[profile] ?? PROFILE_SIZES.full!
-  deployState.volumeInGb = sizes!.volume
-  deployState.containerDiskInGb = sizes!.disk
-})
+function selectPreset(preset: 'image' | 'video' | 'all' | 'none') {
+  const presets: Record<string, string[]> = {
+    image: ['juggernaut', 'pony', 'qwen', 'flux2', 'z_image', 'z_image_turbo', 'upscale'],
+    video: ['wan22', 'ltx2', 'ltx2_camera', 'upscale', 'shared'],
+    all: MODEL_GROUPS.map(g => g.value),
+    none: [],
+  }
+  deployState.modelGroups = [...(presets[preset] || [])]
+}
+
+// On-demand sync for running pods
+const showSyncModal = ref(false)
+const syncTargetPod = ref('')
+const syncGroups = ref<string[]>([])
+const syncing = ref(false)
+
+function openSyncModal(podId: string) {
+  syncTargetPod.value = podId
+  syncGroups.value = []
+  showSyncModal.value = true
+}
+
+function toggleSyncGroup(value: string) {
+  const idx = syncGroups.value.indexOf(value)
+  if (idx >= 0) syncGroups.value.splice(idx, 1)
+  else syncGroups.value.push(value)
+}
+
+async function triggerSync() {
+  if (syncGroups.value.length === 0) return alert('Select at least one model group')
+  syncing.value = true
+  try {
+    await $fetch('/api/runpod/sync-models', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: { podId: syncTargetPod.value, groups: syncGroups.value },
+    })
+    showSyncModal.value = false
+    alert(`✅ Sync started for: ${syncGroups.value.join(', ')}. Check pod logs for progress.`)
+  } catch (e: any) {
+    alert(`Failed: ${e?.data?.message || e.message}`)
+  } finally {
+    syncing.value = false
+  }
+}
 
 const cloudTypes = [
   { label: 'Secure Cloud', value: 'SECURE' },
   { label: 'Community Cloud', value: 'COMMUNITY' },
   { label: 'Any', value: 'ALL' }
-]
-
-const podProfiles = [
-  { label: '🖼️ Image Only (SDXL, Upscale ~15GB)', value: 'image' },
-  { label: '🎬 Video Only (LTX-2, Wan 2.2 ~80GB)', value: 'video' },
-  { label: '⚡ Full (Everything ~100GB)', value: 'full' },
 ]
 
 watch(showDeployModal, async (open) => {
@@ -150,7 +211,7 @@ async function deployPod() {
       dataCenterId: deployState.dataCenter,
       volumeInGb: deployState.volumeInGb,
       containerDiskInGb: deployState.containerDiskInGb,
-      profile: deployState.profile,
+      modelGroups: deployState.modelGroups,
     }
     const res = await $fetch<{ podId: string }>('/api/runpod/deploy', {
       method: 'POST',
@@ -523,16 +584,28 @@ onUnmounted(() => {
                 Stop Pod
               </UButton>
             </div>
-            <UButton
-              icon="i-heroicons-trash"
-              color="error"
-              variant="ghost"
-              size="sm"
-              loading-auto
-              @click="terminatePod(pod.id)"
-            >
-              Terminate
-            </UButton>
+            <div class="flex items-center gap-1">
+              <UButton
+                v-if="pod.status === 'RUNNING'"
+                icon="i-heroicons-arrow-down-tray"
+                color="primary"
+                variant="ghost"
+                size="sm"
+                @click="openSyncModal(pod.id)"
+              >
+                Sync Models
+              </UButton>
+              <UButton
+                icon="i-heroicons-trash"
+                color="error"
+                variant="ghost"
+                size="sm"
+                loading-auto
+                @click="terminatePod(pod.id)"
+              >
+                Terminate
+              </UButton>
+            </div>
           </div>
         </template>
       </UCard>
@@ -632,17 +705,32 @@ onUnmounted(() => {
               <UInput v-model="deployState.containerDiskInGb" type="number" min="1" class="w-full" size="lg" />
             </UFormField>
 
-            <UFormField label="Pod Profile" name="profile" required>
-              <USelect
-                v-model="deployState.profile"
-                :items="podProfiles"
-                class="w-full"
-                size="lg"
-              />
-              <p class="text-xs text-slate-400 mt-1">
-                Controls which models are synced. Image pods need ~15GB, video ~80GB, full ~100GB.
+            <div class="col-span-1 sm:col-span-2">
+              <label class="block text-sm font-medium text-slate-700 mb-2">Model Groups</label>
+              <!-- Preset buttons -->
+              <div class="flex gap-1.5 mb-3">
+                <button v-for="p in (['image', 'video', 'all', 'none'] as const)" :key="p" class="px-2 py-0.5 text-[10px] rounded font-medium uppercase tracking-wide bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors" @click="selectPreset(p)">{{ p }}</button>
+              </div>
+              <!-- Group checkboxes -->
+              <div class="grid grid-cols-2 gap-1.5">
+                <button
+                  v-for="group in MODEL_GROUPS"
+                  :key="group.value"
+                  class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border"
+                  :class="deployState.modelGroups.includes(group.value)
+                    ? 'bg-primary-50 border-primary-300 text-primary-700'
+                    : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'"
+                  @click="toggleGroup(group.value)"
+                >
+                  <span>{{ group.icon }}</span>
+                  <span class="truncate">{{ group.label }}</span>
+                  <span class="ml-auto text-[10px] opacity-60">{{ group.sizeGb }}GB</span>
+                </button>
+              </div>
+              <p class="text-xs mt-2 font-medium" :class="estimatedDiskGb > 100 ? 'text-amber-600' : 'text-slate-500'">
+                Estimated: ~{{ estimatedDiskGb }}GB models → {{ deployState.volumeInGb }}GB volume
               </p>
-            </UFormField>
+            </div>
           </div>
           
           <div class="flex justify-end gap-3 pt-6 border-t border-slate-100 mt-2">
@@ -650,6 +738,38 @@ onUnmounted(() => {
             <UButton type="submit" color="primary" size="lg" loading-auto>Deploy Instance</UButton>
           </div>
         </UForm>
+      </template>
+    </UModal>
+
+    <!-- Sync Models Modal -->
+    <UModal
+      v-model:open="showSyncModal"
+      title="Sync Models to Pod"
+      description="Select model groups to download on the running pod."
+      :close="{ color: 'neutral', variant: 'ghost', icon: 'i-heroicons-x-mark' }"
+    >
+      <template #body>
+        <div class="grid grid-cols-2 gap-1.5 mb-4">
+          <button
+            v-for="group in MODEL_GROUPS"
+            :key="group.value"
+            class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border"
+            :class="syncGroups.includes(group.value)
+              ? 'bg-primary-50 border-primary-300 text-primary-700'
+              : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'"
+            @click="toggleSyncGroup(group.value)"
+          >
+            <span>{{ group.icon }}</span>
+            <span class="truncate">{{ group.label }}</span>
+            <span class="ml-auto text-[10px] opacity-60">{{ group.sizeGb }}GB</span>
+          </button>
+        </div>
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+          <UButton color="neutral" variant="ghost" @click="showSyncModal = false">Cancel</UButton>
+          <UButton color="primary" :loading="syncing" :disabled="syncGroups.length === 0" @click="triggerSync">
+            Start Sync ({{ syncGroups.length }} groups)
+          </UButton>
+        </div>
       </template>
     </UModal>
   </div>

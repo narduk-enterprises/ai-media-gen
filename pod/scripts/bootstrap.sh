@@ -4,7 +4,7 @@
 #
 # Expected env vars (injected by CF Worker at deploy time):
 #   GITHUB_PAT   — GitHub PAT with repo read access
-#   POD_PROFILE  — image | video | full (default: full)
+#   MODEL_GROUPS — Comma-separated model groups (e.g. juggernaut,pony,upscale)
 #   REPO_URL     — GitHub repo URL (default: loganrenz/ai-media-gen)
 #
 # Idempotent. Re-run safe. Runs automatically on pod start.
@@ -13,7 +13,7 @@ set -euo pipefail
 
 LOGDIR=/workspace/logs
 REPO_DIR=/workspace/_repo
-PROFILE="${POD_PROFILE:-full}"
+MODEL_GROUPS="${MODEL_GROUPS:-}"
 REPO="${REPO_URL:-loganrenz/ai-media-gen}"
 GITHUB_PAT="${GITHUB_PAT:-}"
 
@@ -21,7 +21,7 @@ mkdir -p "$LOGDIR"
 exec > >(tee "$LOGDIR/setup.log") 2>&1
 
 echo "═══ BOOTSTRAP START  $(date) ═══"
-echo "  Profile: $PROFILE"
+echo "  Model Groups: ${MODEL_GROUPS:-all}"
 echo ""
 
 run_logged() {
@@ -69,7 +69,7 @@ printf "#!/bin/bash\n[ -f /workspace/manage.sh ] && bash /workspace/manage.sh st
 chmod +x /post_start.sh
 
 # Write profile
-echo "$PROFILE" > /workspace/.pod_profile
+echo "$MODEL_GROUPS" > /workspace/.model_groups
 
 # ══ STEP 2: Model sync in BACKGROUND ══
 echo "▸ [2/5] Starting model sync in background..."
@@ -78,7 +78,9 @@ if [ -d "/workspace/.cache/huggingface/hub" ]; then
 fi
 (
     pip install -q huggingface-hub requests hf_transfer 2>&1 | tail -1 || true
-    python3 -u /workspace/sync_models.py --profile "$PROFILE" > >(tee -a "$LOGDIR/sync_models.log") 2>&1
+    SYNC_ARGS=""
+    [ -n "$MODEL_GROUPS" ] && SYNC_ARGS="--groups $MODEL_GROUPS"
+    python3 -u /workspace/sync_models.py $SYNC_ARGS > >(tee -a "$LOGDIR/sync_models.log") 2>&1
 ) &
 SYNC_PID=$!
 echo "  Model sync running (PID $SYNC_PID)"

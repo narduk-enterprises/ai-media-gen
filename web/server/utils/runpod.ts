@@ -210,7 +210,7 @@ export async function getRunPodOptions(): Promise<{ templates: any[], gpuTypes: 
 /**
  * Deploy a new pod on demand with automated setup.
  *
- * Injects env vars (GITHUB_PAT, POD_PROFILE) and a dockerStartCmd
+ * Injects env vars (GITHUB_PAT, MODEL_GROUPS) and a dockerArgs command
  * that clones the repo and runs bootstrap.sh on first boot.
  */
 export async function deployRunPod(
@@ -223,13 +223,13 @@ export async function deployRunPod(
     dataCenterId?: string,
     volumeInGb?: number,
     containerDiskInGb?: number,
-    profile?: string,
+    modelGroups?: string[],
   }
 ): Promise<string> {
   const config = useRuntimeConfig() as any
   const githubPat = config.githubPat || process.env.GITHUB_PAT || ''
   const repoUrl = 'loganrenz/ai-media-gen'
-  const profile = options?.profile || 'full'
+  const modelGroups = options?.modelGroups || []
 
   const query = `
     mutation($input: PodFindAndDeployOnDemandInput!) {
@@ -251,14 +251,16 @@ export async function deployRunPod(
     '\'',
   ].join(' ')
 
-  // Profile-aware volume sizing (models are large)
-  // image ~30GB models + overhead, video ~80GB models + overhead, full ~120GB+
-  const PROFILE_VOLUME_GB: Record<string, number> = {
-    image: 75,
-    video: 150,
-    full: 200,
+  // Estimated sizes per group (GB) for auto volume sizing
+  const GROUP_SIZE_GB: Record<string, number> = {
+    juggernaut: 7, pony: 7, qwen: 12, flux2: 15,
+    z_image: 10, z_image_turbo: 8, wan22: 40, ltx2: 25,
+    ltx2_camera: 2, upscale: 1, shared: 8,
   }
-  const defaultVolume = PROFILE_VOLUME_GB[profile] || 200
+  const estimatedSize = modelGroups.length > 0
+    ? modelGroups.reduce((sum, g) => sum + (GROUP_SIZE_GB[g] || 5), 0)
+    : 120 // default: full ~120GB
+  const defaultVolume = Math.ceil(estimatedSize * 1.3) // 30% headroom
 
   const input: any = {
     gpuCount,
@@ -271,7 +273,7 @@ export async function deployRunPod(
     templateId,
     env: [
       { key: 'GITHUB_PAT', value: githubPat },
-      { key: 'POD_PROFILE', value: profile },
+      { key: 'MODEL_GROUPS', value: modelGroups.join(',') },
       { key: 'REPO_URL', value: repoUrl },
     ],
     dockerArgs: bootstrapCmd,
