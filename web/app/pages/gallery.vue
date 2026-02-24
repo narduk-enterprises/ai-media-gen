@@ -29,10 +29,10 @@ watch([pending, loadingMore], () => {
 
 // ─── Filters ──────────────────────────────────────────────────────────
 const searchQuery = ref('')
-const sortOrder = ref<'newest' | 'oldest'>('newest')
+const sortOrder = useCookie<'newest' | 'oldest'>('gallery-sort', { default: () => 'newest' })
 type TypeFilter = 'all' | 'image' | 'video'
-const typeFilter = ref<TypeFilter>('all')
-const largeGrid = ref(true)
+const typeFilter = useCookie<TypeFilter>('gallery-type', { default: () => 'all' })
+const largeGrid = useCookie<boolean>('gallery-grid', { default: () => true })
 
 // ─── Flattened media ─────────────────────────────────────────────────
 interface GalleryMedia {
