@@ -34,41 +34,59 @@ export async function resolveApiUrl(urlOverride?: string, _profile?: PodProfile)
     const running = pods.filter(p => p.status === 'RUNNING')
 
     if (running.length > 0) {
-      const db = useDatabase()
+      // Health-check all pods in parallel (3s timeout — skip unresponsive ones)
+      const podUrls = running.map(p => `https://${p.id}-8188.proxy.runpod.net`)
+      const healthResults = await Promise.allSettled(
+        podUrls.map(url =>
+          $fetch(`${url}/health`, { timeout: 3_000 })
+            .then(() => url)
+            .catch(() => null),
+        ),
+      )
 
-      // Count processing jobs per pod URL
-      const processing = await db.select({ metadata: mediaItems.metadata })
-        .from(mediaItems)
-        .where(eq(mediaItems.status, 'processing'))
+      const healthyUrls = healthResults
+        .map(r => (r.status === 'fulfilled' ? r.value : null))
+        .filter((url): url is string => url !== null)
 
-      const jobCountByUrl = new Map<string, number>()
-      for (const item of processing) {
-        if (!item.metadata) continue
-        try {
-          const meta = JSON.parse(item.metadata)
-          const podUrl = meta.apiUrl || meta.podUrl || ''
-          if (podUrl) {
-            jobCountByUrl.set(podUrl, (jobCountByUrl.get(podUrl) || 0) + 1)
-          }
-        } catch {}
-      }
+      if (healthyUrls.length === 0) {
+        console.warn(`[Router] ${running.length} pod(s) RUNNING but none responding to /health — still starting up?`)
+        // Fall through to env var fallback
+      } else {
+        const db = useDatabase()
 
-      // Pick pod with fewest active jobs
-      let bestUrl = ''
-      let bestCount = Infinity
+        // Count processing jobs per pod URL
+        const processing = await db.select({ metadata: mediaItems.metadata })
+          .from(mediaItems)
+          .where(eq(mediaItems.status, 'processing'))
 
-      for (const pod of running) {
-        const url = `https://${pod.id}-8188.proxy.runpod.net`
-        const count = jobCountByUrl.get(url) || 0
-        if (count < bestCount) {
-          bestCount = count
-          bestUrl = url
+        const jobCountByUrl = new Map<string, number>()
+        for (const item of processing) {
+          if (!item.metadata) continue
+          try {
+            const meta = JSON.parse(item.metadata)
+            const podUrl = meta.apiUrl || meta.podUrl || ''
+            if (podUrl) {
+              jobCountByUrl.set(podUrl, (jobCountByUrl.get(podUrl) || 0) + 1)
+            }
+          } catch {}
         }
-      }
 
-      if (bestUrl) {
-        console.log(`[Router] → ${bestUrl} (${bestCount} active jobs, ${running.length} pods available)`)
-        return bestUrl
+        // Pick healthy pod with fewest active jobs
+        let bestUrl = ''
+        let bestCount = Infinity
+
+        for (const url of healthyUrls) {
+          const count = jobCountByUrl.get(url) || 0
+          if (count < bestCount) {
+            bestCount = count
+            bestUrl = url
+          }
+        }
+
+        if (bestUrl) {
+          console.log(`[Router] → ${bestUrl} (${bestCount} active jobs, ${healthyUrls.length}/${running.length} pods healthy)`)
+          return bestUrl
+        }
       }
     }
   } catch (e: any) {
