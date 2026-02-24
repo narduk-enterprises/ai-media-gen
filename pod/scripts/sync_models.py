@@ -287,8 +287,16 @@ def sync_repo(entry, token):
     for repo_path, sub_dir in files.items():
         basename = os.path.basename(repo_path)
         target_path = os.path.join(MODELS_DIR, sub_dir, basename)
-        if os.path.exists(target_path) and os.path.getsize(target_path) > 0:
-            tprint(f"  [√] {basename} ({sub_dir}/) — exists")
+        if os.path.exists(target_path):
+            fsize = os.path.getsize(target_path)
+            # Safetensors models should be >10MB; smaller = corrupted/partial
+            min_size = 10_000_000 if basename.endswith('.safetensors') else 1000
+            if fsize > min_size:
+                tprint(f"  [√] {basename} ({sub_dir}/) — {fsize / (1024**2):.0f}MB")
+            else:
+                tprint(f"  ⚠️  {basename} only {fsize / (1024**2):.1f}MB — re-downloading")
+                os.remove(target_path)
+                needed[repo_path] = sub_dir
         else:
             needed[repo_path] = sub_dir
 

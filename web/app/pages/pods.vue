@@ -335,11 +335,14 @@ interface PodHealth {
 const podHealth = ref<Record<string, PodHealth>>({})
 
 async function fetchPodHealth(podId: string) {
+  // Call pod admin server directly from the browser (CORS: * enabled)
+  // CF Workers can't reach RunPod proxy URLs, but the browser can
+  const podUrl = `https://${podId}-8188.proxy.runpod.net`
   try {
-    const result = await $fetch<PodHealth>('/api/runpod/pod-health', { params: { podId } })
+    const result = await $fetch<PodHealth>(`${podUrl}/health`, { timeout: 8_000 })
     podHealth.value[podId] = result
   } catch {
-    // Pod may not be reachable yet
+    // Pod may not be reachable yet (still booting)
   }
 }
 
