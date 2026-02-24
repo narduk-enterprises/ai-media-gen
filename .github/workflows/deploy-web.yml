@@ -20,6 +20,14 @@ jobs:
           cache: npm
           cache-dependency-path: 'web/package-lock.json'
 
+      - name: Cache Nuxt build
+        uses: actions/cache@v4
+        with:
+          path: web/.nuxt
+          key: ${{ runner.os }}-nuxt-${{ hashFiles('web/package-lock.json', 'web/nuxt.config.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-nuxt-
+
       - name: Install dependencies
         working-directory: web
         run: npm ci
