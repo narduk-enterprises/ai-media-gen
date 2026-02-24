@@ -1,0 +1,133 @@
+{
+  "1": {
+    "inputs": {"image": "{{image_filename}}", "upload": "image"},
+    "class_type": "LoadImage",
+    "_meta": {"title": "Load Input Image"}
+  },
+  "38": {
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {"title": "Load CLIP Text Encoder"}
+  },
+  "6": {
+    "inputs": {
+      "text": "{{prompt}}",
+      "clip": ["38", 0]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Positive Prompt"}
+  },
+  "7": {
+    "inputs": {"text": "{{negative_prompt}}", "clip": ["38", 0]},
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Negative Prompt"}
+  },
+  "39": {
+    "inputs": {"vae_name": "wan_2.1_vae.safetensors"},
+    "class_type": "VAELoader",
+    "_meta": {"title": "Load VAE"}
+  },
+  "37": {
+    "inputs": {
+      "unet_name": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {"title": "Load I2V High Noise"}
+  },
+  "56": {
+    "inputs": {
+      "unet_name": "{{i2v_low_noise_model}}",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {"title": "Load I2V Low Noise"}
+  },
+  "54": {
+    "inputs": {"shift": "{{shift}}", "model": ["37", 0]},
+    "class_type": "ModelSamplingSD3",
+    "_meta": {"title": "ModelSamplingSD3 (High)"}
+  },
+  "55": {
+    "inputs": {"shift": "{{shift}}", "model": ["56", 0]},
+    "class_type": "ModelSamplingSD3",
+    "_meta": {"title": "ModelSamplingSD3 (Low)"}
+  },
+  "50": {
+    "inputs": {
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "vae": ["39", 0],
+      "start_image": ["1", 0],
+      "width": "{{width}}",
+      "height": "{{height}}",
+      "length": "{{frames}}",
+      "batch_size": 1
+    },
+    "class_type": "WanImageToVideo",
+    "_meta": {"title": "Wan I2V Conditioning"}
+  },
+  "57": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": "{{seed}}",
+      "steps": "{{steps}}",
+      "cfg": "{{cfg}}",
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": "{{half_steps}}",
+      "return_with_leftover_noise": "enable",
+      "model": ["54", 0],
+      "positive": ["50", 0],
+      "negative": ["50", 1],
+      "latent_image": ["50", 2]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {"title": "KSampler High Noise"}
+  },
+  "58": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": 0,
+      "steps": "{{steps}}",
+      "cfg": "{{cfg}}",
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": "{{half_steps}}",
+      "end_at_step": 10000,
+      "return_with_leftover_noise": "disable",
+      "model": ["55", 0],
+      "positive": ["50", 0],
+      "negative": ["50", 1],
+      "latent_image": ["57", 0]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {"title": "KSampler Low Noise"}
+  },
+  "8": {
+    "inputs": {"samples": ["58", 0], "vae": ["39", 0]},
+    "class_type": "VAEDecode",
+    "_meta": {"title": "VAE Decode"}
+  },
+  "11": {
+    "inputs": {"fps": 24, "images": ["8", 0]},
+    "class_type": "CreateVideo",
+    "_meta": {"title": "Create Video"}
+  },
+  "12": {
+    "inputs": {
+      "filename_prefix": "video/wan_i2v",
+      "format": "auto",
+      "codec": "auto",
+      "video-preview": "",
+      "video": ["11", 0]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {"title": "Save Video"}
+  }
+}

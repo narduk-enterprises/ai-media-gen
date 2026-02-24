@@ -1,0 +1,66 @@
+{
+  "10": {
+    "inputs": {
+      "ckpt_name": "{{checkpoint}}"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {"title": "Load Checkpoint"}
+  },
+  "20": {
+    "inputs": {
+      "text": "{{prompt}}",
+      "clip": ["10", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Positive Prompt"}
+  },
+  "21": {
+    "inputs": {
+      "text": "{{negative_prompt}}",
+      "clip": ["10", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Negative Prompt"}
+  },
+  "30": {
+    "inputs": {
+      "width": "{{width}}",
+      "height": "{{height}}",
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {"title": "Empty Latent Image"}
+  },
+  "40": {
+    "inputs": {
+      "seed": "{{seed}}",
+      "steps": "{{steps}}",
+      "cfg": "{{cfg}}",
+      "sampler_name": "{{sampler_name}}",
+      "scheduler": "{{scheduler}}",
+      "denoise": 1,
+      "model": ["10", 0],
+      "positive": ["20", 0],
+      "negative": ["21", 0],
+      "latent_image": ["30", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": {"title": "KSampler"}
+  },
+  "50": {
+    "inputs": {
+      "samples": ["40", 0],
+      "vae": ["10", 2]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {"title": "VAE Decode"}
+  },
+  "60": {
+    "inputs": {
+      "filename_prefix": "sdxl_output",
+      "images": ["50", 0]
+    },
+    "class_type": "SaveImage",
+    "_meta": {"title": "Save Image"}
+  }
+}
