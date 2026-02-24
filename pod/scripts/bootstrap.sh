@@ -191,7 +191,7 @@ fi
 pip install -q supervisor 2>/dev/null || true
 
 # Copy supervisord config
-cp /workspace/repo/pod/scripts/supervisord.conf /workspace/supervisord.conf
+cp "$REPO_DIR/pod/scripts/supervisord.conf" /workspace/supervisord.conf
 echo "  ✅ supervisord configured"
 
 # Set env vars for supervisord child processes
