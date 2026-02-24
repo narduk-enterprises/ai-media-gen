@@ -301,17 +301,13 @@ function setAsTarget(podId: string) {
     </div>
 
     <!-- Deploy Modal -->
-    <UModal v-model="showDeployModal">
-      <UCard>
-        <template #header>
-          <div class="flex items-center justify-between">
-            <h3 class="text-base font-semibold leading-6 text-slate-900">
-              Deploy New GPU Pod
-            </h3>
-            <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showDeployModal = false" />
-          </div>
-        </template>
-
+    <UModal 
+      v-model:open="showDeployModal" 
+      title="Deploy New GPU Pod"
+      description="Configure a new RunPod instance for AI generation."
+      :close="{ color: 'neutral', variant: 'ghost', icon: 'i-heroicons-x-mark' }"
+    >
+      <template #body>
         <div v-if="optionsPending" class="py-12 flex justify-center items-center gap-3 text-slate-500">
           <UIcon name="i-heroicons-arrow-path" class="w-5 h-5 animate-spin" />
           <span>Loading templates and GPUs...</span>
@@ -379,7 +375,7 @@ function setAsTarget(podId: string) {
             <UButton type="submit" color="primary" :loading="deploying">Deploy Instance</UButton>
           </div>
         </UForm>
-      </UCard>
+      </template>
     </UModal>
   </div>
 </template>
