@@ -4,9 +4,59 @@ import { formatDate, downloadMedia } from '~/composables/useGallery'
 definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Gallery' })
 
-const { generations, total, pending, loadingMore, hasMore, error, refresh, loadMore } = useGallery()
+const { generations, total, pending, loadingMore, hasMore, error, refresh, loadMore, deleteItems } = useGallery()
 const gen = useGeneration()
 const actionLoading = gen.actionLoading
+const toast = useToast()
+
+// ─── Selection & Deletion ──────────────────────────────────────────────
+const isSelectionMode = ref(false)
+const selectedIds = ref<Set<string>>(new Set())
+
+function toggleSelectionMode() {
+  isSelectionMode.value = !isSelectionMode.value
+  if (!isSelectionMode.value) selectedIds.value.clear()
+}
+
+function toggleItemSelection(id: string) {
+  if (selectedIds.value.has(id)) selectedIds.value.delete(id)
+  else selectedIds.value.add(id)
+}
+
+function handleItemClick(item: GalleryMedia, index: number) {
+  if (isSelectionMode.value) {
+    toggleItemSelection(item.id)
+  } else {
+    openLightbox(index)
+  }
+}
+
+const isDeleting = ref(false)
+const deleteModalOpen = ref(false)
+const itemToDelete = ref<string | null>(null) // null means bulk delete
+
+function promptDelete(id?: string) {
+  itemToDelete.value = id || null
+  deleteModalOpen.value = true
+}
+
+async function confirmDelete() {
+  isDeleting.value = true
+  try {
+    const ids = itemToDelete.value ? [itemToDelete.value] : Array.from(selectedIds.value)
+    await deleteItems(ids)
+    toast.add({ title: 'Deletion confirmed', description: `Successfully deleted ${ids.length > 1 ? ids.length + ' items' : 'item'}.`, color: 'success' })
+    if (!itemToDelete.value) {
+      isSelectionMode.value = false
+      selectedIds.value.clear()
+    }
+    deleteModalOpen.value = false
+  } catch (e: any) {
+    toast.add({ title: 'Deletion failed', description: e.message || 'Something went wrong.', color: 'error' })
+  } finally {
+    isDeleting.value = false
+  }
+}
 
 // ─── Infinite scroll ──────────────────────────────────────────────────
 const sentinelRef = ref<HTMLElement | null>(null)
@@ -116,8 +166,30 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
         <!-- Sort -->
         <UButton size="xs" variant="ghost" color="neutral" :icon="sortOrder === 'newest' ? 'i-lucide-arrow-down-wide-narrow' : 'i-lucide-arrow-up-narrow-wide'" @click="sortOrder = sortOrder === 'newest' ? 'oldest' : 'newest'" :title="sortOrder === 'newest' ? 'Newest first' : 'Oldest first'" />
 
+        <!-- Selection mode toggle -->
+        <UButton
+          size="xs"
+          :variant="isSelectionMode ? 'solid' : 'ghost'"
+          :color="isSelectionMode ? 'primary' : 'neutral'"
+          icon="i-lucide-check-square"
+          @click="toggleSelectionMode"
+        >
+          {{ isSelectionMode ? 'Done' : 'Select' }}
+        </UButton>
+
         <UButton variant="ghost" color="neutral" size="xs" icon="i-lucide-refresh-cw" :class="{ 'animate-spin': pending }" @click="refresh()" />
       </div>
+
+      <!-- Bulk Action Bar -->
+      <Transition name="fade">
+        <div v-if="isSelectionMode && selectedIds.size > 0" class="bg-violet-50 border-b border-violet-100 flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2">
+          <span class="text-sm font-medium text-violet-700">{{ selectedIds.size }} selected</span>
+          <div class="flex items-center gap-2">
+            <UButton size="xs" color="neutral" variant="solid" @click="selectedIds.clear()">Deselect All</UButton>
+            <UButton size="xs" color="error" variant="solid" icon="i-lucide-trash-2" @click="promptDelete()">Delete Selected</UButton>
+          </div>
+        </div>
+      </Transition>
     </div>
 
     <!-- Body -->
@@ -154,27 +226,36 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
       <div v-else :class="['columns-2', largeGrid ? 'sm:columns-3 lg:columns-4 gap-4' : 'sm:columns-4 lg:columns-5 xl:columns-6 gap-3']">
         <div
           v-for="(item, index) in filteredMedia" :key="item.id"
-          :class="['group relative break-inside-avoid rounded-xl overflow-hidden cursor-pointer border border-slate-200 hover:border-violet-300 transition-all hover:shadow-lg', largeGrid ? 'mb-4' : 'mb-3']"
-          @click="openLightbox(index)"
+          :class="[
+            'group relative break-inside-avoid rounded-xl overflow-hidden cursor-pointer border transition-all hover:shadow-lg',
+            largeGrid ? 'mb-4' : 'mb-3',
+            selectedIds.has(item.id) ? 'border-violet-500 ring-2 ring-violet-500 ring-offset-2 ring-offset-slate-50' : 'border-slate-200 hover:border-violet-300'
+          ]"
+          @click="handleItemClick(item, index)"
         >
-          <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="none" class="w-full h-auto bg-slate-100 block" @mouseenter="($event.target as HTMLVideoElement).play()" @mouseleave="($event.target as HTMLVideoElement).pause()" />
+          <div v-if="isSelectionMode" class="absolute top-2.5 left-2.5 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shadow-sm" :class="selectedIds.has(item.id) ? 'bg-violet-500 border-violet-500 text-white' : 'bg-white/50 backdrop-blur-sm border-white/80'">
+            <UIcon v-if="selectedIds.has(item.id)" name="i-lucide-check" class="w-3.5 h-3.5" />
+          </div>
+
+          <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="none" class="w-full h-auto bg-slate-100 block" @mouseenter="!isSelectionMode && ($event.target as HTMLVideoElement).play()" @mouseleave="!isSelectionMode && ($event.target as HTMLVideoElement).pause()" />
           <NuxtImg v-else :src="item.url" :alt="item.prompt" :width="largeGrid ? 512 : 300" class="w-full h-auto bg-slate-100 block" loading="lazy" />
 
           <!-- Video badge -->
-          <div v-if="item.type === 'video'" class="absolute top-2.5 left-2.5 px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm text-white text-xs flex items-center gap-1">
+          <div v-if="item.type === 'video' && !isSelectionMode" class="absolute top-2.5 left-2.5 px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm text-white text-xs flex items-center gap-1">
             <UIcon name="i-lucide-play" class="w-3.5 h-3.5" /> Video
           </div>
 
           <!-- Hover overlay -->
-          <div class="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <div v-if="!isSelectionMode" class="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
             <div class="absolute bottom-0 left-0 right-0 p-3">
               <p class="text-white text-xs line-clamp-2 leading-relaxed">{{ item.prompt }}</p>
               <p class="text-white/50 text-[10px] mt-0.5">{{ formatDate(item.createdAt) }}</p>
             </div>
           </div>
 
-          <!-- Download on hover -->
-          <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <!-- Actions on hover -->
+          <div v-if="!isSelectionMode" class="absolute top-2.5 right-2.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <UButton size="sm" variant="soft" color="error" icon="i-lucide-trash-2" @click.stop="promptDelete(item.id)" />
             <UButton size="sm" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="downloadMedia(item.url, item.type)" />
           </div>
         </div>
@@ -220,14 +301,40 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
               <p class="text-xs text-white/80 leading-relaxed">{{ currentItem.prompt }}</p>
             </div>
             <div v-if="currentItem.settings" class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs border-t border-white/10 pt-3">
-              <span class="text-white/40">Dimensions</span><span>{{ currentItem.settings.width }} × {{ currentItem.settings.height }}</span>
-              <span class="text-white/40">Steps</span><span>{{ currentItem.settings.steps }}</span>
               <span class="text-white/40">Created</span><span>{{ formatDate(currentItem.createdAt) }}</span>
+              <template v-for="(val, key) in currentItem.settings" :key="key">
+                <template v-if="key !== 'prompt' && val !== undefined && val !== null && val !== ''">
+                  <span class="text-white/40 capitalize">{{ key.replace(/_/g, ' ') }}</span>
+                  <span class="truncate" :title="String(val)">
+                    {{ typeof val === 'object' ? JSON.stringify(val) : val }}
+                  </span>
+                </template>
+              </template>
             </div>
           </div>
         </Transition>
       </template>
     </AppLightbox>
+
+    <!-- Delete Confirmation Modal -->
+    <UModal v-model="deleteModalOpen">
+      <div class="p-6">
+        <div class="flex items-center gap-3 text-red-600 mb-4">
+          <UIcon name="i-lucide-alert-triangle" class="w-6 h-6" />
+          <h3 class="font-display font-semibold text-lg text-slate-800">Confirm Deletion</h3>
+        </div>
+        <p class="text-slate-600 text-sm mb-6">
+          Are you sure you want to delete
+          <strong v-if="itemToDelete">this item</strong>
+          <strong v-else>these {{ selectedIds.size }} selected items</strong>?
+          This action cannot be undone, and the generative media will be permanently removed.
+        </p>
+        <div class="flex justify-end gap-3">
+          <UButton color="neutral" variant="solid" @click="deleteModalOpen = false">Cancel</UButton>
+          <UButton color="error" variant="solid" :loading="isDeleting" @click="confirmDelete()">Delete Forever</UButton>
+        </div>
+      </div>
+    </UModal>
   </div>
 </template>
 

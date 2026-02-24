@@ -56,12 +56,34 @@ export function useGallery() {
     }
   }
 
+  async function deleteItems(itemIds: string[]) {
+    if (!itemIds.length) return
+    try {
+      await $fetch('/api/generate/delete', { method: 'POST', body: { itemIds } })
+      
+      // Speculatively remove items locally
+      const toDelete = new Set(itemIds)
+      generations.value = generations.value
+        .map(gen => {
+          const filteredItems = gen.items.filter(item => !toDelete.has(item.id))
+          return { ...gen, items: filteredItems }
+        })
+        .filter(gen => gen.items.length > 0) // Remove empty generations
+      
+      // Adjust total count loosely (assumes 1 item per generation for simplicity, but accurate enough for UX)
+      total.value = Math.max(0, total.value - 1)
+    } catch (e: any) {
+      console.error('Failed to delete items:', e)
+      throw e
+    }
+  }
+
   // Fetch on mount — fresh data every page visit
   if (import.meta.client) {
     onMounted(() => fetchGenerations())
   }
 
-  return { generations, total, pending, loadingMore, hasMore, error, refresh: fetchGenerations, loadMore }
+  return { generations, total, pending, loadingMore, hasMore, error, refresh: fetchGenerations, loadMore, deleteItems }
 }
 
 /** Trigger a browser download for a media URL. */
