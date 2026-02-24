@@ -2126,7 +2126,8 @@ class AdminHandler(BaseHTTPRequestHandler):
         if path == "/health":
             comfy = _get_comfy_health()
             disk = _get_disk_info()
-            return self._json(200, {"comfy": comfy, "disk": disk, "admin_port": ADMIN_PORT, "comfy_port": COMFY_PORT})
+            groups = _check_synced_groups()
+            return self._json(200, {"comfy": comfy, "disk": disk, "synced_groups": groups, "admin_port": ADMIN_PORT, "comfy_port": COMFY_PORT})
 
         if path == "/models":
             return self._json(200, _list_models())

@@ -18,6 +18,7 @@ import {
   submitText2Video, submitUpscale, submitMultiSegmentVideo,
 } from './podClient'
 import { completeMediaItem, updateGenerationStatus } from './completeItem'
+import { resolveApiUrl, getRequiredGroups } from './ai'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 
 type DB = DrizzleD1Database<any>
@@ -97,7 +98,9 @@ async function submitPhase(db: DB) {
 
       // Route to correct pod endpoint based on action type
       const action = input.action || ''
-      const podUrl = meta.apiUrl || meta.podUrl || getPodUrl()
+      // Use model-aware routing: determine required groups and find a pod that has them
+      const requiredGroups = getRequiredGroups(input)
+      const podUrl = meta.apiUrl || meta.podUrl || await resolveApiUrl(undefined, undefined, requiredGroups)
       let response: { job_id: string; status?: string }
 
       switch (action) {

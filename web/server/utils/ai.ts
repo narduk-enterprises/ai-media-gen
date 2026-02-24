@@ -1,12 +1,12 @@
 /**
- * ai.ts — Smart GPU Pod routing.
+ * ai.ts — Smart GPU Pod routing with model-aware filtering.
  *
- * Auto-discovers running pods via RunPod API, counts active jobs per pod
- * in D1, and routes to the least-loaded pod.
+ * Auto-discovers running pods via RunPod API, checks live ComfyUI queue depth
+ * AND synced model groups, then routes to the best pod that has the required models.
  *
  * Priority:
  *   1. Explicit URL override from frontend (backward compat for scripts)
- *   2. Least-loaded running pod (fewest processing items in D1)
+ *   2. Best healthy pod with required models + lowest queue depth
  *   3. Profile-specific env vars (NUXT_POD_IMAGE_URL, NUXT_POD_VIDEO_URL)
  *   4. Global NUXT_COMFY_URL fallback
  */
@@ -15,40 +15,55 @@ import { getPodUrl } from './podClient'
 export type EndpointType = string
 export type PodProfile = 'image' | 'video' | 'full'
 
+interface PodHealth {
+  url: string
+  queueDepth: number
+  syncedGroups: Record<string, { status: string }> // group -> { status: 'synced' | 'partial' | 'missing' }
+}
+
 /**
- * Resolve the GPU Pod API URL with smart least-loaded routing.
+ * Resolve the GPU Pod API URL with model-aware, least-loaded routing.
  *
- * This is an async function — all callers are inside async API route handlers.
+ * @param urlOverride Explicit URL from client settings
+ * @param _profile Legacy profile type
+ * @param requiredGroups Model groups the job needs (e.g., ['wan22'] or ['pony'])
  */
-export async function resolveApiUrl(urlOverride?: string, _profile?: PodProfile): Promise<string> {
+export async function resolveApiUrl(
+  urlOverride?: string,
+  _profile?: PodProfile,
+  requiredGroups?: string[],
+): Promise<string> {
   // 1. Explicit URL from client settings or scripts
   if (urlOverride && (urlOverride.startsWith('http://') || urlOverride.startsWith('https://'))) {
     return urlOverride.replace(/\/+$/, '')
   }
 
-  // 2. Smart routing: find least-loaded running pod
+  // 2. Smart routing: find best pod with required models + lowest queue
   try {
     const pods = await getRunPods()
     const running = pods.filter(p => p.status === 'RUNNING')
 
     if (running.length > 0) {
-      // Health-check all pods in parallel — returns queue depth for real-time load balancing
       const podUrls = running.map(p => `https://${p.id}-8188.proxy.runpod.net`)
 
-      type HealthResult = { url: string; queueDepth: number }
       const healthResults = await Promise.allSettled(
-        podUrls.map(async (url): Promise<HealthResult | null> => {
+        podUrls.map(async (url): Promise<PodHealth | null> => {
           try {
             const health = await $fetch<{
               comfy?: { status?: string; queue_pending?: number; queue_running?: number }
+              synced_groups?: Record<string, { status: string }>
             }>(`${url}/health`, { timeout: 3_000 })
 
             // Skip pods where ComfyUI isn't running yet
             if (health.comfy?.status !== 'running') return null
 
             const pending = health.comfy?.queue_pending ?? 0
-            const running = health.comfy?.queue_running ?? 0
-            return { url, queueDepth: pending + running }
+            const queueRunning = health.comfy?.queue_running ?? 0
+            return {
+              url,
+              queueDepth: pending + queueRunning,
+              syncedGroups: health.synced_groups ?? {},
+            }
           } catch {
             return null
           }
@@ -57,17 +72,49 @@ export async function resolveApiUrl(urlOverride?: string, _profile?: PodProfile)
 
       const healthy = healthResults
         .map(r => (r.status === 'fulfilled' ? r.value : null))
-        .filter((r): r is HealthResult => r !== null)
+        .filter((r): r is PodHealth => r !== null)
 
       if (healthy.length === 0) {
         console.warn(`[Router] ${running.length} pod(s) RUNNING but none healthy — still starting up?`)
-        // Fall through to env var fallback
       } else {
-        // Pick pod with lowest queue depth (ties go to first found)
-        healthy.sort((a, b) => a.queueDepth - b.queueDepth)
-        const best = healthy[0]!
-        const summary = healthy.map(h => `${new URL(h.url).hostname.split('-8188')[0]}=${h.queueDepth}`).join(', ')
-        console.log(`[Router] → ${best.url} (queue: ${best.queueDepth}, ${healthy.length}/${running.length} pods healthy) [${summary}]`)
+        // Filter by required model groups if specified
+        let candidates = healthy
+        if (requiredGroups && requiredGroups.length > 0) {
+          const withModels = healthy.filter(pod =>
+            requiredGroups.every(group => pod.syncedGroups[group]?.status === 'synced'),
+          )
+
+          if (withModels.length > 0) {
+            candidates = withModels
+          } else {
+            // No pod has all required groups fully synced — try partial matches
+            const withPartial = healthy.filter(pod =>
+              requiredGroups.every(group =>
+                pod.syncedGroups[group]?.status === 'synced' || pod.syncedGroups[group]?.status === 'partial',
+              ),
+            )
+            if (withPartial.length > 0) {
+              console.warn(`[Router] No pod fully synced for [${requiredGroups}], trying ${withPartial.length} partial match(es)`)
+              candidates = withPartial
+            } else {
+              console.warn(`[Router] No pod has models [${requiredGroups}] — routing to least loaded and hoping for the best`)
+              // Fall through with all healthy pods — the retry logic will handle failures
+            }
+          }
+        }
+
+        // Pick pod with lowest queue depth
+        candidates.sort((a, b) => a.queueDepth - b.queueDepth)
+        const best = candidates[0]!
+        const summary = candidates.map((h) => {
+          const id = new URL(h.url).hostname.split('-8188')[0]
+          const groups = Object.entries(h.syncedGroups)
+            .filter(([, v]) => v.status === 'synced')
+            .map(([k]) => k)
+          return `${id}=q${h.queueDepth}[${groups.join(',')}]`
+        }).join(', ')
+        const needed = requiredGroups?.length ? ` needs:[${requiredGroups}]` : ''
+        console.log(`[Router] → ${best.url} (queue: ${best.queueDepth}${needed}) [${summary}]`)
         return best.url
       }
     }
@@ -91,6 +138,35 @@ export async function resolveApiUrl(urlOverride?: string, _profile?: PodProfile)
 
   // 4. Global fallback
   return getPodUrl()
+}
+
+/**
+ * Determine which model groups a job requires based on its ComfyUI input.
+ * Used by the queue processor to pass to resolveApiUrl for model-aware routing.
+ */
+export function getRequiredGroups(input: Record<string, any>): string[] {
+  const groups = new Set<string>()
+  const action = input.action || ''
+  const json = JSON.stringify(input).toLowerCase()
+
+  // Check by known model filenames in the workflow payload
+  if (json.includes('cyberrealisticpony') || json.includes('pony')) groups.add('pony')
+  if (json.includes('juggernaut')) groups.add('juggernaut')
+  if (json.includes('flux') || json.includes('flux2')) groups.add('flux2')
+  if (json.includes('wan2.2') || json.includes('wan_2.1') || json.includes('wan22')) groups.add('wan22')
+  if (json.includes('ltxv') || json.includes('ltx2') || json.includes('ltx-video')) groups.add('ltx2')
+  if (json.includes('realesrgan') || json.includes('upscale')) groups.add('upscale')
+  if (json.includes('qwen')) groups.add('shared')
+
+  // Fallback: infer from action type if no specific models detected
+  if (groups.size === 0) {
+    if (action === 'text2video' || action === 'image2video' || action === 'multi_segment_video') {
+      // Default to wan22 for video actions
+      groups.add('wan22')
+    }
+  }
+
+  return [...groups]
 }
 
 /**

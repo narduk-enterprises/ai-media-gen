@@ -63,30 +63,31 @@ export default defineEventHandler(async (event) => {
     .limit(limit)
     .offset(offset)
 
-  // Fetch media items for each generation — only include complete items with URLs
-  const results = await Promise.all(
-    gens.map(async (gen) => {
-      const items = await db
+  // Batch-fetch all media items for this page in a single query (avoids N+1)
+  const genIds = gens.map(g => g.id)
+  const allItems = genIds.length > 0
+    ? await db
         .select()
         .from(mediaItems)
-        .where(eq(mediaItems.generationId, gen.id))
+        .where(inArray(mediaItems.generationId, genIds))
+    : []
 
-      // Only return complete items with valid URLs for the gallery
-      const visibleItems = items
-        .filter(item => item.status === 'complete' && item.url && item.url !== '')
-        .map((item) => ({
-          ...item,
-          url: item.url?.startsWith('data:')
-            ? `/api/media/${item.id}`
-            : item.url,
-        }))
+  // Group items by generation and filter to visible-only
+  const itemsByGen = new Map<string, typeof allItems>()
+  for (const item of allItems) {
+    if (item.status !== 'complete' || !item.url || item.url === '') continue
+    const arr = itemsByGen.get(item.generationId) || []
+    arr.push({
+      ...item,
+      url: item.url.startsWith('data:') ? `/api/media/${item.id}` : item.url,
+    })
+    itemsByGen.set(item.generationId, arr)
+  }
 
-      return { ...gen, items: visibleItems }
-    }),
-  )
-
-  // Filter out generations with no visible items (can happen if all items are non-complete)
-  const visibleResults = results.filter(r => r.items.length > 0)
+  // Build results, filtering out generations with no visible items
+  const visibleResults = gens
+    .map(gen => ({ ...gen, items: itemsByGen.get(gen.id) || [] }))
+    .filter(r => r.items.length > 0)
 
   return { generations: visibleResults, total, limit, offset }
 })

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { GenerationResult, MediaItemResult } from '~/types/gallery'
 import { formatDate } from '~/composables/useGallery'
-import type { LightboxItem } from '~/components/AppLightbox.vue'
 
 definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Gallery' })
@@ -70,13 +69,23 @@ interface GalleryMedia {
   qualityScore: number | null
 }
 
+// Cache parsed settings to avoid repeated JSON.parse across computed chains
+const parsedSettingsCache = computed(() => {
+  const cache = new Map<string, Record<string, any> | null>()
+  for (const gen of generations.value || []) {
+    if (gen.settings) {
+      try { cache.set(gen.id, JSON.parse(gen.settings)) } catch { cache.set(gen.id, null) }
+    } else {
+      cache.set(gen.id, null)
+    }
+  }
+  return cache
+})
+
 const allMedia = computed<GalleryMedia[]>(() => {
   const result: GalleryMedia[] = []
   for (const gen of generations.value || []) {
-    let settings: Record<string, any> | null = null
-    if (gen.settings) {
-      try { settings = JSON.parse(gen.settings) } catch {}
-    }
+    const settings = parsedSettingsCache.value.get(gen.id) ?? null
     for (const item of gen.items) {
       if ((item.type === 'image' || item.type === 'video') && item.url && item.status === 'complete') {
         result.push({ id: item.id, url: item.url, generationId: gen.id, prompt: gen.prompt, settings, createdAt: gen.createdAt, imageCount: gen.imageCount, type: item.type, status: item.status, qualityScore: item.qualityScore ?? null })
@@ -118,12 +127,12 @@ const filteredGenerations = computed(() => {
   if (typeFilter.value !== 'all') gens = gens.filter(g => g.items.some(i => i.type === typeFilter.value && i.url && i.status === 'complete'))
   if (sortOrder.value === 'oldest') gens = [...gens].reverse()
 
-  // Group sweep generations into combined entries
+  // Group sweep generations into combined entries — use cached parsed settings
   const sweepMap = new Map<string, typeof gens>()
   const nonSweep: typeof gens = []
   for (const g of gens) {
-    let sweepId: string | null = null
-    try { sweepId = JSON.parse(g.settings || '{}').sweepId } catch {}
+    const parsed = parsedSettingsCache.value.get(g.id)
+    const sweepId = parsed?.sweepId ?? null
     if (sweepId) {
       const arr = sweepMap.get(sweepId) || []
       arr.push(g)
@@ -136,21 +145,19 @@ const filteredGenerations = computed(() => {
   // Merge each sweep group into a single combined generation
   const result = [...nonSweep]
   for (const [sweepId, sweepGens] of sweepMap) {
-    // Merge all items into one combined generation
     const allItems = sweepGens.flatMap(g => {
-      // Tag each item with its sweep label from settings
-      let sweepLabel = ''
-      try { sweepLabel = JSON.parse(g.settings || '{}').sweepLabel || '' } catch {}
+      const parsed = parsedSettingsCache.value.get(g.id)
+      const sweepLabel = parsed?.sweepLabel || ''
       return g.items.map(item => ({ ...item, prompt: sweepLabel || item.prompt }))
     })
     const first = sweepGens[0]!
+    const firstParsed = parsedSettingsCache.value.get(first.id) || {}
     result.push({
       ...first,
       id: `sweep-${sweepId}`,
       imageCount: allItems.length,
       items: allItems,
-      // Store sweepId in settings for the grouped view to detect
-      settings: JSON.stringify({ ...JSON.parse(first.settings || '{}'), sweepId, sweepVariants: sweepGens.length }),
+      settings: JSON.stringify({ ...firstParsed, sweepId, sweepVariants: sweepGens.length }),
     })
   }
 
@@ -166,9 +173,8 @@ const lightboxOpen = ref(false)
 const lightboxIndex = ref(0)
 const showLightboxInfo = ref(false)
 
-const lightboxItems = computed<LightboxItem[]>(() =>
-  filteredMedia.value.map(m => ({ id: m.id, url: m.url, type: m.type, prompt: m.prompt, settings: m.settings, createdAt: m.createdAt }))
-)
+// Reuse filteredMedia directly as lightbox items (same shape, avoids redundant array copy)
+const lightboxItems = filteredMedia
 
 const currentItem = computed(() => filteredMedia.value[lightboxIndex.value] ?? null)
 
@@ -184,10 +190,8 @@ function copyPrompt(text: string) {
 }
 
 // ─── Grouped view ──────────────────────────────────────────────────────
+// Start collapsed — expanding all at once kills performance with lots of generations
 const expandedGenerations = ref<Set<string>>(new Set())
-watch(() => generations.value, (gens) => {
-  if (gens?.length) for (const g of gens) expandedGenerations.value.add(g.id)
-}, { immediate: true })
 
 function toggleGeneration(id: string) {
   if (expandedGenerations.value.has(id)) expandedGenerations.value.delete(id)
@@ -337,7 +341,7 @@ async function upscaleImage(mediaItemId: string) {
       <div v-else-if="viewMode === 'wall'">
         <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-0.5">
           <div v-for="(item, index) in filteredMedia" :key="item.id" class="relative aspect-square overflow-hidden cursor-pointer" @click="openLightbox(index)">
-            <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="metadata" class="w-full h-full object-cover" />
+            <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="none" class="w-full h-full object-cover" />
             <NuxtImg v-else :src="item.url" :alt="item.prompt" width="300" class="w-full h-full object-cover" loading="lazy" />
             <div v-if="item.type === 'video'" class="absolute top-1 left-1 w-4 h-4 rounded-full bg-black/50 flex items-center justify-center backdrop-blur-sm">
               <UIcon name="i-lucide-play" class="w-2.5 h-2.5 text-white" />

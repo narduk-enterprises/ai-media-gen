@@ -66,7 +66,7 @@ defineEmits<{
       :src="item.url + '#t=0.1'"
       class="w-full h-full object-cover"
       muted loop playsinline
-      preload="metadata"
+      preload="none"
       @mouseenter="($event.target as HTMLVideoElement).play()"
       @mouseleave="($event.target as HTMLVideoElement).pause()"
     />
