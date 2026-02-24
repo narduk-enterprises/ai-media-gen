@@ -154,15 +154,15 @@ function downloadMedia(url: string, type: string = 'image') {
         </div>
       </div>
 
-      <!-- Grid -->
-      <div v-else :class="['grid gap-1.5', largeGrid ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6']">
+      <!-- Masonry Layout -->
+      <div v-else :class="['columns-2', largeGrid ? 'sm:columns-3 lg:columns-4 gap-4' : 'sm:columns-4 lg:columns-5 xl:columns-6 gap-3']">
         <div
           v-for="(item, index) in filteredMedia" :key="item.id"
-          class="group relative aspect-square rounded-xl overflow-hidden cursor-pointer border border-slate-200 hover:border-violet-300 transition-all hover:shadow-lg"
+          :class="['group relative break-inside-avoid rounded-xl overflow-hidden cursor-pointer border border-slate-200 hover:border-violet-300 transition-all hover:shadow-lg', largeGrid ? 'mb-4' : 'mb-3']"
           @click="openLightbox(index)"
         >
-          <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="none" class="w-full h-full object-cover" @mouseenter="($event.target as HTMLVideoElement).play()" @mouseleave="($event.target as HTMLVideoElement).pause()" />
-          <NuxtImg v-else :src="item.url" :alt="item.prompt" :width="largeGrid ? 512 : 300" class="w-full h-full object-cover" loading="lazy" />
+          <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="none" class="w-full h-auto bg-slate-100 block" @mouseenter="($event.target as HTMLVideoElement).play()" @mouseleave="($event.target as HTMLVideoElement).pause()" />
+          <NuxtImg v-else :src="item.url" :alt="item.prompt" :width="largeGrid ? 512 : 300" class="w-full h-auto bg-slate-100 block" loading="lazy" />
 
           <!-- Video badge -->
           <div v-if="item.type === 'video'" class="absolute top-2.5 left-2.5 px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm text-white text-xs flex items-center gap-1">
