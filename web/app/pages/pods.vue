@@ -292,6 +292,25 @@ async function updatePod(podId: string) {
   }
 }
 
+const podRestarting = ref<Record<string, boolean>>({})
+async function restartPod(podId: string) {
+  if (!confirm('Restart this pod? It will stop, then start with latest code and verify all models. This takes ~60-90 seconds.')) return
+  podRestarting.value[podId] = true
+  try {
+    const result = await $fetch<{ success: boolean; message: string }>('/api/runpod/restart', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: { podId },
+    })
+    alert(result.message)
+    setTimeout(refresh, 5000)
+  } catch (e: any) {
+    alert(`Restart failed: ${e?.data?.message || e.message}`)
+  } finally {
+    podRestarting.value[podId] = false
+  }
+}
+
 async function terminatePod(podId: string) {
   if (!confirm('⚠️ This will PERMANENTLY DELETE this pod and its volume. This cannot be undone. Continue?')) return
 
@@ -708,6 +727,17 @@ onUnmounted(() => {
                 @click="updatePod(pod.id)"
               >
                 Update
+              </UButton>
+              <UButton
+                v-if="pod.status === 'RUNNING'"
+                icon="i-heroicons-arrow-path"
+                color="warning"
+                variant="ghost"
+                size="sm"
+                :loading="podRestarting[pod.id]"
+                @click="restartPod(pod.id)"
+              >
+                Restart
               </UButton>
               <UButton
                 v-if="pod.status === 'RUNNING'"
