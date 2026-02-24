@@ -370,6 +370,7 @@ function setAsTarget(podId: string) {
               <USelectMenu
                 v-model="deployState.gpuType"
                 :items="gpuTypes"
+                value-key="value"
                 placeholder="Select GPU"
                 class="w-full"
                 size="lg"
