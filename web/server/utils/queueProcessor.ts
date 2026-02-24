@@ -3,12 +3,12 @@
  *
  * The cron trigger calls `processQueue()` which:
  *   1. SUBMIT — picks up `queued` items and submits them to the GPU Pod
- *   2. POLL   — checks all `processing` items via pod /generate/status
- *   3. CLEAN  — re-queues items stuck processing for >15 min (auto-retry up to 2x)
+ *   2. POLL   — checks `processing` items that haven't received a webhook callback
+ *   3. CLEAN  — re-queues items stuck processing for >24h (auto-retry up to 5x)
  *
- * Uses shared utilities:
- *   - completeMediaItem() for all completion logic
- *   - podClient for GPU Pod communication
+ * NOTE: With the webhook system, the cron is now a safety net.
+ * The primary completion path is: pod → webhook → completeMediaItem.
+ * Cron catches items where the webhook failed or the pod crashed.
  */
 import { eq, asc } from 'drizzle-orm'
 import { mediaItems } from '../database/schema'
@@ -24,8 +24,8 @@ import type { DrizzleD1Database } from 'drizzle-orm/d1'
 type DB = DrizzleD1Database<any>
 
 const MAX_CONCURRENT = 10
-const STALE_THRESHOLD_MS = 4 * 60 * 60 * 1000 // 4 hours — long LTX2 videos (721 frames) can take 60+ min
-const MAX_RETRIES = 3
+const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000 // 24 hours — only catches truly lost jobs
+const MAX_RETRIES = 5
 
 /**
  * Main entry point — called by the cron task.
@@ -261,21 +261,32 @@ async function cleanupPhase(db: DB) {
       const meta = parseItemMeta(item)
       const retryCount = meta._retryCount || 0
 
+      // Skip items still in their backoff period
+      if (meta._retryAfter && now < meta._retryAfter) {
+        continue
+      }
+
       if (retryCount < MAX_RETRIES && meta.comfyInput) {
+        // Exponential backoff: 30s, 60s, 120s, 240s, 480s
+        const backoffMs = 30_000 * Math.pow(2, retryCount)
         await db.update(mediaItems)
           .set({
             status: 'queued',
             runpodJobId: null,
             submittedAt: null,
             error: null,
-            metadata: JSON.stringify({ ...meta, _retryCount: retryCount + 1 }),
+            metadata: JSON.stringify({
+              ...meta,
+              _retryCount: retryCount + 1,
+              _retryAfter: now + backoffMs,
+            }),
           })
           .where(eq(mediaItems.id, item.id))
-        console.log(`[Queue] ♻️ ${item.id.slice(0, 8)} stale → re-queued (retry ${retryCount + 1}/${MAX_RETRIES})`)
+        console.log(`[Queue] ♻️ ${item.id.slice(0, 8)} stale → re-queued (retry ${retryCount + 1}/${MAX_RETRIES}, backoff ${backoffMs / 1000}s)`)
         retried++
       } else {
         await db.update(mediaItems)
-          .set({ status: 'failed', error: `Stale — no response after ${STALE_THRESHOLD_MS / 60000}min (${retryCount} retries)` })
+          .set({ status: 'failed', error: `Stale — no response after ${Math.round(STALE_THRESHOLD_MS / 3600000)}h (${retryCount} retries)` })
           .where(eq(mediaItems.id, item.id))
         console.log(`[Queue] 🕐 ${item.id.slice(0, 8)} stale after ${Math.round((now - submittedTime) / 60000)}min — max retries exhausted`)
         await updateGenerationStatus(db, item.generationId)

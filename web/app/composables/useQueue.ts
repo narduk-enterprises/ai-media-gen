@@ -1,17 +1,16 @@
 /**
  * useQueue — persistent per-user job queue composable.
  *
- * Single adaptive poller replaces all per-generation polling.
- * Uses useState for SSR-safe state, polls /api/generate/my-queue
- * at varying intervals based on queue activity.
+ * PRIMARY: SSE (Server-Sent Events) from /api/generate/stream
+ *   - Real-time push from webhook completions
+ *   - Instant UI updates when pod finishes a job
  *
- * Poll strategy (to stay within CF free 100k req/day):
- *   - Has processing items → 5s
- *   - Only queued items    → 15s
+ * FALLBACK: Adaptive polling (when SSE disconnects)
+ *   - Has processing items → 15s
+ *   - Only queued items    → 30s
  *   - All resolved         → stop
  *
- * Polling state uses module-level variables so they survive
- * across multiple useQueue() calls from different components.
+ * Uses useState for SSR-safe state.
  */
 
 export interface QueueItem {
@@ -36,9 +35,11 @@ export interface QueueStats {
   failed: number
 }
 
-// ── Module-level polling state (survives across all callers) ─────────
+// ── Module-level state (survives across all callers) ─────────────────
 let _pollTimer: ReturnType<typeof setTimeout> | null = null
 let _isPolling = false
+let _eventSource: EventSource | null = null
+let _sseConnected = false
 
 export function useQueue() {
   const items = useState<QueueItem[]>('queue-items', () => [])
@@ -76,10 +77,11 @@ export function useQueue() {
     }
   }
 
-  // ─── Adaptive polling ─────────────────────────────────────────
+  // ─── Adaptive polling (fallback when SSE drops) ─────────────
   function _getInterval(): number {
-    if (stats.value.processing > 0) return 3_000
-    if (stats.value.queued > 0) return 15_000
+    if (_sseConnected) return 0 // SSE handles updates — no polling
+    if (stats.value.processing > 0) return 15_000
+    if (stats.value.queued > 0) return 30_000
     return 0
   }
 
@@ -243,10 +245,74 @@ export function useQueue() {
     stats.value = { queued, processing, complete, failed }
   }
 
+  // ─── SSE Connection ────────────────────────────────────────
+  function _connectSSE() {
+    if (import.meta.server || _eventSource) return
+
+    try {
+      _eventSource = new EventSource('/api/generate/stream')
+
+      _eventSource.addEventListener('item:completed', (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          _updateItemStatus(data.itemId, 'complete')
+        } catch { /* ignore parse errors */ }
+      })
+
+      _eventSource.addEventListener('item:failed', (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          _updateItemStatus(data.itemId, 'failed', data.error)
+        } catch { /* ignore parse errors */ }
+      })
+
+      _eventSource.addEventListener('item:submitted', () => {
+        // New item submitted — refresh to pick it up
+        refresh()
+      })
+
+      _eventSource.onopen = () => {
+        console.log('[Queue] SSE connected')
+        _sseConnected = true
+        // Stop polling — SSE handles updates
+        stopPolling()
+      }
+
+      _eventSource.onerror = () => {
+        console.warn('[Queue] SSE disconnected, falling back to polling')
+        _sseConnected = false
+        _eventSource?.close()
+        _eventSource = null
+        // Fall back to polling
+        if (hasActive.value) _ensurePolling()
+        // Retry SSE after 10s
+        setTimeout(() => _connectSSE(), 10_000)
+      }
+    } catch {
+      // SSE not supported or failed — use polling
+      _sseConnected = false
+    }
+  }
+
+  function _updateItemStatus(itemId: string, status: 'complete' | 'failed', errorMsg?: string) {
+    const idx = items.value.findIndex(i => i.id === itemId)
+    if (idx >= 0) {
+      const updated = { ...items.value[idx] } as QueueItem
+      updated.status = status
+      if (errorMsg) updated.error = errorMsg
+      items.value = items.value.map((item, i) => i === idx ? updated : item)
+      _recalcStats()
+    } else {
+      // Item not in local state — full refresh
+      refresh()
+    }
+  }
+
   // ─── Init (called by QueueSidebar on mount) ───────────────────
   async function init() {
     if (import.meta.server) return
     await refresh()
+    _connectSSE()
   }
 
   return {

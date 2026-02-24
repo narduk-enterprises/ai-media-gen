@@ -126,13 +126,15 @@ export function getPodUrl(): string {
 export async function submitJob(
   request: MultiSegmentRequest,
   podUrl?: string,
+  callbackUrl?: string,
+  callbackSecret?: string,
 ): Promise<MultiSegmentResponse> {
   const url = podUrl || getPodUrl()
 
   const response = await $fetch<MultiSegmentResponse>(`${url}/generate/multi-segment`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: request,
+    body: { ...request, callback_url: callbackUrl, callback_secret: callbackSecret },
     timeout: 30_000,
   })
 
@@ -145,6 +147,8 @@ export async function submitJob(
 export async function submitText2Image(
   input: Record<string, any>,
   podUrl?: string,
+  callbackUrl?: string,
+  callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
   return await $fetch(`${url}/generate/text2image`, {
@@ -163,6 +167,8 @@ export async function submitText2Image(
       sampler_name: input.sampler_name,
       scheduler: input.scheduler,
       custom_loras: input.custom_loras,
+      callback_url: callbackUrl,
+      callback_secret: callbackSecret,
     },
     timeout: 30_000,
   })
@@ -175,6 +181,8 @@ export async function submitText2Image(
 export async function submitText2ImageThenVideo(
   input: Record<string, any>,
   podUrl?: string,
+  callbackUrl?: string,
+  callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
   return await $fetch(`${url}/generate/text2image-then-video`, {
@@ -198,6 +206,8 @@ export async function submitText2ImageThenVideo(
       video_fps: input.video_fps,
       lora_strength: input.lora_strength,
       image_strength: input.image_strength,
+      callback_url: callbackUrl,
+      callback_secret: callbackSecret,
     },
     timeout: 30_000,
   })
@@ -209,6 +219,8 @@ export async function submitText2ImageThenVideo(
 export async function submitImage2Image(
   input: Record<string, any>,
   podUrl?: string,
+  callbackUrl?: string,
+  callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
   return await $fetch(`${url}/generate/image2image`, {
@@ -225,6 +237,8 @@ export async function submitImage2Image(
       denoise: input.denoise,
       seed: input.seed,
       model: input.model || 'wan22',
+      callback_url: callbackUrl,
+      callback_secret: callbackSecret,
     },
     timeout: 30_000,
   })
@@ -236,6 +250,8 @@ export async function submitImage2Image(
 export async function submitCustomWorkflow(
   input: Record<string, any>,
   podUrl?: string,
+  callbackUrl?: string,
+  callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
   return await $fetch(`${url}/generate/custom`, {
@@ -244,6 +260,8 @@ export async function submitCustomWorkflow(
     body: {
       workflow: input.workflow,
       expect_video: input.expect_video ?? false,
+      callback_url: callbackUrl,
+      callback_secret: callbackSecret,
     },
     timeout: 30_000,
   })
@@ -255,6 +273,8 @@ export async function submitCustomWorkflow(
 export async function submitImage2Video(
   input: Record<string, any>,
   podUrl?: string,
+  callbackUrl?: string,
+  callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
   return await $fetch(`${url}/generate/image2video`, {
@@ -277,6 +297,8 @@ export async function submitImage2Video(
       audio_prompt: input.audio_prompt,
       lora_strength: input.lora_strength,
       image_strength: input.image_strength,
+      callback_url: callbackUrl,
+      callback_secret: callbackSecret,
     },
     timeout: 30_000,
   })
@@ -288,6 +310,8 @@ export async function submitImage2Video(
 export async function submitText2Video(
   input: Record<string, any>,
   podUrl?: string,
+  callbackUrl?: string,
+  callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
   return await $fetch(`${url}/generate/text2video`, {
@@ -306,6 +330,8 @@ export async function submitText2Video(
       lora_strength: input.lora_strength,
       camera_lora: input.camera_lora,
       audio_prompt: input.audio_prompt,
+      callback_url: callbackUrl,
+      callback_secret: callbackSecret,
     },
     timeout: 30_000,
   })
@@ -318,6 +344,8 @@ export async function submitText2Video(
 export async function submitMultiSegmentVideo(
   input: Record<string, any>,
   podUrl?: string,
+  callbackUrl?: string,
+  callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
   const body: Record<string, any> = {
@@ -336,6 +364,8 @@ export async function submitMultiSegmentVideo(
     fps: input.fps || 24,
     transition: input.transition || 'crossfade',
     transition_duration: input.transition_duration ?? 0.5,
+    callback_url: callbackUrl,
+    callback_secret: callbackSecret,
   }
   return await $fetch(`${url}/generate/multi-segment`, {
     method: 'POST',
@@ -351,6 +381,8 @@ export async function submitMultiSegmentVideo(
 export async function submitUpscale(
   input: Record<string, any>,
   podUrl?: string,
+  callbackUrl?: string,
+  callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
   return await $fetch(`${url}/generate/upscale`, {
@@ -361,6 +393,8 @@ export async function submitUpscale(
       video: input.video,
       scale: input.scale || 2,
       fps: input.fps,
+      callback_url: callbackUrl,
+      callback_secret: callbackSecret,
     },
     timeout: 30_000,
   })

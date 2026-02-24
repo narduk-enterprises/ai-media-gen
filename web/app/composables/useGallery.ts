@@ -1,6 +1,6 @@
 import type { GenerationResult, MediaItemResult } from '~/types/gallery'
 
-const PAGE_SIZE = 25
+const PAGE_SIZE = 20
 
 /**
  * Gallery composable — client-only fetch.

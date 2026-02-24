@@ -56,39 +56,45 @@ export async function submitItemToPod(
       return null
     }
 
+    // Construct callback URL for webhook notifications
+    const config = useRuntimeConfig()
+    const appUrl = config.public?.appUrl || config.public?.siteUrl || ''
+    const callbackUrl = appUrl ? `${appUrl}/api/generate/webhook` : ''
+    const callbackSecret = config.webhookSecret || ''
+
     // Route to correct pod endpoint based on action type
     const action = input.action || ''
     let response: { job_id: string; status?: string }
 
     switch (action) {
       case 'text2image':
-        response = await submitText2Image(input, podUrl)
+        response = await submitText2Image(input, podUrl, callbackUrl, callbackSecret)
         break
       case 'image2image':
-        response = await submitImage2Image(input, podUrl)
+        response = await submitImage2Image(input, podUrl, callbackUrl, callbackSecret)
         break
       case 'image2video':
-        response = await submitImage2Video(input, podUrl)
+        response = await submitImage2Video(input, podUrl, callbackUrl, callbackSecret)
         break
       case 'text2video':
-        response = await submitText2Video(input, podUrl)
+        response = await submitText2Video(input, podUrl, callbackUrl, callbackSecret)
         break
       case 'upscale':
       case 'upscale_video':
-        response = await submitUpscale(input, podUrl)
+        response = await submitUpscale(input, podUrl, callbackUrl, callbackSecret)
         break
       case 'multi_segment_video':
-        response = await submitMultiSegmentVideo(input, podUrl)
+        response = await submitMultiSegmentVideo(input, podUrl, callbackUrl, callbackSecret)
         break
       case 'custom_workflow':
-        response = await submitCustomWorkflow(input, podUrl)
+        response = await submitCustomWorkflow(input, podUrl, callbackUrl, callbackSecret)
         break
       case 'text2image_then_video':
-        response = await submitText2ImageThenVideo(input, podUrl)
+        response = await submitText2ImageThenVideo(input, podUrl, callbackUrl, callbackSecret)
         break
       default: {
         const request = buildRequestFromMeta(meta)
-        response = await submitJob(request, podUrl)
+        response = await submitJob(request, podUrl, callbackUrl, callbackSecret)
         break
       }
     }
