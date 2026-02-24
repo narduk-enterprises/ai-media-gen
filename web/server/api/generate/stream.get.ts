@@ -18,12 +18,12 @@ import { registerConnection, removeConnection } from '../../utils/sseBroadcast'
 
 export default defineEventHandler(async (event) => {
   // ── Auth ──────────────────────────────────────────────────────
-  const session = event.context.session
-  if (!session?.userId) {
+  const user = event.context._authUser
+  if (!user?.id) {
     throw createError({ statusCode: 401, message: 'Authentication required' })
   }
 
-  const userId = session.userId
+  const userId = user.id
 
   // ── Set SSE headers ──────────────────────────────────────────
   setResponseHeaders(event, {
