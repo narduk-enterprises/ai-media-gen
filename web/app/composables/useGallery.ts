@@ -59,7 +59,11 @@ export function useGallery() {
   async function deleteItems(itemIds: string[]) {
     if (!itemIds.length) return
     try {
-      await $fetch('/api/generate/delete', { method: 'POST', body: { itemIds } })
+      await $fetch('/api/generate/delete', {
+        method: 'POST',
+        body: { itemIds },
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
       
       // Speculatively remove items locally
       const toDelete = new Set(itemIds)
