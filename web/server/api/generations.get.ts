@@ -1,93 +1,91 @@
-import { eq, ne, desc, count, and, inArray, sql } from 'drizzle-orm'
+import { eq, and, desc, count, sql } from 'drizzle-orm'
 import { requireAuth } from '../utils/auth'
 import { generations, mediaItems } from '../database/schema'
 
 /**
  * GET /api/generations
  *
- * Params:
- *   limit   - max results (default 50, max 100)
- *   offset  - pagination offset
- *   type    - optional media type filter: 'image' | 'video' | 'all' (default: 'all')
+ * Returns a flat list of completed media items (images/videos) with their
+ * generation context (prompt, settings). Pagination is by media items,
+ * not by generations, so the client always gets exactly `limit` items.
  *
- * When type is set, only returns generations that have at least one
- * completed media item of that type. This ensures images are always
- * loadable even if the most recent 1000 generations were videos.
+ * Params:
+ *   limit   - max media items (default 20, max 100)
+ *   offset  - pagination offset (media-item level)
+ *   type    - optional media type filter: 'image' | 'video' | 'all' (default: 'all')
  */
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
   const db = useDatabase()
   const query = getQuery(event)
-  const limit = Math.min(Number(query.limit) || 50, 100)
+  const limit = Math.min(Number(query.limit) || 20, 100)
   const offset = Math.max(Number(query.offset) || 0, 0)
   const typeFilter = String(query.type || 'all')
 
-  // Build WHERE clause for generations
-  // Exclude failed generations — they have no visible media and clutter pagination
-  const genConditions = [
+  // Base conditions: completed media with a URL, belonging to this user
+  const conditions = [
     eq(generations.userId, user.id),
-    ne(generations.status, 'failed'),
+    eq(mediaItems.status, 'complete'),
+    sql`${mediaItems.url} IS NOT NULL AND ${mediaItems.url} != ''`,
   ]
 
-  // If filtering by type, restrict to generations that have matching media
+  // Optional type filter
   if (typeFilter === 'image' || typeFilter === 'video') {
-    const matchingGenIds = db
-      .select({ id: mediaItems.generationId })
-      .from(mediaItems)
-      .where(
-        and(
-          eq(mediaItems.type, typeFilter),
-          eq(mediaItems.status, 'complete'),
-          sql`${mediaItems.url} IS NOT NULL AND ${mediaItems.url} != ''`
-        )
-      )
-      .groupBy(mediaItems.generationId)
-
-    genConditions.push(inArray(generations.id, matchingGenIds))
+    conditions.push(eq(mediaItems.type, typeFilter))
   }
 
-  const whereClause = genConditions.length === 1 ? genConditions[0]! : and(...genConditions)!
+  const whereClause = and(...conditions)!
 
-  // Get total count for pagination
+  // Count total visible media items
   const countResult = await db
     .select({ total: count() })
-    .from(generations)
+    .from(mediaItems)
+    .innerJoin(generations, eq(mediaItems.generationId, generations.id))
     .where(whereClause)
   const total = countResult[0]?.total ?? 0
 
-  const gens = await db
-    .select()
-    .from(generations)
+  // Fetch paginated media items with generation context
+  const rows = await db
+    .select({
+      // Media item fields
+      id: mediaItems.id,
+      type: mediaItems.type,
+      url: mediaItems.url,
+      status: mediaItems.status,
+      parentId: mediaItems.parentId,
+      itemPrompt: mediaItems.prompt,
+      qualityScore: mediaItems.qualityScore,
+      submittedAt: mediaItems.submittedAt,
+      completedAt: mediaItems.completedAt,
+      // Generation fields
+      generationId: generations.id,
+      prompt: generations.prompt,
+      settings: generations.settings,
+      createdAt: generations.createdAt,
+    })
+    .from(mediaItems)
+    .innerJoin(generations, eq(mediaItems.generationId, generations.id))
     .where(whereClause)
-    .orderBy(desc(generations.createdAt))
+    .orderBy(desc(mediaItems.completedAt), desc(mediaItems.createdAt))
     .limit(limit)
     .offset(offset)
 
-  // Batch-fetch all media items for this page in a single query (avoids N+1)
-  const genIds = gens.map(g => g.id)
-  const allItems = genIds.length > 0
-    ? await db
-        .select()
-        .from(mediaItems)
-        .where(inArray(mediaItems.generationId, genIds))
-    : []
+  // Shape the response
+  const items = rows.map(row => ({
+    id: row.id,
+    type: row.type,
+    url: row.url?.startsWith('data:') ? `/api/media/${row.id}` : row.url,
+    status: row.status,
+    parentId: row.parentId,
+    prompt: row.itemPrompt || row.prompt,
+    qualityScore: row.qualityScore,
+    submittedAt: row.submittedAt,
+    completedAt: row.completedAt,
+    generationId: row.generationId,
+    generationPrompt: row.prompt,
+    settings: row.settings,
+    createdAt: row.createdAt,
+  }))
 
-  // Group items by generation and filter to visible-only
-  const itemsByGen = new Map<string, typeof allItems>()
-  for (const item of allItems) {
-    if (item.status !== 'complete' || !item.url || item.url === '') continue
-    const arr = itemsByGen.get(item.generationId) || []
-    arr.push({
-      ...item,
-      url: item.url.startsWith('data:') ? `/api/media/${item.id}` : item.url,
-    })
-    itemsByGen.set(item.generationId, arr)
-  }
-
-  // Build results, filtering out generations with no visible items
-  const visibleResults = gens
-    .map(gen => ({ ...gen, items: itemsByGen.get(gen.id) || [] }))
-    .filter(r => r.items.length > 0)
-
-  return { generations: visibleResults, total, limit, offset }
+  return { items, total, limit, offset }
 })

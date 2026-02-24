@@ -3,30 +3,51 @@ import type { GenerationResult, MediaItemResult } from '~/types/gallery'
 const PAGE_SIZE = 20
 
 /**
- * Gallery composable — client-only fetch.
- *
- * Fetches all generations (with completed media) in a single request,
- * ordered newest-first. Infinite scroll loads more pages.
+ * Gallery composable — fetches flat media items with generation context.
+ * Paginated by media items (not generations) for exact control.
  */
+
+export interface GalleryMediaItem {
+  id: string
+  type: string
+  url: string
+  generationId: string
+  prompt: string
+  generationPrompt: string
+  settings: string | null
+  createdAt: string
+  submittedAt?: string | null
+  completedAt?: string | null
+  qualityScore?: number | null
+  parentId?: string | null
+}
+
+interface GalleryApiResponse {
+  items: GalleryMediaItem[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export function useGallery() {
-  const generations = ref<GenerationResult[]>([])
+  const mediaItems = ref<GalleryMediaItem[]>([])
   const total = ref(0)
   const pending = ref(true)
   const loadingMore = ref(false)
   const error = ref<Error | null>(null)
 
-  const hasMore = computed(() => generations.value.length < total.value)
+  const hasMore = computed(() => mediaItems.value.length < total.value)
 
-  async function fetchGenerations() {
+  async function fetchItems() {
     pending.value = true
     error.value = null
     try {
-      const result = await $fetch<{ generations: GenerationResult[]; total: number }>('/api/generations', {
+      const result = await $fetch<GalleryApiResponse>('/api/generations', {
         params: { limit: PAGE_SIZE, offset: 0 },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
 
-      generations.value = result.generations ?? []
+      mediaItems.value = (result.items ?? []).filter(i => i.url) as GalleryMediaItem[]
       total.value = result.total ?? 0
     } catch (e: any) {
       error.value = e
@@ -39,15 +60,15 @@ export function useGallery() {
     if (loadingMore.value || !hasMore.value) return
     loadingMore.value = true
     try {
-      const result = await $fetch<{ generations: GenerationResult[]; total: number }>('/api/generations', {
-        params: { limit: PAGE_SIZE, offset: generations.value.length },
+      const result = await $fetch<GalleryApiResponse>('/api/generations', {
+        params: { limit: PAGE_SIZE, offset: mediaItems.value.length },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
 
       // Deduplicate in case items shifted between pages
-      const existingIds = new Set(generations.value.map(g => g.id))
-      const newGens = (result.generations ?? []).filter(g => !existingIds.has(g.id))
-      generations.value = [...generations.value, ...newGens]
+      const existingIds = new Set(mediaItems.value.map(i => i.id))
+      const newItems = (result.items ?? []).filter(i => i.url && !existingIds.has(i.id)) as GalleryMediaItem[]
+      mediaItems.value = [...mediaItems.value, ...newItems]
       total.value = result.total ?? total.value
     } catch (e: any) {
       error.value = e
@@ -64,18 +85,11 @@ export function useGallery() {
         body: { itemIds },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
-      
-      // Speculatively remove items locally
+
+      // Remove items locally
       const toDelete = new Set(itemIds)
-      generations.value = generations.value
-        .map(gen => {
-          const filteredItems = gen.items.filter(item => !toDelete.has(item.id))
-          return { ...gen, items: filteredItems }
-        })
-        .filter(gen => gen.items.length > 0) // Remove empty generations
-      
-      // Adjust total count loosely (assumes 1 item per generation for simplicity, but accurate enough for UX)
-      total.value = Math.max(0, total.value - 1)
+      mediaItems.value = mediaItems.value.filter(item => !toDelete.has(item.id))
+      total.value = Math.max(0, total.value - itemIds.length)
     } catch (e: any) {
       console.error('Failed to delete items:', e)
       throw e
@@ -84,10 +98,10 @@ export function useGallery() {
 
   // Fetch on mount — fresh data every page visit
   if (import.meta.client) {
-    onMounted(() => fetchGenerations())
+    onMounted(() => fetchItems())
   }
 
-  return { generations, total, pending, loadingMore, hasMore, error, refresh: fetchGenerations, loadMore, deleteItems }
+  return { mediaItems, total, pending, loadingMore, hasMore, error, refresh: fetchItems, loadMore, deleteItems }
 }
 
 /** Trigger a browser download for a media URL. */

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { formatDate, downloadMedia } from '~/composables/useGallery'
+import { formatDate, downloadMedia, type GalleryMediaItem } from '~/composables/useGallery'
 
 definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Gallery' })
 
-function formatDuration(submittedAt?: string, completedAt?: string): string | null {
+function formatDuration(submittedAt?: string | null, completedAt?: string | null): string | null {
   if (!submittedAt || !completedAt) return null
   const ms = new Date(completedAt).getTime() - new Date(submittedAt).getTime()
   if (ms < 0 || isNaN(ms)) return null
@@ -15,7 +15,7 @@ function formatDuration(submittedAt?: string, completedAt?: string): string | nu
   return remainSecs > 0 ? `${mins}m ${remainSecs}s` : `${mins}m`
 }
 
-const { generations, total, pending, loadingMore, hasMore, error, refresh, loadMore, deleteItems } = useGallery()
+const { mediaItems, total, pending, loadingMore, hasMore, error, refresh, loadMore, deleteItems } = useGallery()
 const gen = useGeneration()
 const actionLoading = gen.actionLoading
 const toast = useToast()
@@ -34,7 +34,7 @@ function toggleItemSelection(id: string) {
   else selectedIds.value.add(id)
 }
 
-function handleItemClick(item: GalleryMedia, index: number) {
+function handleItemClick(item: GalleryMediaItem, index: number) {
   if (isSelectionMode.value) {
     toggleItemSelection(item.id)
   } else {
@@ -106,36 +106,22 @@ type TypeFilter = 'all' | 'image' | 'video'
 const typeFilter = useCookie<TypeFilter>('gallery-type', { default: () => 'all' })
 const largeGrid = useCookie<boolean>('gallery-grid', { default: () => true })
 
-// ─── Flattened media ─────────────────────────────────────────────────
-interface GalleryMedia {
-  id: string; url: string; generationId: string; prompt: string
-  settings: Record<string, any> | null; createdAt: string; type: string
-  submittedAt?: string; completedAt?: string
-}
-
-const parsedSettingsCache = computed(() => {
+// ─── Parsed settings (JSON → object, cached) ─────────────────────────
+const parsedSettings = computed(() => {
   const cache = new Map<string, Record<string, any> | null>()
-  for (const g of generations.value || []) {
-    if (g.settings) { try { cache.set(g.id, JSON.parse(g.settings)) } catch { cache.set(g.id, null) } }
-    else cache.set(g.id, null)
+  for (const item of mediaItems.value) {
+    if (item.settings) {
+      try { cache.set(item.id, JSON.parse(item.settings)) } catch { cache.set(item.id, null) }
+    } else {
+      cache.set(item.id, null)
+    }
   }
   return cache
 })
 
-const allMedia = computed<GalleryMedia[]>(() => {
-  const result: GalleryMedia[] = []
-  for (const g of generations.value || []) {
-    const settings = parsedSettingsCache.value.get(g.id) ?? null
-    for (const item of g.items) {
-      if ((item.type === 'image' || item.type === 'video') && item.url && item.status === 'complete')
-        result.push({ id: item.id, url: item.url, generationId: g.id, prompt: g.prompt, settings, createdAt: g.createdAt, type: item.type, submittedAt: item.submittedAt, completedAt: item.completedAt })
-    }
-  }
-  return result
-})
-
+// ─── Filtered & sorted media ─────────────────────────────────────────
 const filteredMedia = computed(() => {
-  let items = allMedia.value
+  let items = mediaItems.value
   if (typeFilter.value !== 'all') items = items.filter(i => i.type === typeFilter.value)
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase()
@@ -171,7 +157,7 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
     <div class="sticky top-16 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
       <div class="max-w-400 mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3 flex-wrap">
         <h1 class="font-display text-lg font-bold text-slate-800 shrink-0">Gallery</h1>
-        <span class="text-xs text-slate-400"><span class="font-medium text-slate-600">{{ allMedia.length }}</span> items</span>
+        <span class="text-xs text-slate-400"><span class="font-medium text-slate-600">{{ mediaItems.length }}</span> of {{ total }} items</span>
         <div class="flex-1" />
 
         <UInput v-model="searchQuery" placeholder="Search…" icon="i-lucide-search" size="sm" class="w-40 lg:w-56" />
@@ -218,7 +204,7 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
     <!-- Body -->
     <div class="max-w-400 mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <!-- Loading -->
-      <GallerySkeletonGrid v-if="pending && !generations.length" />
+      <GallerySkeletonGrid v-if="pending && !mediaItems.length" />
 
       <!-- Error -->
       <div v-else-if="error" class="p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm max-w-lg mx-auto">
@@ -226,7 +212,7 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
       </div>
 
       <!-- Empty -->
-      <div v-else-if="!generations.length" class="flex items-center justify-center min-h-[50vh]">
+      <div v-else-if="!mediaItems.length" class="flex items-center justify-center min-h-[50vh]">
         <div class="text-center">
           <div class="w-20 h-20 mx-auto rounded-2xl bg-violet-50 border border-violet-100 flex items-center justify-center mb-4">
             <UIcon name="i-lucide-image" class="w-10 h-10 text-violet-300" />
@@ -290,9 +276,9 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
           <UIcon name="i-lucide-loader-2" class="w-4 h-4 animate-spin" /> Loading more…
         </div>
         <UButton v-else-if="hasMore" variant="ghost" size="xs" color="neutral" @click="loadMore()">
-          {{ generations.length }} of {{ total }} loaded
+          {{ mediaItems.length }} of {{ total }} loaded
         </UButton>
-        <span v-else-if="generations.length > 0" class="text-xs text-slate-300">All {{ total }} generations loaded</span>
+        <span v-else-if="mediaItems.length > 0" class="text-xs text-slate-300">All {{ total }} items loaded</span>
       </div>
     </div>
 
@@ -323,15 +309,15 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
               </div>
               <p class="text-xs text-white/80 leading-relaxed">{{ currentItem.prompt }}</p>
             </div>
-            <div v-if="currentItem.settings" class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs border-t border-white/10 pt-3">
+            <div v-if="parsedSettings.get(currentItem.id)" class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs border-t border-white/10 pt-3">
               <span class="text-white/40">Created</span><span>{{ formatDate(currentItem.createdAt) }}</span>
               <template v-if="formatDuration(currentItem.submittedAt, currentItem.completedAt)">
                 <span class="text-white/40">Gen Time</span>
                 <span class="text-emerald-400 font-medium">{{ formatDuration(currentItem.submittedAt, currentItem.completedAt) }}</span>
               </template>
-              <template v-for="(val, key) in currentItem.settings" :key="key">
+              <template v-for="(val, key) in parsedSettings.get(currentItem.id)" :key="key">
                 <template v-if="key !== 'prompt' && val !== undefined && val !== null && val !== ''">
-                  <span class="text-white/40 capitalize">{{ key.replace(/_/g, ' ') }}</span>
+                  <span class="text-white/40 capitalize">{{ String(key).replace(/_/g, ' ') }}</span>
                   <span class="truncate" :title="String(val)">
                     {{ typeof val === 'object' ? JSON.stringify(val) : val }}
                   </span>
