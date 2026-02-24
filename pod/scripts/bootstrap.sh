@@ -146,11 +146,8 @@ echo "▸ [4/5] Installing ComfyUI + custom nodes..."
 ) > >(tee -a "$LOGDIR/nodes.log") 2>&1
 echo ""
 
-# ══ STEP 5: Symlink model dirs + start services (DON'T wait for models) ══
-# Use directory-level symlinks so ComfyUI sees models as they download.
-# Services start immediately — models appear as sync progresses.
-
-echo "▸ [5/5] Starting services (models syncing in background)..."
+# ══ STEP 5: Symlink models + configure supervisord ══
+echo "▸ [5/5] Configuring services..."
 MODELS=/workspace/models
 if [ -d "$MODELS" ] || mkdir -p "$MODELS"; then
     shopt -s nullglob
@@ -173,7 +170,7 @@ if [ -d "$MODELS" ] || mkdir -p "$MODELS"; then
         done
     done
 
-    # Also create ComfyUI extra_model_paths so it auto-discovers new files
+    # ComfyUI extra_model_paths for auto-discovery of new files
     cat > /comfyui/extra_model_paths.yaml << 'YAML'
 workspace:
     base_path: /workspace/models
@@ -190,33 +187,40 @@ YAML
     shopt -u nullglob
 fi
 
-echo ""
-echo "▸ Starting services..."
-(bash /workspace/manage.sh start) > >(tee -a "$LOGDIR/services.log") 2>&1
+# Install supervisord
+pip install -q supervisor 2>/dev/null || true
 
-# Wait for model sync to finish (non-blocking — services already running)
-echo ""
-echo "▸ Waiting for background model sync to complete..."
-wait $SYNC_PID
-SYNC_RC=$?
-[ $SYNC_RC -eq 0 ] && echo "  ✅ All models synced" || echo "  ⚠️  sync_models exited with code $SYNC_RC"
+# Copy supervisord config
+cp /workspace/repo/pod/scripts/supervisord.conf /workspace/supervisord.conf
+echo "  ✅ supervisord configured"
 
-# Re-symlink any new models that appeared after initial symlink
-if [ -d "$MODELS" ]; then
-    shopt -s nullglob
-    for f in "$MODELS/clip/"*.safetensors; do
-        ln -sf "$f" "/comfyui/models/text_encoders/$(basename "$f")" 2>/dev/null || true
-    done
-    for sub in diffusion_models checkpoints clip clip_vision vae loras upscale_models text_encoders; do
-        src_sub="$sub"
-        [ "$sub" = "latent_upscale_models" ] && src_sub="upscale_models"
-        for f in "$MODELS/$src_sub/"*.safetensors "$MODELS/$src_sub/"*.pth; do
-            [ -f "$f" ] && ln -sf "$f" "/comfyui/models/$sub/$(basename "$f")" 2>/dev/null || true
+# Set env vars for supervisord child processes
+export COMFY_PORT=${COMFY_PORT:-8189}
+export ADMIN_PORT=${ADMIN_PORT:-8188}
+
+# Wait for model sync in background, then re-symlink
+(
+    wait $SYNC_PID 2>/dev/null
+    SYNC_RC=$?
+    [ $SYNC_RC -eq 0 ] && echo "  ✅ All models synced" || echo "  ⚠️  sync_models exited with code $SYNC_RC"
+
+    # Re-symlink any new models
+    if [ -d "$MODELS" ]; then
+        shopt -s nullglob
+        for f in "$MODELS/clip/"*.safetensors; do
+            ln -sf "$f" "/comfyui/models/text_encoders/$(basename "$f")" 2>/dev/null || true
         done
-    done
-    shopt -u nullglob
-    echo "  ✅ Models re-symlinked"
-fi
+        for sub in diffusion_models checkpoints clip clip_vision vae loras upscale_models text_encoders; do
+            src_sub="$sub"
+            [ "$sub" = "latent_upscale_models" ] && src_sub="upscale_models"
+            for f in "$MODELS/$src_sub/"*.safetensors "$MODELS/$src_sub/"*.pth; do
+                [ -f "$f" ] && ln -sf "$f" "/comfyui/models/$sub/$(basename "$f")" 2>/dev/null || true
+            done
+        done
+        shopt -u nullglob
+        echo "  ✅ Models re-symlinked after sync"
+    fi
+) &
 
 echo ""
 echo "═══ BOOTSTRAP DONE  $(date) ═══"
@@ -225,3 +229,7 @@ for f in "$LOGDIR"/*.log; do
     echo "  $size  $f"
 done
 
+# Hand off to supervisord — becomes PID 1, manages ComfyUI + Admin
+echo ""
+echo "▸ Starting supervisord (ComfyUI + Admin server)..."
+exec supervisord -n -c /workspace/supervisord.conf
