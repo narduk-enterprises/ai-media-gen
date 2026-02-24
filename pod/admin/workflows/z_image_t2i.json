@@ -1,0 +1,98 @@
+{
+  "10": {
+    "inputs": {
+      "clip_name": "qwen_3_4b_fp8_mixed.safetensors",
+      "type": "z_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {"title": "Load CLIP (Qwen 3 4B)"}
+  },
+  "11": {
+    "inputs": {
+      "unet_name": "z_image_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {"title": "Load Diffusion Model (Z-Image Base)"}
+  },
+  "12": {
+    "inputs": {"vae_name": "ae.safetensors"},
+    "class_type": "VAELoader",
+    "_meta": {"title": "Load VAE"}
+  },
+  "15": {
+    "inputs": {
+      "lora_name": "nsfw-master-flux-z-image-turbo-v1.safetensors",
+      "strength_model": "{{lora_strength}}",
+      "model": ["11", 0]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {"title": "NSFW Master LoRA"}
+  },
+  "20": {
+    "inputs": {
+      "text": "{{prompt}}",
+      "clip": ["10", 0]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Positive Prompt"}
+  },
+  "21": {
+    "inputs": {
+      "text": "{{negative_prompt}}",
+      "clip": ["10", 0]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Negative Prompt"}
+  },
+  "30": {
+    "inputs": {
+      "width": "{{width}}",
+      "height": "{{height}}",
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {"title": "Empty Latent Image"}
+  },
+  "40": {
+    "inputs": {
+      "shift": 3.0,
+      "model": ["15", 0]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {"title": "Model Sampling (AuraFlow)"}
+  },
+  "50": {
+    "inputs": {
+      "seed": "{{seed}}",
+      "steps": "{{steps}}",
+      "cfg": "{{cfg}}",
+      "sampler_name": "{{sampler_name}}",
+      "scheduler": "{{scheduler}}",
+      "denoise": 1,
+      "model": ["40", 0],
+      "positive": ["20", 0],
+      "negative": ["21", 0],
+      "latent_image": ["30", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": {"title": "KSampler"}
+  },
+  "60": {
+    "inputs": {
+      "samples": ["50", 0],
+      "vae": ["12", 0]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {"title": "VAE Decode"}
+  },
+  "70": {
+    "inputs": {
+      "filename_prefix": "z_image_output",
+      "images": ["60", 0]
+    },
+    "class_type": "SaveImage",
+    "_meta": {"title": "Save Image"}
+  }
+}

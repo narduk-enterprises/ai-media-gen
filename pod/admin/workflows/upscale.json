@@ -1,0 +1,42 @@
+{
+  "1": {
+    "inputs": {"model_name": "RealESRGAN_x4plus.pth"},
+    "class_type": "UpscaleModelLoader",
+    "_meta": {"title": "Load RealESRGAN"}
+  },
+  "2": {
+    "inputs": {
+      "image": "{{image_filename}}",
+      "upload": "image"
+    },
+    "class_type": "LoadImage",
+    "_meta": {"title": "Load Input Image"}
+  },
+  "3": {
+    "inputs": {
+      "upscale_model": ["1", 0],
+      "image": ["2", 0]
+    },
+    "class_type": "ImageUpscaleWithModel",
+    "_meta": {"title": "RealESRGAN 4x Upscale"}
+  },
+  "4": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "width": "{{out_width}}",
+      "height": "{{out_height}}",
+      "crop": "disabled",
+      "image": ["3", 0]
+    },
+    "class_type": "ImageScale",
+    "_meta": {"title": "Scale to Target Resolution"}
+  },
+  "5": {
+    "inputs": {
+      "filename_prefix": "upscale/enhanced",
+      "images": ["4", 0]
+    },
+    "class_type": "SaveImage",
+    "_meta": {"title": "Save Enhanced Image"}
+  }
+}

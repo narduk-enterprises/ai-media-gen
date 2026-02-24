@@ -1,0 +1,80 @@
+name: Deploy to GPU Pod
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pod/admin/**'
+      - 'pod/scripts/**'
+
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.POD_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "StrictHostKeyChecking no" >> ~/.ssh/config
+
+      - name: Check pod reachability
+        id: check
+        continue-on-error: true
+        run: |
+          ssh -o ConnectTimeout=5 -p ${{ secrets.POD_SSH_PORT }} -i ~/.ssh/id_ed25519 root@${{ secrets.POD_SSH_HOST }} 'echo ok' \
+            && echo "reachable=true" >> $GITHUB_OUTPUT \
+            || echo "reachable=false" >> $GITHUB_OUTPUT
+
+      - name: Deploy
+        if: steps.check.outputs.reachable == 'true'
+        run: |
+          HOST="${{ secrets.POD_SSH_HOST }}"
+          PORT="${{ secrets.POD_SSH_PORT }}"
+          KEY=~/.ssh/id_ed25519
+
+          echo "📦 Deploying admin server..."
+          ssh -p $PORT -i $KEY root@$HOST 'mkdir -p /workspace/admin/workflows'
+          scp -P $PORT -i $KEY pod/requirements.txt root@$HOST:/workspace/requirements.txt
+          scp -P $PORT -i $KEY pod/admin/server.py root@$HOST:/workspace/admin/server.py
+          scp -P $PORT -i $KEY pod/admin/workflow_loader.py root@$HOST:/workspace/admin/workflow_loader.py
+          scp -P $PORT -i $KEY pod/admin/workflows/* root@$HOST:/workspace/admin/workflows/
+
+          # Upload dashboard if it exists
+          [ -f pod/admin/index.html ] && scp -P $PORT -i $KEY pod/admin/index.html root@$HOST:/workspace/admin/index.html || true
+
+          # Upload manage script
+          [ -f pod/scripts/manage-pod.sh ] && scp -P $PORT -i $KEY pod/scripts/manage-pod.sh root@$HOST:/workspace/manage.sh || true
+
+          echo "🔄 Restarting admin server..."
+          ssh -p $PORT -i $KEY root@$HOST '
+            fuser -k 8188/tcp 2>/dev/null || true
+            sleep 2
+            cd /workspace/admin
+            COMFY_PORT=8189 ADMIN_PORT=8188 setsid python3 -u server.py > /workspace/admin.log 2>&1 < /dev/null &
+            sleep 3
+            curl -sf http://127.0.0.1:8188/health > /dev/null \
+              && echo "✅ Admin server healthy" \
+              || echo "⚠️ Admin server not responding"
+          '
+
+      - name: Verify
+        if: steps.check.outputs.reachable == 'true'
+        run: |
+          HOST="${{ secrets.POD_SSH_HOST }}"
+          PORT="${{ secrets.POD_SSH_PORT }}"
+          KEY=~/.ssh/id_ed25519
+
+          ENDPOINTS=$(ssh -p $PORT -i $KEY root@$HOST \
+            'curl -s http://127.0.0.1:8188/openapi.json | python3 -c "import sys,json;print(len(json.load(sys.stdin)[\"paths\"]))"' 2>/dev/null || echo "?")
+          echo "✅ $ENDPOINTS endpoints deployed"
+
+      - name: Skip (pod offline)
+        if: steps.check.outputs.reachable != 'true'
+        run: echo "⏭️ Pod not reachable — skipping deploy"

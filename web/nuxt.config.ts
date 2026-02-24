@@ -43,6 +43,9 @@ export default defineNuxtConfig({
     // ComfyUI direct connection
     comfyUrl: process.env.COMFY_URL || '',
     webhookSecret: process.env.WEBHOOK_SECRET || '',
+    
+    // RunPod API (for pod management)
+    runpodApiKey: process.env.RUNPOD_API_KEY || process.env.AI_API_KEY || '',
 
     // Apple Sign-In
     appleTeamId: process.env.APPLE_TEAM_ID || '',

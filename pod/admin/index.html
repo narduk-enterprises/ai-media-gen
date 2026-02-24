@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GPU Pod Admin</title>
+    <style>
+      :root {
+        --bg: #0f1117;
+        --card: #1a1d27;
+        --border: #2a2d3a;
+        --text: #e0e0e0;
+        --muted: #8890a0;
+        --accent: #6366f1;
+        --green: #22c55e;
+        --red: #ef4444;
+        --yellow: #eab308;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family:
+          'Inter',
+          -apple-system,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px 16px;
+      }
+      h1 {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      h1 span {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      @media (max-width: 600px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+      }
+      .card h2 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .stat {
+        font-size: 28px;
+        font-weight: 700;
+      }
+      .stat-label {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 99px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .badge-green {
+        background: rgba(34, 197, 94, 0.15);
+        color: var(--green);
+      }
+      .badge-red {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--red);
+      }
+      .badge-yellow {
+        background: rgba(234, 179, 8, 0.15);
+        color: var(--yellow);
+      }
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+      }
+      .dot-green {
+        background: var(--green);
+      }
+      .dot-red {
+        background: var(--red);
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: none;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn-primary:hover:not(:disabled) {
+        background: #5558e8;
+      }
+      .btn-danger {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--red);
+      }
+      .btn-danger:hover:not(:disabled) {
+        background: rgba(239, 68, 68, 0.25);
+      }
+      .btn-neutral {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text);
+      }
+      .btn-neutral:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      .log-box {
+        background: #0d0f14;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        line-height: 1.6;
+        color: var(--muted);
+        max-height: 300px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .model-group {
+        margin-bottom: 12px;
+      }
+      .model-group h3 {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--accent);
+        margin-bottom: 4px;
+        text-transform: capitalize;
+      }
+      .model-item {
+        font-size: 11px;
+        color: var(--muted);
+        padding: 2px 0;
+        display: flex;
+        justify-content: space-between;
+      }
+      .model-item .size {
+        color: var(--text);
+        font-weight: 500;
+      }
+      .progress-bar {
+        height: 4px;
+        background: var(--border);
+        border-radius: 2px;
+        margin-top: 8px;
+        overflow: hidden;
+      }
+      .progress-bar .fill {
+        height: 100%;
+        background: var(--accent);
+        border-radius: 2px;
+        transition: width 0.5s;
+      }
+      .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 12px;
+      }
+      .tab {
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        background: transparent;
+        border: none;
+        color: var(--muted);
+      }
+      .tab.active {
+        background: rgba(99, 102, 241, 0.15);
+        color: var(--accent);
+      }
+      .spinner {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .vram-bar {
+        height: 8px;
+        background: var(--border);
+        border-radius: 4px;
+        margin-top: 6px;
+        overflow: hidden;
+      }
+      .vram-bar .used {
+        height: 100%;
+        background: linear-gradient(90deg, var(--green), var(--accent));
+        border-radius: 4px;
+        transition: width 0.5s;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>⚡ GPU Pod Admin <span id="gpu-name"></span></h1>
+
+      <div class="grid">
+        <div class="card">
+          <h2>ComfyUI</h2>
+          <div id="comfy-status"></div>
+        </div>
+        <div class="card">
+          <h2>Storage</h2>
+          <div id="disk-status"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 16px">
+        <h2>VRAM</h2>
+        <div id="vram-status"></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-danger" id="btn-restart" onclick="restartComfy()">
+          🔄 Restart ComfyUI
+        </button>
+        <button class="btn btn-danger" id="btn-restart-admin" onclick="restartAdmin()">
+          ⚙️ Restart Admin
+        </button>
+        <button class="btn btn-primary" id="btn-sync" onclick="syncModels()">📦 Sync Models</button>
+        <button class="btn btn-neutral" onclick="loadHealth()">↻ Refresh</button>
+      </div>
+
+      <div id="sync-banner" class="card" style="display: none; margin-bottom: 16px">
+        <h2>Model Sync</h2>
+        <div id="sync-info"></div>
+        <div class="progress-bar"><div class="fill" id="sync-progress"></div></div>
+        <div class="log-box" id="sync-log" style="margin-top: 8px; max-height: 150px"></div>
+      </div>
+
+      <div class="card">
+        <div class="tabs">
+          <button class="tab active" onclick="switchTab('logs', this)">Logs</button>
+          <button class="tab" onclick="switchTab('tests', this)">Tests</button>
+          <button class="tab" onclick="switchTab('jobs', this)">Jobs</button>
+          <button class="tab" onclick="switchTab('models', this)">Models</button>
+        </div>
+        <div id="tab-logs"><div class="log-box" id="log-content">Loading...</div></div>
+        <div id="tab-tests" style="display: none">
+          <div style="margin-bottom: 12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <p style="font-size: 12px; color: var(--muted)">Verify each generation pipeline works end-to-end.</p>
+              <button class="btn btn-primary" id="btn-run-all" onclick="runAllTests()">🧪 Run All Tests</button>
+            </div>
+            <div id="test-results">
+              <div style="font-size:12px;color:var(--muted)">Click "Run All Tests" to start the test suite.</div>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+            <p style="font-size:11px;color:var(--muted);margin-bottom:8px">Or run individual tests:</p>
+            <div class="actions" id="individual-test-btns" style="flex-wrap:wrap">
+              <button class="btn btn-neutral" onclick="runSingleTest('health')">💚 Health</button>
+              <button class="btn btn-neutral" onclick="runSingleTest('t2i_flux2')">🖼 T2I Flux2</button>
+              <button class="btn btn-neutral" onclick="runSingleTest('t2i_wan22')">🖼 T2I Wan</button>
+              <button class="btn btn-neutral" onclick="runSingleTest('t2i_qwen')">🖼 T2I Qwen</button>
+              <button class="btn btn-neutral" onclick="runSingleTest('i2i_flux2')">🎨 I2I Flux2</button>
+              <button class="btn btn-neutral" onclick="runSingleTest('i2i_wan22')">🎨 I2I Wan</button>
+              <button class="btn btn-neutral" onclick="runSingleTest('t2v_ltx2')">🎬 T2V LTX2</button>
+              <button class="btn btn-neutral" onclick="runSingleTest('t2v_wan22')">🎬 T2V Wan</button>
+              <button class="btn btn-neutral" onclick="runSingleTest('i2v_ltx2')">📹 I2V LTX2</button>
+              <button class="btn btn-neutral" onclick="runSingleTest('i2v_wan22')">📹 I2V Wan</button>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
+            <p style="font-size:11px;color:var(--muted);margin-bottom:8px">Pipeline stress test (full I2V generation):</p>
+            <div class="actions">
+              <button class="btn btn-neutral" onclick="runPipelineTest('quick')">⚡ Quick (25f, 5s)</button>
+              <button class="btn btn-neutral" onclick="runPipelineTest('medium')">🎬 Medium (49f, 10s)</button>
+              <button class="btn btn-neutral" onclick="runPipelineTest('full')">🎥 Full (97f, 20s)</button>
+            </div>
+            <div id="pipeline-test-status" style="display:none;margin-top:8px">
+              <div id="pipeline-test-info"></div>
+              <div class="log-box" id="pipeline-test-log" style="margin-top:6px;max-height:150px"></div>
+            </div>
+          </div>
+        </div>
+        <div id="tab-jobs" style="display: none"><div id="jobs-list" style="font-size: 12px; color: var(--muted)">Loading...</div></div>
+        <div id="tab-models" style="display: none"><div id="models-list">Loading...</div></div>
+      </div>
+    </div>
+
+    <script>
+      const API = '';
+
+      async function api(path, method = 'GET') {
+        try {
+          const r = await fetch(API + path, { method });
+          return await r.json();
+        } catch (e) {
+          return { error: e.message };
+        }
+      }
+
+      async function loadHealth() {
+        const d = await api('/health');
+        if (d.error) {
+          document.getElementById('comfy-status').innerHTML =
+            '<span class="badge badge-red"><span class="dot dot-red"></span>Error</span>';
+          return;
+        }
+        const c = d.comfy;
+        if (c.status === 'running') {
+          const usedPct = Math.round(((c.vram_total_gb - c.vram_free_gb) / c.vram_total_gb) * 100);
+          document.getElementById('comfy-status').innerHTML = `
+      <span class="badge badge-green"><span class="dot dot-green"></span>Running</span>
+      <div class="stat-label" style="margin-top:8px">Port ${d.comfy_port}</div>
+    `;
+          document.getElementById('vram-status').innerHTML = `
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span>${(c.vram_total_gb - c.vram_free_gb).toFixed(1)} GB used</span>
+        <span>${c.vram_free_gb.toFixed(1)} GB free / ${c.vram_total_gb.toFixed(1)} GB</span>
+      </div>
+      <div class="vram-bar"><div class="used" style="width:${usedPct}%"></div></div>
+    `;
+          document.getElementById('gpu-name').textContent = c.gpu_name || '';
+        } else {
+          document.getElementById('comfy-status').innerHTML =
+            '<span class="badge badge-red"><span class="dot dot-red"></span>Stopped</span>';
+          document.getElementById('vram-status').innerHTML =
+            '<span class="badge badge-red">No GPU data</span>';
+        }
+        const dk = d.disk;
+        if (dk.total_gb) {
+          const pct = Math.round((dk.used_gb / dk.total_gb) * 100);
+          document.getElementById('disk-status').innerHTML = `
+      <div class="stat">${dk.free_gb} GB</div>
+      <div class="stat-label">free of ${dk.total_gb} GB (${pct}% used)</div>
+    `;
+        }
+      }
+
+      async function loadLogs() {
+        const d = await api('/logs?source=comfy&lines=60');
+        document.getElementById('log-content').textContent = d.lines || 'No logs';
+        const el = document.getElementById('log-content');
+        el.scrollTop = el.scrollHeight;
+      }
+
+      async function loadModels() {
+        const d = await api('/models');
+        if (d.error) {
+          document.getElementById('models-list').textContent = 'Error loading';
+          return;
+        }
+        let html = '';
+        for (const [cat, files] of Object.entries(d)) {
+          html += `<div class="model-group"><h3>${cat} (${files.length})</h3>`;
+          for (const f of files) {
+            const size =
+              f.size_mb > 1024 ? (f.size_mb / 1024).toFixed(1) + ' GB' : f.size_mb + ' MB';
+            html += `<div class="model-item"><span>${f.name}</span><span class="size">${size}</span></div>`;
+          }
+          html += '</div>';
+        }
+        document.getElementById('models-list').innerHTML = html || 'No models found';
+      }
+
+      async function restartComfy() {
+        const btn = document.getElementById('btn-restart');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Restarting...';
+        const d = await api('/restart', 'POST');
+        btn.disabled = false;
+        btn.textContent = '🔄 Restart ComfyUI';
+        setTimeout(loadHealth, 2000);
+      }
+
+      async function restartAdmin() {
+        const btn = document.getElementById('btn-restart-admin');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Restarting...';
+        await api('/restart-admin', 'POST');
+        // Wait for admin to come back
+        btn.innerHTML = '<span class="spinner"></span> Waiting...';
+        await new Promise(r => setTimeout(r, 3000));
+        for (let i = 0; i < 10; i++) {
+          try {
+            const h = await api('/health');
+            if (!h.error) { location.reload(); return; }
+          } catch {}
+          await new Promise(r => setTimeout(r, 1000));
+        }
+        btn.disabled = false;
+        btn.textContent = '⚙️ Restart Admin';
+      }
+
+      async function syncModels() {
+        const btn = document.getElementById('btn-sync');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Syncing...';
+        await api('/sync-models', 'POST');
+        document.getElementById('sync-banner').style.display = 'block';
+        pollSync();
+      }
+
+      async function pollSync() {
+        const d = await api('/sync-status');
+        document.getElementById('sync-log').textContent = d.log || '';
+        const el = document.getElementById('sync-log');
+        el.scrollTop = el.scrollHeight;
+        if (d.running) {
+          document.getElementById('sync-info').innerHTML =
+            '<span class="badge badge-yellow">Syncing...</span>';
+          document.getElementById('sync-progress').style.width = '60%';
+          setTimeout(pollSync, 2000);
+        } else {
+          const btn = document.getElementById('btn-sync');
+          btn.disabled = false;
+          btn.textContent = '📦 Sync Models';
+          document.getElementById('sync-progress').style.width = '100%';
+          document.getElementById('sync-info').innerHTML =
+            d.exit_code === 0
+              ? '<span class="badge badge-green">✅ Complete</span>'
+              : '<span class="badge badge-red">⚠ Errors</span>';
+        }
+      }
+
+      function switchTab(tab, el) {
+        document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+        el.classList.add('active');
+        ['logs', 'tests', 'jobs', 'models'].forEach(t => {
+          const el = document.getElementById('tab-' + t);
+          if (el) el.style.display = t === tab ? '' : 'none';
+        });
+        if (tab === 'models') loadModels();
+        if (tab === 'logs') loadLogs();
+        if (tab === 'jobs') loadJobs();
+      }
+
+      // ── Test Suite ──────────────────────────────────────────
+      async function runAllTests() {
+        const btn = document.getElementById('btn-run-all');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Running...';
+        disableTestBtns(true);
+        try {
+          await fetch(API + '/test/run-all', { method: 'POST' });
+          pollTestStatus();
+        } catch (e) {
+          document.getElementById('test-results').innerHTML = '<span class="badge badge-red">Failed to start: ' + e.message + '</span>';
+          btn.disabled = false;
+          btn.textContent = '🧪 Run All Tests';
+          disableTestBtns(false);
+        }
+      }
+
+      async function runSingleTest(name) {
+        const btn = document.getElementById('btn-run-all');
+        btn.disabled = true;
+        disableTestBtns(true);
+        try {
+          await fetch(API + '/test/run/' + name, { method: 'POST' });
+          pollTestStatus();
+        } catch (e) {
+          document.getElementById('test-results').innerHTML = '<span class="badge badge-red">Failed: ' + e.message + '</span>';
+          btn.disabled = false;
+          disableTestBtns(false);
+        }
+      }
+
+      function disableTestBtns(disabled) {
+        document.querySelectorAll('#individual-test-btns .btn').forEach(b => b.disabled = disabled);
+      }
+
+      function statusIcon(s) {
+        if (s === 'passed') return '✅';
+        if (s === 'failed') return '❌';
+        if (s === 'running') return '<span class="spinner" style="width:12px;height:12px;border-width:1.5px"></span>';
+        return '⏳';
+      }
+      function statusBadgeClass(s) {
+        if (s === 'passed') return 'badge-green';
+        if (s === 'failed') return 'badge-red';
+        return 'badge-yellow';
+      }
+
+      async function pollTestStatus() {
+        try {
+          const r = await fetch(API + '/test/status');
+          const d = await r.json();
+          let html = '<div style="display:flex;flex-direction:column;gap:6px">';
+          const order = ['health','t2i_flux2','t2i_wan22','t2i_qwen','i2i_flux2','i2i_wan22','t2v_ltx2','t2v_wan22','i2v_ltx2','i2v_wan22'];
+          for (const key of order) {
+            const t = d.tests[key];
+            if (!t) continue;
+            const icon = statusIcon(t.status);
+            const badge = statusBadgeClass(t.status);
+            const timeStr = t.time_s > 0 ? ` <span style="font-size:10px;color:var(--muted)">${t.time_s}s</span>` : '';
+            const errStr = t.error ? ` <span style="font-size:10px;color:var(--red)">${t.error.substring(0,80)}</span>` : '';
+            const logStr = (t.status === 'passed' && t.log) ? ` <span style="font-size:10px;color:var(--green)">${t.log.substring(0,60)}</span>` : '';
+            html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(255,255,255,0.03);border-radius:6px">
+              <span style="width:20px;text-align:center">${icon}</span>
+              <span style="font-size:12px;font-weight:600;min-width:160px">${t.label}</span>
+              <span class="badge ${badge}" style="font-size:10px">${t.status}</span>
+              ${timeStr}${errStr}${logStr}
+            </div>`;
+          }
+          html += '</div>';
+
+          if (!d.running && d.finished_at) {
+            const passed = Object.values(d.tests).filter(t => t.status === 'passed').length;
+            const failed = Object.values(d.tests).filter(t => t.status === 'failed').length;
+            const total = Object.keys(d.tests).length;
+            const elapsed = d.finished_at - d.started_at;
+            html += `<div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+              <span class="badge ${failed === 0 ? 'badge-green' : 'badge-red'}">${failed === 0 ? '✅ All Passed' : `❌ ${failed} Failed`}</span>
+              <span style="font-size:11px;color:var(--muted)">${passed}/${total} passed in ${elapsed.toFixed(1)}s</span>
+            </div>`;
+          }
+
+          document.getElementById('test-results').innerHTML = html;
+
+          if (d.running) {
+            setTimeout(pollTestStatus, 2000);
+          } else {
+            const btn = document.getElementById('btn-run-all');
+            btn.disabled = false;
+            btn.textContent = '🧪 Run All Tests';
+            disableTestBtns(false);
+          }
+        } catch {
+          setTimeout(pollTestStatus, 3000);
+        }
+      }
+
+      // ── Pipeline Stress Test (old-style I2V test) ──────────
+      let _pipelineJobId = null;
+      async function runPipelineTest(preset) {
+        document.getElementById('pipeline-test-status').style.display = 'block';
+        document.getElementById('pipeline-test-info').innerHTML = '<span class="badge badge-yellow">Starting ' + preset + ' test...</span>';
+        document.getElementById('pipeline-test-log').textContent = '';
+        try {
+          const r = await fetch(API + '/generate/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ preset })
+          });
+          const d = await r.json();
+          if (d.error) {
+            document.getElementById('pipeline-test-info').innerHTML = '<span class="badge badge-red">Error: ' + d.error + '</span>';
+            return;
+          }
+          _pipelineJobId = d.job_id;
+          document.getElementById('pipeline-test-info').innerHTML = `<span class="badge badge-yellow">⏳ Running ${preset} (${d.frames}f, ${d.steps}s)...</span> <span style="font-size:11px;color:var(--muted)">Job: ${d.job_id.slice(0,8)}</span>`;
+          pollPipelineTest();
+        } catch (e) {
+          document.getElementById('pipeline-test-info').innerHTML = '<span class="badge badge-red">Failed: ' + e.message + '</span>';
+        }
+      }
+
+      async function pollPipelineTest() {
+        if (!_pipelineJobId) return;
+        try {
+          const r = await fetch(API + '/generate/status/' + _pipelineJobId);
+          const d = await r.json();
+          document.getElementById('pipeline-test-log').textContent = d.log || '';
+          const logEl = document.getElementById('pipeline-test-log');
+          logEl.scrollTop = logEl.scrollHeight;
+          if (d.status === 'completed') {
+            document.getElementById('pipeline-test-info').innerHTML = '<span class="badge badge-green">✅ Pipeline test passed!</span>';
+            _pipelineJobId = null;
+            return;
+          }
+          if (d.status === 'failed') {
+            document.getElementById('pipeline-test-info').innerHTML = '<span class="badge badge-red">❌ Pipeline test failed</span>';
+            _pipelineJobId = null;
+            return;
+          }
+          document.getElementById('pipeline-test-info').innerHTML = `<span class="badge badge-yellow"><span class="spinner"></span> ${d.status}... seg ${d.current_segment || 0}/${d.segments_total}</span>`;
+          setTimeout(pollPipelineTest, 3000);
+        } catch {
+          setTimeout(pollPipelineTest, 5000);
+        }
+      }
+
+      async function loadJobs() {
+        document.getElementById('jobs-list').innerHTML = '<span style="color:var(--muted)">Checking active jobs...</span>';
+        if (_pipelineJobId) {
+          try {
+            const r = await api('/generate/status/' + _pipelineJobId);
+            document.getElementById('jobs-list').innerHTML = `<div style="padding:4px 0"><span class="badge badge-${r.status === 'completed' ? 'green' : r.status === 'failed' ? 'red' : 'yellow'}">${r.status}</span> ${_pipelineJobId.slice(0,8)} — seg ${r.current_segment || 0}/${r.segments_total}</div>`;
+          } catch {
+            document.getElementById('jobs-list').innerHTML = 'No active jobs';
+          }
+        } else {
+          document.getElementById('jobs-list').innerHTML = 'No active jobs. Run a test from the Tests tab.';
+        }
+      }
+
+      // Init
+      loadHealth();
+      loadLogs();
+      setInterval(loadHealth, 15000);
+      setInterval(loadLogs, 10000);
+    </script>
+  </body>
+</html>

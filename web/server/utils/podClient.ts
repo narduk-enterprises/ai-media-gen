@@ -412,6 +412,14 @@ export async function checkJobStatus(
           segmentsTotal: status.segments_total,
         }
       }
+
+      // Job IS completed on the pod, but we couldn't fetch the result data.
+      // Fail explicitly instead of returning null (which causes infinite polling).
+      console.error(`[Pod] Job ${jobId} completed but result data could not be fetched`)
+      return {
+        status: 'FAILED',
+        error: 'Job completed on pod but result data could not be retrieved — try re-submitting',
+      }
     }
 
     if (status.status === 'failed') {
@@ -425,8 +433,15 @@ export async function checkJobStatus(
     return null
   } catch (e: any) {
     // 404 = pod restarted and lost in-memory job state, or job expired.
-    // Don't immediately fail — let the stale threshold + retry logic handle it.
-    // This prevents pod restarts from instantly killing all in-flight jobs.
+    // Return FAILED so the item resolves instead of polling forever.
+    if (e?.response?.status === 404) {
+      console.warn(`[Pod] Job ${jobId} not found on pod (expired or pod restarted)`)
+      return {
+        status: 'FAILED',
+        error: 'Job not found on pod — it may have expired or the pod restarted. Please retry.',
+      }
+    }
+    // Other transient errors (network blip, timeout) — keep polling
     console.warn(`[Pod] Status check failed for ${jobId}: ${e?.response?.status || ''} ${e.message}`)
     return null
   }

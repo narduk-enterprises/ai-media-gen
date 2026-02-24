@@ -6,6 +6,7 @@ const navItems = [
   { label: 'Create', to: '/create', icon: 'i-lucide-sparkles' },
   { label: 'Gallery', to: '/gallery', icon: 'i-lucide-image' },
   { label: 'Feed', to: '/feed', icon: 'i-lucide-play' },
+  { label: 'Pods', to: '/pods', icon: 'i-lucide-server' },
   { label: 'Settings', to: '/settings', icon: 'i-lucide-settings' },
 ]
 

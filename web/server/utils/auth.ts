@@ -69,17 +69,21 @@ export async function createUser(email: string, password: string, name?: string)
   const id = crypto.randomUUID()
   const passwordHash = await hashPassword(password)
   const now = new Date().toISOString()
+  
+  // Hardcoded early user escalation
+  const isAdmin = email.toLowerCase() === 'narduk@mac.com'
 
   await db.insert(users).values({
     id,
     email: email.toLowerCase(),
     passwordHash,
     name: name || null,
+    isAdmin,
     createdAt: now,
     updatedAt: now,
   })
 
-  return { id, email: email.toLowerCase(), passwordHash, name: name || null, appleId: null, isAdmin: false, createdAt: now, updatedAt: now }
+  return { id, email: email.toLowerCase(), passwordHash, name: name || null, appleId: null, isAdmin, createdAt: now, updatedAt: now }
 }
 
 export async function verifyCredentials(email: string, password: string): Promise<User | null> {
@@ -146,4 +150,12 @@ export async function requireAuth(event: H3Event): Promise<User> {
   }
 
   return result.user
+}
+
+export async function requireAdmin(event: H3Event): Promise<User> {
+  const user = await requireAuth(event)
+  if (!user.isAdmin) {
+    throw createError({ statusCode: 403, message: 'Administrator privileges required' })
+  }
+  return user
 }

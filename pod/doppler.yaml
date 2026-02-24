@@ -1,0 +1,3 @@
+setup:
+  project: gpu-by-the-hour
+  config: prd

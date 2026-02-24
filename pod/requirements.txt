@@ -1,0 +1,8 @@
+requests
+huggingface-hub[hf_transfer]
+accelerate
+transformers
+pillow
+opencv-python-headless
+gitpython
+numpy
