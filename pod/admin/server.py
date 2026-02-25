@@ -1488,6 +1488,7 @@ def _run_single_generation(job_id, action, data):
                     lora_strength=data.get("lora_strength", 1.0),
                     image_strength=data.get("image_strength", 1.0),
                     text_encoder=data.get("text_encoder"),
+                    audio_prompt=data.get("audio_prompt"),
                 )
                 output_prefix = "LTX-2-I2V"
 

@@ -369,9 +369,11 @@ def build_ltx_2_t2v_workflow(prompt, negative_prompt="", width=1280, height=720,
     """
     seed = _seed(seed)
     # Build combined prompt: video description + optional audio guidance
+    # LTX-2 AV conditions audio from the same text. Prefixing with "Sound of"
+    # helps separate the audio instruction from the visual description.
     full_prompt = prompt
     if audio_prompt:
-        full_prompt = f"{prompt}. Audio: {audio_prompt}"
+        full_prompt = f"Sound of {audio_prompt}. {prompt}"
     wf = _inject(_load_template("ltx2_t2v"), {
         "prompt": full_prompt,
         "negative_prompt": negative_prompt or LTX2_NEG_PROMPT,
@@ -424,10 +426,12 @@ def build_ltx_2_i2v_workflow(image_filename, prompt="", negative_prompt="",
                       gemma_3_12B_it_fp4_mixed.safetensors (from template).
     """
     seed = _seed(seed)
+    # Build combined prompt: video description + optional audio guidance
+    # LTX-2 AV conditions audio from the same text. Prefixing with "Sound of"
+    # helps separate the audio instruction from the visual description.
     full_prompt = prompt or "smooth natural motion, cinematic quality"
-    # Note: audio_prompt is NOT appended to the video prompt —
-    # LTX-2 AV conditions audio from the same text, so appending
-    # "Audio: ..." causes it to generate speech of those words.
+    if audio_prompt:
+        full_prompt = f"Sound of {audio_prompt}. {full_prompt}"
     wf = _inject(_load_template("ltx2_i2v"), {
         "image_filename": image_filename,
         "prompt": full_prompt,
