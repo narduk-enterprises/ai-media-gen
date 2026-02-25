@@ -97,8 +97,8 @@ export default defineEventHandler(async (event) => {
   const gpus = (data.gpuTypes || [])
     .filter((g: any) => g.lowestPrice?.uninterruptablePrice > 0 || g.lowestPrice?.minimumBidPrice > 0)
     .map((g: any) => {
-      const price = g.lowestPrice?.uninterruptablePrice ? g.lowestPrice.uninterruptablePrice / 100 : (g.lowestPrice?.minimumBidPrice ? g.lowestPrice.minimumBidPrice / 100 : null)
-      const spot = g.lowestPrice?.minimumBidPrice ? g.lowestPrice.minimumBidPrice / 100 : null
+      const price = g.lowestPrice?.uninterruptablePrice ? g.lowestPrice.uninterruptablePrice : (g.lowestPrice?.minimumBidPrice ? g.lowestPrice.minimumBidPrice : null)
+      const spot = g.lowestPrice?.minimumBidPrice ? g.lowestPrice.minimumBidPrice : null
       const speedScore = getSpeedScore(g.displayName)
       // valueScore is speed per dollar. If price is 0, give it a massive score.
       const valueScore = price ? Math.round(speedScore / price) : 9999
