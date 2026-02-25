@@ -122,10 +122,16 @@ export default defineEventHandler(async (event) => {
 
     console.log(`[I2V] Item queued: ${videoId.slice(0, 8)}`)
 
+    // Build callback URL so the pod notifies us on completion
+    const config = useRuntimeConfig()
+    const appUrl = config.public?.appUrl || ''
+    const callbackUrl = appUrl ? `${appUrl}/api/generate/webhook` : ''
+    const callbackSecret = config.webhookSecret || ''
+
     // Submit directly to pod in background (we already have the base64 in memory)
    event.waitUntil((async () => {
       try {
-        const response = await submitImage2Video(inputPayload, apiUrl)
+        const response = await submitImage2Video(inputPayload, apiUrl, callbackUrl, callbackSecret)
         await db.update(mediaItems)
           .set({
             status: 'processing',

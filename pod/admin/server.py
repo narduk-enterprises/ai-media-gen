@@ -675,7 +675,7 @@ os.makedirs(JOBS_DIR, exist_ok=True)
 
 _jobs_lock = threading.Lock()
 _jobs: dict = {}  # job_id -> state dict
-JOB_TTL_S = 6 * 3600  # Clean up completed/failed jobs after 6 hours
+JOB_TTL_S = 24 * 3600  # Clean up completed/failed jobs after 24 hours
 
 
 def _cleanup_old_jobs():
