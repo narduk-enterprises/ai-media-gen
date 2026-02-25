@@ -1,10 +1,10 @@
-/**
- * promptGenerator.ts — Core prompt generation service.
- *
- * Pipeline: random template → weighted attribute fill → LLM refinement → similarity check → store.
- */
-import { eq, desc, asc, sql } from 'drizzle-orm'
-import { promptTemplates, promptAttributes, promptGenerationLog, promptCache } from '../database/schema'
+import { eq, and, or, asc, sql, isNull } from 'drizzle-orm'
+import {
+  promptTemplates,
+  promptAttributes,
+  promptGenerationLog,
+  promptCache,
+} from '../database/schema'
 
 // ─── Weighted Random Selection ──────────────────────────────
 
@@ -13,77 +13,64 @@ interface WeightedItem {
   weight: number
 }
 
-/**
- * Select a random item using cumulative weight distribution.
- * Higher weight = higher probability of selection.
- */
-export function weightedRandom(items: WeightedItem[]): string {
-  if (items.length === 0) return ''
-  if (items.length === 1) return items[0]!.value
-
+function weightedRandom(items: WeightedItem[]): string {
   const totalWeight = items.reduce((sum, item) => sum + item.weight, 0)
   let random = Math.random() * totalWeight
+
   for (const item of items) {
     random -= item.weight
     if (random <= 0) return item.value
   }
+
   return items[items.length - 1]!.value
 }
 
-// ─── Template Slot Filling ──────────────────────────────────
+// ─── Template Filling ───────────────────────────────────────
 
 /**
- * Extract slot names from a template string.
- * e.g. "A [adjective] [subject] in [setting]" → ['adjective', 'subject', 'setting']
+ * Replace [placeholder] tags in a template with randomly selected attributes.
  */
-export function extractSlots(template: string): string[] {
-  const matches = template.match(/\[([^\]]+)\]/g)
-  if (!matches) return []
-  return matches.map(m => m.slice(1, -1))
-}
-
-/**
- * Fill template slots with values from the attributes map.
- */
-export function fillTemplate(
+function fillTemplate(
   template: string,
-  attributesByCategory: Record<string, WeightedItem[]>,
+  attrsByCategory: Record<string, WeightedItem[]>,
 ): string {
-  return template.replace(/\[([^\]]+)\]/g, (_, slotName: string) => {
-    const items = attributesByCategory[slotName]
-    if (!items || items.length === 0) return `[${slotName}]` // leave unfilled if no attrs
+  return template.replace(/\[([^\]]+)\]/g, (match, category) => {
+    const items = attrsByCategory[category]
+    if (!items || items.length === 0) return match
     return weightedRandom(items)
   })
 }
 
-// ─── Similarity Hashing ─────────────────────────────────────
+// ─── Similarity Detection ───────────────────────────────────
 
 /**
- * Compute a simple bigram-based hash for similarity checking.
- * Not cryptographic — used for fast dedup of recent generations.
+ * Lightweight similarity hash from the key nouns/adjectives in a prompt.
+ * Sort them alphabetically so order doesn't matter.
  */
-export function computeSimilarityHash(text: string): string {
-  const normalized = text.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim()
-  const words = normalized.split(/\s+/).sort()
-  // Take first 8 sorted words as the "signature"
-  return words.slice(0, 8).join('_')
+export function computeSimilarityHash(prompt: string): string {
+  const words = prompt
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 3) // ignore tiny words
+    .sort()
+
+  // Take every 3rd word to create a sparse fingerprint
+  const sparse = words.filter((_, i) => i % 3 === 0).join('|')
+  return sparse
 }
 
 /**
  * Check if a similar prompt was generated recently.
  */
-export async function isDuplicate(
-  db: any,
-  hash: string,
-  lookbackCount: number = 50,
-): Promise<boolean> {
-  const recent = await db
-    .select({ similarityHash: promptGenerationLog.similarityHash })
+async function isDuplicate(db: any, hash: string): Promise<boolean> {
+  const existing = await db
+    .select({ id: promptGenerationLog.id })
     .from(promptGenerationLog)
-    .orderBy(desc(promptGenerationLog.createdAt))
-    .limit(lookbackCount)
+    .where(eq(promptGenerationLog.similarityHash, hash))
+    .limit(1)
 
-  return recent.some((row: any) => row.similarityHash === hash)
+  return existing.length > 0
 }
 
 // ─── LLM Refinement ─────────────────────────────────────────
@@ -127,11 +114,18 @@ export interface GenerateResult {
   rawPrompt: string
   refinedPrompt: string
   similarityHash: string
+  mediaType?: string
+  modelHint?: string | null
+}
+
+export interface GenerateOptions {
+  mediaType?: 'image' | 'video' | 'any'
+  modelHint?: string | null
 }
 
 /**
  * Full prompt generation pipeline:
- * 1. Pick random active template
+ * 1. Pick random active template (filtered by media type + model hint)
  * 2. Fetch active attributes grouped by category
  * 3. Fill template with weighted random attributes
  * 4. Refine with LLM
@@ -143,13 +137,38 @@ export async function generatePrompt(
   ai: any,
   userId?: string,
   maxRetries: number = 3,
+  options?: GenerateOptions,
 ): Promise<GenerateResult> {
+  const mediaType = options?.mediaType || 'any'
+  const modelHint = options?.modelHint || null
+
   // ── Step 0: Try to consume a cached prompt first ──────────
-  const cached = await db
-    .select()
-    .from(promptCache)
-    .orderBy(asc(promptCache.createdAt))
-    .limit(1)
+  // Build cache query conditions for media type match
+  const cacheConditions = []
+  if (mediaType !== 'any') {
+    // Match exact type OR 'any' (generic templates work for everything)
+    cacheConditions.push(
+      or(
+        eq(promptCache.mediaType, mediaType),
+        eq(promptCache.mediaType, 'any'),
+      ),
+    )
+  }
+  if (modelHint) {
+    // Match model hint OR null (generic templates work for any model)
+    cacheConditions.push(
+      or(
+        eq(promptCache.modelHint, modelHint),
+        isNull(promptCache.modelHint),
+      ),
+    )
+  }
+
+  const cacheQuery = cacheConditions.length > 0
+    ? db.select().from(promptCache).where(and(...cacheConditions)).orderBy(asc(promptCache.createdAt)).limit(1)
+    : db.select().from(promptCache).orderBy(asc(promptCache.createdAt)).limit(1)
+
+  const cached = await cacheQuery
 
   if (cached.length > 0) {
     const entry = cached[0]!
@@ -168,10 +187,10 @@ export async function generatePrompt(
       createdAt: new Date().toISOString(),
     })
 
-    // Auto-refill: top up cache to 100 in the background
+    // Auto-refill: top up cache in the background
     autoRefillCache(db, ai).catch(e => console.warn(`[PromptGen] Background refill failed: ${e.message}`))
 
-    console.log(`[PromptGen] Served from cache (id=${entry.id})`)
+    console.log(`[PromptGen] Served from cache (id=${entry.id}, type=${entry.mediaType || 'any'})`)
     return {
       id: logId,
       templateId: entry.templateId,
@@ -179,20 +198,46 @@ export async function generatePrompt(
       rawPrompt: entry.rawPrompt,
       refinedPrompt: entry.refinedPrompt,
       similarityHash: entry.similarityHash,
+      mediaType: entry.mediaType || 'any',
+      modelHint: entry.modelHint,
     }
   }
 
   // ── Fallback: live generation ─────────────────────────────
-  console.log('[PromptGen] Cache empty, generating live...')
+  console.log(`[PromptGen] Cache empty for type=${mediaType}, generating live...`)
 
-  // 1. Fetch a random active template
+  // 1. Fetch templates filtered by media type + model hint
+  const templateConditions = [eq(promptTemplates.isActive, true)]
+
+  if (mediaType !== 'any') {
+    templateConditions.push(
+      or(
+        eq(promptTemplates.mediaType, mediaType),
+        eq(promptTemplates.mediaType, 'any'),
+      )! as any,
+    )
+  }
+  if (modelHint) {
+    templateConditions.push(
+      or(
+        eq(promptTemplates.modelHint, modelHint),
+        isNull(promptTemplates.modelHint),
+      )! as any,
+    )
+  }
+
   const templates = await db
     .select()
     .from(promptTemplates)
-    .where(eq(promptTemplates.isActive, true))
+    .where(and(...templateConditions))
 
   if (templates.length === 0) {
-    throw new Error('No active templates found. Create at least one template first.')
+    // Fall back to all active templates if none match the filter
+    const fallback = await db.select().from(promptTemplates).where(eq(promptTemplates.isActive, true))
+    if (fallback.length === 0) {
+      throw new Error('No active templates found. Create at least one template first.')
+    }
+    templates.push(...fallback)
   }
 
   const template = templates[Math.floor(Math.random() * templates.length)]!
@@ -253,6 +298,8 @@ export async function generatePrompt(
     rawPrompt,
     refinedPrompt,
     similarityHash,
+    mediaType: template.mediaType || 'any',
+    modelHint: template.modelHint,
   }
 }
 
@@ -260,7 +307,7 @@ export async function generatePrompt(
 
 /**
  * Pre-generate prompts and store them in the cache table.
- * Used by the fill-cache admin endpoint.
+ * Generates a balanced mix of media types.
  */
 export async function fillPromptCache(
   db: any,
@@ -307,6 +354,8 @@ export async function fillPromptCache(
       rawPrompt,
       refinedPrompt,
       similarityHash,
+      mediaType: template.mediaType || 'any',
+      modelHint: template.modelHint || null,
       createdAt: new Date().toISOString(),
     })
     added++

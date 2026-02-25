@@ -57,6 +57,8 @@ export const promptTemplates = sqliteTable('prompt_templates', {
   name: text('name').notNull(),
   template: text('template').notNull(),
   category: text('category').default('general'),
+  mediaType: text('media_type').default('any'), // 'image' | 'video' | 'any'
+  modelHint: text('model_hint'), // optional: 'pony', 'wan22', 'flux2', etc.
   isActive: integer('is_active', { mode: 'boolean' }).default(true),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
@@ -92,6 +94,8 @@ export const promptCache = sqliteTable('prompt_cache', {
   rawPrompt: text('raw_prompt').notNull(),
   refinedPrompt: text('refined_prompt').notNull(),
   similarityHash: text('similarity_hash'),
+  mediaType: text('media_type').default('any'), // 'image' | 'video' | 'any'
+  modelHint: text('model_hint'), // optional model hint carried from template
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 })
 

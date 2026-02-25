@@ -47,6 +47,8 @@ export default defineEventHandler(async (event) => {
           name: tpl.name.trim(),
           template: tpl.template.trim(),
           category: tpl.category?.trim() || 'general',
+          mediaType: tpl.mediaType?.trim() || 'any',
+          modelHint: tpl.modelHint?.trim() || null,
           isActive: true,
           createdAt: now,
           updatedAt: now,
