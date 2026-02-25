@@ -14,7 +14,23 @@ export default defineEventHandler(async (event) => {
   const podId = body.podId
   const podUrl = `https://${podId}-8188.proxy.runpod.net`
 
-  // Pull latest code, copy files to workspace, restart services via supervisorctl
+  // Pull latest code, copy files to workspace, install new custom nodes, restart services
+  const customNodes = [
+    'https://github.com/civitai/civitai_comfy_nodes.git civitai_comfy_nodes',
+    'https://github.com/MoonGoblinDev/Civicomfy.git Civicomfy',
+    'https://github.com/BAIKEMARK/ComfyUI-Civitai-Toolkit.git ComfyUI-Civitai-Toolkit',
+    'https://github.com/Fannovel16/ComfyUI-Video-Matting.git ComfyUI-Video-Matting',
+    'https://github.com/ltdrdata/ComfyUI-Manager.git ComfyUI-Manager',
+    'https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git ComfyUI-VideoHelperSuite',
+  ]
+
+  // Build a shell snippet that clones any missing custom nodes and installs their requirements
+  const nodesDir = '/workspace/ComfyUI/custom_nodes'
+  const installNodesScript = customNodes.map((pair) => {
+    const [url, name] = pair.split(' ')
+    return `[ ! -d "${nodesDir}/${name}" ] && { echo "Installing ${name}..."; git clone --depth 1 ${url} ${nodesDir}/${name}; [ -f ${nodesDir}/${name}/requirements.txt ] && pip install -q -r ${nodesDir}/${name}/requirements.txt 2>&1 | tail -1; echo "  ✅ ${name}"; } || echo "  ✓ ${name} (exists)"`
+  }).join('; ')
+
   const updateScript = [
     'cd /workspace/_repo && git pull --ff-only',
     'cp /workspace/_repo/pod/admin/server.py /workspace/admin/server.py',
@@ -24,6 +40,7 @@ export default defineEventHandler(async (event) => {
     'cp /workspace/_repo/pod/scripts/manage-pod.sh /workspace/manage.sh',
     'cp /workspace/_repo/pod/scripts/sync_models.py /workspace/sync_models.py',
     'cp /workspace/_repo/pod/scripts/supervisord.conf /workspace/supervisord.conf',
+    installNodesScript,
     'supervisorctl -c /workspace/supervisord.conf restart all',
   ].join(' && ')
 
@@ -33,7 +50,7 @@ export default defineEventHandler(async (event) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: { command: updateScript, background: false },
-      timeout: 30_000,
+      timeout: 120_000,
     })
     return {
       success: result.exit_code === 0,
