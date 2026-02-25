@@ -49,6 +49,95 @@ const MODEL_GROUPS = [
   { value: 'shared', label: 'AI Remix + Caption', icon: '💬', sizeGb: 8, category: 'Shared' },
 ]
 
+// ─── Quick Deploy Presets ────────────────────────────────────────────────────
+interface QuickDeployPreset {
+  id: string
+  label: string
+  icon: string
+  description: string
+  modelGroups: string[]
+  minVram: number
+  color: string
+}
+
+const QUICK_DEPLOY_PRESETS: QuickDeployPreset[] = [
+  { id: 'juggernaut', label: 'JuggernautXL', icon: '🖼️', description: 'High-quality photorealistic images', modelGroups: ['juggernaut', 'upscale'], minVram: 12, color: 'from-violet-500 to-purple-600' },
+  { id: 'pony', label: 'CyberRealistic Pony', icon: '🐴', description: 'Stylized & creative images', modelGroups: ['pony', 'upscale'], minVram: 12, color: 'from-pink-500 to-rose-600' },
+  { id: 'flux2', label: 'Flux2', icon: '⚡', description: 'Fast dev & turbo image gen', modelGroups: ['flux2', 'upscale'], minVram: 24, color: 'from-amber-500 to-orange-600' },
+  { id: 'wan22_video', label: 'Wan 2.2 Video', icon: '🎬', description: 'Text/image-to-video (Wan)', modelGroups: ['wan22', 'upscale', 'shared'], minVram: 24, color: 'from-cyan-500 to-blue-600' },
+  { id: 'ltx2_video', label: 'LTX-2 Video', icon: '🎥', description: 'LTX-2 19B video generation', modelGroups: ['ltx2', 'ltx2_camera', 'upscale', 'shared'], minVram: 24, color: 'from-emerald-500 to-teal-600' },
+  { id: 'all_image', label: 'All Image Models', icon: '🎨', description: 'Every image checkpoint + upscale', modelGroups: ['juggernaut', 'pony', 'extra_checkpoints', 'qwen', 'flux2', 'z_image', 'z_image_turbo', 'upscale'], minVram: 24, color: 'from-indigo-500 to-blue-600' },
+  { id: 'full_stack', label: 'Full Stack', icon: '💎', description: 'All models — image + video', modelGroups: MODEL_GROUPS.map(g => g.value), minVram: 48, color: 'from-slate-700 to-slate-900' },
+]
+
+const showQuickDeploy = ref(false)
+const quickDeployPreset = ref<QuickDeployPreset | null>(null)
+const quickDeployLoading = ref(false)
+const quickDeployGpus = ref<any[]>([])
+const quickDeployTemplateId = ref('')
+const quickDeployError = ref('')
+const quickDeploying = ref(false)
+
+function calcPresetDisk(preset: QuickDeployPreset): number {
+  return preset.modelGroups.reduce((sum, g) => {
+    const group = MODEL_GROUPS.find(mg => mg.value === g)
+    return sum + (group?.sizeGb || 5)
+  }, 0)
+}
+
+async function openQuickDeploy(preset: QuickDeployPreset) {
+  quickDeployPreset.value = preset
+  quickDeployGpus.value = []
+  quickDeployError.value = ''
+  quickDeployTemplateId.value = ''
+  showQuickDeploy.value = true
+  quickDeployLoading.value = true
+
+  try {
+    const res = await $fetch<{ gpus: any[]; templateId: string }>('/api/runpod/quick-deploy-options')
+    quickDeployTemplateId.value = res.templateId
+    // Filter GPUs to those with enough VRAM for this preset
+    quickDeployGpus.value = res.gpus.filter((g: any) => g.vram >= preset.minVram)
+  } catch (e: any) {
+    quickDeployError.value = e?.data?.statusMessage || e?.message || 'Failed to load GPU availability'
+  } finally {
+    quickDeployLoading.value = false
+  }
+}
+
+async function quickDeploy(gpuId: string, gpuName: string) {
+  const preset = quickDeployPreset.value
+  if (!preset || !quickDeployTemplateId.value) return
+
+  const diskEstimate = calcPresetDisk(preset)
+  const volumeInGb = Math.ceil(diskEstimate * 1.3)
+
+  quickDeploying.value = true
+  try {
+    const res = await $fetch<{ podId: string }>('/api/runpod/deploy', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: {
+        name: `${preset.label}`,
+        templateId: quickDeployTemplateId.value,
+        gpuTypeId: gpuId,
+        gpuCount: 1,
+        cloudType: 'ALL',
+        volumeInGb,
+        containerDiskInGb: 40,
+        modelGroups: preset.modelGroups,
+      },
+    })
+    showQuickDeploy.value = false
+    startSetupPolling(res.podId)
+    setTimeout(refresh, 3000)
+  } catch (e: any) {
+    alert(`Deploy failed: ${e?.data?.statusMessage || e.message}`)
+  } finally {
+    quickDeploying.value = false
+  }
+}
+
 const estimatedDiskGb = computed(() => {
   return deployState.modelGroups.reduce((sum, g) => {
     const group = MODEL_GROUPS.find(mg => mg.value === g)
@@ -487,6 +576,37 @@ onUnmounted(() => {
         >
           Deploy Pod
         </UButton>
+      </div>
+    </div>
+
+    <!-- Quick Deploy Section -->
+    <div class="mb-8">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold text-slate-700 text-sm uppercase tracking-wider">⚡ Quick Deploy</h2>
+        <span class="text-xs text-slate-400">Click a model to see real-time pricing</span>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <button
+          v-for="preset in QUICK_DEPLOY_PRESETS"
+          :key="preset.id"
+          class="group relative overflow-hidden rounded-xl p-3 text-left transition-all duration-200 hover:scale-[1.03] hover:shadow-lg active:scale-[0.98] border border-slate-200 bg-white"
+          @click="openQuickDeploy(preset)"
+        >
+          <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-linear-to-br" :class="preset.color" />
+          <div class="relative z-10">
+            <span class="text-2xl block mb-1">{{ preset.icon }}</span>
+            <h3 class="font-semibold text-sm text-slate-800 group-hover:text-white transition-colors">{{ preset.label }}</h3>
+            <p class="text-[10px] text-slate-400 group-hover:text-white/70 transition-colors mt-0.5 leading-snug">{{ preset.description }}</p>
+            <div class="flex items-center gap-2 mt-2">
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 group-hover:bg-white/20 group-hover:text-white/80 transition-colors">
+                ~{{ calcPresetDisk(preset) }}GB
+              </span>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 group-hover:bg-white/20 group-hover:text-white/80 transition-colors">
+                {{ preset.minVram }}GB+ VRAM
+              </span>
+            </div>
+          </div>
+        </button>
       </div>
     </div>
 
@@ -940,5 +1060,103 @@ onUnmounted(() => {
         </div>
       </template>
     </UModal>
+
+    <!-- Quick Deploy Slide-Over -->
+    <USlideover
+      v-model:open="showQuickDeploy"
+      :title="quickDeployPreset?.label ? `Deploy ${quickDeployPreset.label}` : 'Quick Deploy'"
+      :description="quickDeployPreset?.description || ''"
+    >
+      <template #body>
+        <!-- Loading -->
+        <div v-if="quickDeployLoading" class="py-16 flex flex-col items-center gap-3 text-slate-500">
+          <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin" />
+          <span class="text-sm">Querying GPU availability & pricing...</span>
+        </div>
+
+        <!-- Error -->
+        <UAlert
+          v-else-if="quickDeployError"
+          color="error"
+          variant="soft"
+          :title="quickDeployError"
+          icon="i-heroicons-exclamation-triangle"
+          class="mb-4"
+        />
+
+        <!-- GPU List -->
+        <div v-else-if="quickDeployPreset" class="space-y-3">
+          <!-- Summary -->
+          <div class="bg-slate-50 rounded-lg p-3 border border-slate-100">
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <span class="text-slate-400">Models:</span>
+                <span class="text-slate-700 font-medium ml-1">{{ quickDeployPreset.modelGroups.length }} groups</span>
+              </div>
+              <div>
+                <span class="text-slate-400">Est. Disk:</span>
+                <span class="text-slate-700 font-medium ml-1">~{{ calcPresetDisk(quickDeployPreset) }}GB</span>
+              </div>
+              <div>
+                <span class="text-slate-400">Volume:</span>
+                <span class="text-slate-700 font-medium ml-1">{{ Math.ceil(calcPresetDisk(quickDeployPreset) * 1.3) }}GB</span>
+              </div>
+              <div>
+                <span class="text-slate-400">Min VRAM:</span>
+                <span class="text-slate-700 font-medium ml-1">{{ quickDeployPreset.minVram }}GB</span>
+              </div>
+            </div>
+            <div class="mt-2 flex flex-wrap gap-1">
+              <span
+                v-for="g in quickDeployPreset.modelGroups"
+                :key="g"
+                class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-600 font-medium"
+              >
+                {{ MODEL_GROUPS.find(mg => mg.value === g)?.label || g }}
+              </span>
+            </div>
+          </div>
+
+          <!-- No GPUs available -->
+          <div v-if="quickDeployGpus.length === 0" class="py-8 text-center text-slate-400">
+            <UIcon name="i-heroicons-server" class="w-8 h-8 mx-auto mb-2" />
+            <p class="text-sm">No GPUs with {{ quickDeployPreset.minVram }}GB+ VRAM currently available.</p>
+            <p class="text-xs mt-1">Try again later or use the full Deploy modal.</p>
+          </div>
+
+          <!-- GPU cards -->
+          <div v-else class="space-y-2">
+            <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Available GPUs (cheapest first)</h3>
+            <button
+              v-for="(gpu, idx) in quickDeployGpus"
+              :key="gpu.id"
+              :disabled="quickDeploying"
+              class="w-full text-left p-3 rounded-lg border transition-all duration-150 hover:shadow-md hover:border-primary-300 disabled:opacity-50 disabled:cursor-wait"
+              :class="idx === 0 ? 'border-emerald-300 bg-emerald-50/50 ring-1 ring-emerald-200' : 'border-slate-200 bg-white hover:bg-slate-50'"
+              @click="quickDeploy(gpu.id, gpu.name)"
+            >
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span v-if="idx === 0" class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded">Cheapest</span>
+                  <span class="font-semibold text-sm text-slate-800">{{ gpu.name }}</span>
+                  <span class="text-xs text-slate-400 font-mono">({{ gpu.vram }}GB)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span v-if="gpu.spotPrice" class="text-xs font-mono text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded" title="Spot / Bid Price">
+                    ${{ gpu.spotPrice.toFixed(2) }}/hr
+                  </span>
+                  <span v-if="gpu.lowestPrice" class="text-xs font-mono text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-bold" title="On-Demand Price">
+                    ${{ gpu.lowestPrice.toFixed(2) }}/hr
+                  </span>
+                </div>
+              </div>
+              <div v-if="idx === 0" class="mt-1.5 text-[10px] text-emerald-600">
+                ⚡ Click to deploy instantly
+              </div>
+            </button>
+          </div>
+        </div>
+      </template>
+    </USlideover>
   </div>
 </template>
