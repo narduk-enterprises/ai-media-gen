@@ -81,25 +81,21 @@ const quickDeployTemplateId = ref('')
 const quickDeployError = ref('')
 const quickDeploying = ref(false)
 
-const bestValueGpuId = computed(() => {
-  if (quickDeployGpus.value.length === 0) return null
-  let bestId = null
-  let maxVal = -1
+const bestValueGpuIds = computed(() => {
+  if (quickDeployGpus.value.length === 0) return []
   const cheapest = quickDeployGpus.value[0]
-  // Find highest value score. If a pricier GPU has a significantly better value score than the cheapest, mark it.
-  for (let i = 0; i < quickDeployGpus.value.length; i++) {
-    const g = quickDeployGpus.value[i]
-    if (g.valueScore > maxVal) {
-      maxVal = g.valueScore
-      bestId = g.id
-    }
-  }
   
-  // Only mark "Best Value" if it's explicitly better value than the absolute cheapest option
-  // and it's not the cheapest option itself.
-  if (bestId === cheapest.id) return null
+  // Sort all GPUs by valueScore descending to find the top values
+  const sortedByValue = [...quickDeployGpus.value].sort((a, b) => b.valueScore - a.valueScore)
   
-  return bestId
+  // Filter out the absolute cheapest from being marked as a "Value" upgrade
+  // and take the top 3 remaining highest-value options
+  const topValues = sortedByValue
+    .filter(g => g.id !== cheapest.id)
+    .slice(0, 3)
+    .map(g => g.id)
+    
+  return topValues
 })
 
 function calcPresetDisk(preset: QuickDeployPreset): number {
@@ -1163,19 +1159,25 @@ onUnmounted(() => {
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                   <span v-if="idx === 0" class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded">Cheapest</span>
-                  <span v-else-if="gpu.id === bestValueGpuId" class="text-[10px] font-bold uppercase tracking-wider text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200" title="Highest Performance per Dollar">💎 Best Value</span>
+                  <span v-else-if="bestValueGpuIds.indexOf(gpu.id) === 0" class="text-[10px] font-bold uppercase tracking-wider text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200" title="Highest Performance per Dollar">🥇 Best Value</span>
+                  <span v-else-if="bestValueGpuIds.indexOf(gpu.id) === 1" class="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200" title="2nd Highest Performance per Dollar">🥈 Great Value</span>
+                  <span v-else-if="bestValueGpuIds.indexOf(gpu.id) === 2" class="text-[10px] font-bold uppercase tracking-wider text-cyan-600 bg-cyan-100 px-1.5 py-0.5 rounded border border-cyan-200" title="3rd Highest Performance per Dollar">🥉 Good Value</span>
                   <span class="font-semibold text-sm text-slate-800">{{ gpu.name }}</span>
                   <span class="text-xs text-slate-400 font-mono">({{ gpu.vram }}GB)</span>
                 </div>
-                <div class="flex items-center gap-2">
-                  <span v-if="gpu.spotPrice" class="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded" title="Spot / Bid Price">
-                    ${{ gpu.spotPrice.toFixed(2) }}/hr
-                  </span>
-                  <span v-if="gpu.lowestPrice" class="text-xs font-mono px-1.5 py-0.5 rounded font-bold" 
-                    :class="gpu.lowestPrice <= gpu.communityPrice && gpu.lowestPrice < gpu.securePrice ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50'" 
-                    :title="gpu.lowestPrice <= gpu.communityPrice && gpu.lowestPrice < gpu.securePrice ? `Community Cloud Price (Secure: $${gpu.securePrice.toFixed(2)}/hr)` : 'Secure Cloud Price'">
-                    ${{ gpu.lowestPrice.toFixed(2) }}/hr
-                  </span>
+                <div class="flex flex-col items-end gap-1">
+                  <div class="flex items-center gap-1.5" v-if="gpu.securePrice">
+                    <span class="text-[10px] text-slate-400 font-medium">SECURE</span>
+                    <span class="text-xs font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                      ${{ gpu.securePrice.toFixed(2) }}/hr
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-1.5" v-if="gpu.communityPrice || gpu.price">
+                    <span class="text-[10px] text-emerald-600 font-medium">COMMUNITY</span>
+                    <span class="text-xs font-mono px-1.5 py-0.5 rounded font-bold text-emerald-700 bg-emerald-100">
+                      ${{ (gpu.communityPrice || gpu.price).toFixed(2) }}/hr
+                    </span>
+                  </div>
                 </div>
               </div>
               <div v-if="idx === 0" class="mt-1.5 text-[10px] text-emerald-600">
