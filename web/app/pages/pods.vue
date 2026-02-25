@@ -81,6 +81,27 @@ const quickDeployTemplateId = ref('')
 const quickDeployError = ref('')
 const quickDeploying = ref(false)
 
+const bestValueGpuId = computed(() => {
+  if (quickDeployGpus.value.length === 0) return null
+  let bestId = null
+  let maxVal = -1
+  const cheapest = quickDeployGpus.value[0]
+  // Find highest value score. If a pricier GPU has a significantly better value score than the cheapest, mark it.
+  for (let i = 0; i < quickDeployGpus.value.length; i++) {
+    const g = quickDeployGpus.value[i]
+    if (g.valueScore > maxVal) {
+      maxVal = g.valueScore
+      bestId = g.id
+    }
+  }
+  
+  // Only mark "Best Value" if it's explicitly better value than the absolute cheapest option
+  // and it's not the cheapest option itself.
+  if (bestId === cheapest.id) return null
+  
+  return bestId
+})
+
 function calcPresetDisk(preset: QuickDeployPreset): number {
   return preset.modelGroups.reduce((sum, g) => {
     const group = MODEL_GROUPS.find(mg => mg.value === g)
@@ -1142,6 +1163,7 @@ onUnmounted(() => {
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                   <span v-if="idx === 0" class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded">Cheapest</span>
+                  <span v-else-if="gpu.id === bestValueGpuId" class="text-[10px] font-bold uppercase tracking-wider text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200" title="Highest Performance per Dollar">💎 Best Value</span>
                   <span class="font-semibold text-sm text-slate-800">{{ gpu.name }}</span>
                   <span class="text-xs text-slate-400 font-mono">({{ gpu.vram }}GB)</span>
                 </div>
