@@ -2653,6 +2653,51 @@ class AdminHandler(BaseHTTPRequestHandler):
                 print(f"[Remix] Error: {e}")
                 return self._json(500, {"error": str(e)})
 
+        if path == "/generate/refine-prompt":
+            data = _read_post_body()
+            if not data:
+                return self._json(400, {"error": "Empty or invalid request body"})
+            prompt = data.get("prompt", "")
+            if not prompt:
+                return self._json(400, {"error": "'prompt' field required"})
+            temperature = data.get("temperature", 0.9)
+
+            try:
+                t0 = time.time()
+                pipe = _get_remix_pipeline()
+                messages = [
+                    {"role": "system", "content": (
+                        "You are a creative prompt engineer for AI image and video generation. "
+                        "Enhance the given prompt into a vivid, detailed description while preserving "
+                        "its core meaning. Add sensory details, atmosphere, and specific visual elements. "
+                        "Vary your style for uniqueness. Output ONLY the enhanced prompt, nothing else."
+                    )},
+                    {"role": "user", "content": f"Enhance into a vivid description: {prompt}"},
+                ]
+                safe_temp = max(0.01, temperature)
+                try:
+                    result = pipe(
+                        messages,
+                        max_new_tokens=256,
+                        temperature=safe_temp,
+                        do_sample=True,
+                        top_p=0.95,
+                    )
+                except Exception as e:
+                    if "probability tensor" in str(e).lower() or "inf" in str(e).lower() or "nan" in str(e).lower():
+                        result = pipe(messages, max_new_tokens=256, temperature=safe_temp, do_sample=True, top_k=50)
+                    else:
+                        raise e
+                text = result[0]["generated_text"]
+                if isinstance(text, list):
+                    text = text[-1]["content"] if text else ""
+                text = text.strip().strip('"').strip("'")
+                elapsed = round(time.time() - t0, 2)
+                return self._json(200, {"refined_prompt": text or prompt, "elapsed_seconds": elapsed})
+            except Exception as e:
+                print(f"[RefinePrompt] Error: {e}")
+                return self._json(500, {"error": str(e)})
+
         if path == "/generate/image2video":
             data = _read_post_body()
             if not data:

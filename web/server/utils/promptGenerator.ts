@@ -89,35 +89,31 @@ export async function isDuplicate(
 // ─── LLM Refinement ─────────────────────────────────────────
 
 /**
- * Refine a raw prompt using Workers AI LLM.
- * Uses high temperature for creative variety.
+ * Refine a raw prompt using the GPU pod's Qwen 2.5 3B model.
+ * Calls /generate/refine-prompt on the pod for unrestricted creative enhancement.
  */
 export async function refineWithLLM(
   rawPrompt: string,
-  ai: any,
+  _ai?: any, // kept for backward compat but no longer used
 ): Promise<string> {
-  if (!ai) return rawPrompt // fallback if no AI binding
-
   try {
-    const response = await ai.run('@cf/nousresearch/hermes-2-pro-mistral-7b', {
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a creative prompt engineer for AI image and video generation. Enhance the given prompt into a vivid, detailed description while preserving its core meaning. Add sensory details, atmosphere, and specific visual elements. Vary your style for uniqueness. Output ONLY the enhanced prompt, nothing else.',
-        },
-        {
-          role: 'user',
-          content: `Enhance into a vivid description: ${rawPrompt}`,
-        },
-      ],
-      temperature: 0.9,
-      max_tokens: 256,
-    })
+    const { resolveApiUrl } = await import('./ai')
+    const podUrl = await resolveApiUrl(undefined, undefined, ['shared'])
 
-    const refined = response?.response?.trim()
+    const response = await $fetch<{ refined_prompt: string; elapsed_seconds: number }>(
+      `${podUrl}/generate/refine-prompt`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: { prompt: rawPrompt, temperature: 0.9 },
+        timeout: 60_000,
+      },
+    )
+
+    const refined = response?.refined_prompt?.trim()
     return refined || rawPrompt
   } catch (e: any) {
-    console.warn(`[PromptGen] LLM refinement failed: ${e.message}`)
+    console.warn(`[PromptGen] Pod LLM refinement failed: ${e.message}`)
     return rawPrompt
   }
 }
