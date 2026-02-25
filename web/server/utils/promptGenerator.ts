@@ -172,6 +172,9 @@ export async function generatePrompt(
       createdAt: new Date().toISOString(),
     })
 
+    // Auto-refill: top up cache to 100 in the background
+    autoRefillCache(db, ai).catch(e => console.warn(`[PromptGen] Background refill failed: ${e.message}`))
+
     console.log(`[PromptGen] Served from cache (id=${entry.id})`)
     return {
       id: logId,
@@ -315,4 +318,34 @@ export async function fillPromptCache(
 
   console.log(`[PromptGen] Filled cache with ${added} prompts`)
   return added
+}
+
+// ─── Auto-Refill ────────────────────────────────────────────
+
+const CACHE_TARGET = 100
+let isRefilling = false
+
+/**
+ * Check cache count and top up to CACHE_TARGET if below.
+ * Uses an in-memory lock to prevent concurrent refill storms.
+ */
+async function autoRefillCache(db: any, ai: any): Promise<void> {
+  if (isRefilling) return // already refilling
+
+  const countResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(promptCache)
+
+  const current = countResult[0]?.count ?? 0
+  if (current >= CACHE_TARGET) return // already full
+
+  const deficit = CACHE_TARGET - current
+  console.log(`[PromptGen] Cache at ${current}/${CACHE_TARGET}, refilling ${deficit} prompts...`)
+
+  isRefilling = true
+  try {
+    await fillPromptCache(db, ai, deficit)
+  } finally {
+    isRefilling = false
+  }
 }
