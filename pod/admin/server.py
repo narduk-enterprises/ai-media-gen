@@ -856,7 +856,14 @@ def _comfy_queue_and_wait(workflow, output_prefix="LTX-2-I2V", poll_interval=5):
                     if status.get("completed", False) or status.get("status_str") == "success":
                         outputs = entry.get("outputs", {})
                         for node_out in outputs.values():
-                            for vid in node_out.get("videos", []):
+                            # ComfyUI may list videos under "videos" OR "images" (with animated flag)
+                            video_list = node_out.get("videos", []) or []
+                            if not video_list:
+                                for img in node_out.get("images", []):
+                                    fname = img.get("filename", "")
+                                    if fname.endswith((".mp4", ".webm")):
+                                        video_list.append(img)
+                            for vid in video_list:
                                 fname = vid["filename"]
                                 subfolder = vid.get("subfolder", "")
                                 ftype = vid.get("type", "output")
