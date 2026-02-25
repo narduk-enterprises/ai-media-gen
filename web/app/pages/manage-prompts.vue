@@ -23,6 +23,7 @@ const activeTab = ref('templates')
 const tabs = [
   { label: 'Templates', value: 'templates', icon: 'i-lucide-file-text' },
   { label: 'Attributes', value: 'attributes', icon: 'i-lucide-tags' },
+  { label: 'Import', value: 'import', icon: 'i-lucide-upload' },
   { label: 'History', value: 'history', icon: 'i-lucide-clock' },
 ]
 
@@ -198,6 +199,82 @@ async function testGenerate() {
     generateError.value = e.data?.message || e.message || 'Generation failed'
   }
   generating.value = false
+}
+
+// ─── JSON Import ────────────────────────────────────────────
+const importJson = ref('')
+const importing = ref(false)
+const importResult = ref<any | null>(null)
+const importError = ref('')
+
+const JSON_SCHEMA_EXAMPLE = `{
+  "templates": [
+    { "name": "Fantasy Scene", "template": "A [adjective] [subject] in [setting]", "category": "fantasy" },
+    { "name": "Portrait", "template": "A [style] portrait of a [subject] with [feature]", "category": "portrait" }
+  ],
+  "attributes": {
+    "adjective": ["ethereal", "magnificent", "ancient", "glowing"],
+    "subject": ["dragon", "castle", "warrior", "goddess"],
+    "setting": [
+      "volcanic landscape",
+      { "value": "enchanted forest", "weight": 2.0 },
+      { "value": "underwater palace", "weight": 1.5 }
+    ],
+    "style": ["cinematic", "oil painting", "cyberpunk"],
+    "feature": ["glowing eyes", "ornate armor", "flowing hair"]
+  }
+}`
+
+function validateJson(): boolean {
+  importError.value = ''
+  if (!importJson.value.trim()) {
+    importError.value = 'JSON is empty'
+    return false
+  }
+  try {
+    const parsed = JSON.parse(importJson.value)
+    if (!parsed.templates && !parsed.attributes) {
+      importError.value = 'JSON must contain "templates" array and/or "attributes" object'
+      return false
+    }
+    if (parsed.templates && !Array.isArray(parsed.templates)) {
+      importError.value = '"templates" must be an array'
+      return false
+    }
+    if (parsed.attributes && typeof parsed.attributes !== 'object') {
+      importError.value = '"attributes" must be an object with category keys'
+      return false
+    }
+    return true
+  } catch (e: any) {
+    importError.value = `Invalid JSON: ${e.message}`
+    return false
+  }
+}
+
+async function importData() {
+  if (!validateJson()) return
+  importing.value = true
+  importResult.value = null
+  try {
+    const result = await $fetch<any>('/api/prompt-builder/import', {
+      method: 'POST',
+      headers: csrfHeaders,
+      body: JSON.parse(importJson.value),
+    })
+    importResult.value = result
+    // Refresh other tabs
+    fetchTemplates()
+    fetchAttributes()
+    fetchHistory()
+  } catch (e: any) {
+    importError.value = e.data?.message || e.message || 'Import failed'
+  }
+  importing.value = false
+}
+
+function loadSchemaExample() {
+  importJson.value = JSON_SCHEMA_EXAMPLE
 }
 
 // ─── Init ───────────────────────────────────────────────────
@@ -495,6 +572,64 @@ function getCategoryColor(cat: string): string {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Import Tab -->
+      <div v-if="activeTab === 'import'" class="space-y-6">
+        <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <UIcon name="i-lucide-upload" class="w-4 h-4" />
+              JSON Bulk Import
+            </h3>
+            <UButton label="Load Example" icon="i-lucide-file-code" variant="ghost" size="xs" @click="loadSchemaExample" />
+          </div>
+
+          <div class="mb-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+            <p class="text-xs text-slate-500 mb-2 font-medium">Schema Reference:</p>
+            <ul class="text-xs text-slate-500 space-y-1 list-disc list-inside">
+              <li><code class="text-violet-600">templates[]</code> — array of <code>{ name, template, category? }</code></li>
+              <li><code class="text-violet-600">attributes{}</code> — object keyed by category, values are arrays of strings or <code>{ value, weight }</code></li>
+              <li>Slots in templates use <code>[slotName]</code> syntax, matched to attribute categories</li>
+            </ul>
+          </div>
+
+          <UTextarea
+            v-model="importJson"
+            placeholder='Paste JSON here... Click "Load Example" to see the schema.'
+            :rows="12"
+            class="font-mono text-sm"
+          />
+
+          <!-- Validation error -->
+          <div v-if="importError" class="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
+            <UIcon name="i-lucide-alert-circle" class="w-4 h-4 shrink-0" />
+            {{ importError }}
+          </div>
+
+          <!-- Import result -->
+          <Transition name="slide-down">
+            <div v-if="importResult" class="mt-3 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">
+              <div class="flex items-center gap-2 mb-1">
+                <UIcon name="i-lucide-check-circle" class="w-4 h-4" />
+                <span class="font-medium">Import Complete</span>
+              </div>
+              <ul class="list-disc list-inside text-xs space-y-0.5">
+                <li>{{ importResult.templatesCreated }} templates created</li>
+                <li>{{ importResult.attributesCreated }} attributes created</li>
+                <li v-if="importResult.errors?.length">{{ importResult.errors.length }} errors</li>
+              </ul>
+              <div v-if="importResult.errors?.length" class="mt-2 text-xs text-red-600">
+                <p v-for="err in importResult.errors" :key="err">{{ err }}</p>
+              </div>
+            </div>
+          </Transition>
+
+          <div class="flex justify-end mt-3 gap-2">
+            <UButton label="Validate" icon="i-lucide-check" variant="outline" size="sm" @click="() => validateJson()" />
+            <UButton label="Import" icon="i-lucide-upload" size="sm" :loading="importing" @click="importData" />
           </div>
         </div>
       </div>
