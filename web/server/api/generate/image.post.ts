@@ -24,6 +24,7 @@ const generateSchema = z.object({
   sweepId: z.string().optional(),
   sweepLabel: z.string().optional(),
   endpoint: z.string().optional(),
+  anyMachine: z.boolean().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -35,7 +36,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, prompts, negativePrompt, count, steps, width, height, loraStrength, cfg, sampler, scheduler, customLoras, model, seed, attributes, sweepId, sweepLabel, endpoint } = parsed.data
+  const { prompt, prompts, negativePrompt, count, steps, width, height, loraStrength, cfg, sampler, scheduler, customLoras, model, seed, attributes, sweepId, sweepLabel, endpoint, anyMachine } = parsed.data
   const apiUrl = await resolveApiUrl(endpoint, 'image')
 
   const settingsObj: Record<string, any> = {
@@ -89,6 +90,7 @@ export default defineEventHandler(async (event) => {
           custom_loras: customLoras ?? undefined,
           seed: itemSeed,
         },
+        ...(anyMachine ? { anyMachine: true } : {}),
       }),
       createdAt: now,
     }

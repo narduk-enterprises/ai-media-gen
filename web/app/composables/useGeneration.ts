@@ -85,6 +85,7 @@ export function useGeneration() {
     append?: boolean
     sweepId?: string
     sweepLabel?: string
+    anyMachine?: boolean
   }) {
     if (opts.prompts.length === 0) return
 
@@ -112,6 +113,7 @@ export function useGeneration() {
           ...(opts.sampler ? { sampler_name: opts.sampler } : {}),
           ...(opts.scheduler ? { scheduler: opts.scheduler } : {}),
           ...(opts.customLoras ? { customLoras: opts.customLoras } : {}),
+          ...(opts.anyMachine ? { anyMachine: true } : {}),
         }
         if (opts.sweepId) { body.sweepId = opts.sweepId; body.sweepLabel = opts.sweepLabel }
         const result = await $fetch<GenerationResult>('/api/generate/image', {

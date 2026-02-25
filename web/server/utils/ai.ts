@@ -38,6 +38,7 @@ export async function resolveApiUrl(
   urlOverride?: string,
   _profile?: PodProfile,
   requiredGroups?: string[],
+  opts?: { skipImagePreference?: boolean },
 ): Promise<string> {
   // 1. Explicit URL from client settings or scripts
   if (urlOverride && (urlOverride.startsWith('http://') || urlOverride.startsWith('https://'))) {
@@ -114,7 +115,7 @@ export async function resolveApiUrl(
         // queues are short, reserving video-capable machines for video work.
         const isImageJob = !requiredGroups?.some(g => VIDEO_GROUPS.includes(g))
         let routeReason = ''
-        if (isImageJob && candidates.length > 1) {
+        if (isImageJob && candidates.length > 1 && !opts?.skipImagePreference) {
           const imageOnly = candidates.filter(pod =>
             !VIDEO_GROUPS.some(vg => pod.syncedGroups[vg]?.synced === true),
           )

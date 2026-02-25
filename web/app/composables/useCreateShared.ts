@@ -29,6 +29,7 @@ export function useCreateShared() {
   // ─── Shared settings (useState for SSR → client hydration safety) ──
   const negativePrompt = useState('create-negativePrompt', () => DEFAULT_NEG)
   const showAdvanced = useState('create-showAdvanced', () => false)
+  const anyMachine = useState('create-anyMachine', () => false)
 
   // ─── Form persistence ─────────────────────────────────────────
   const FORM_KEY = 'ai-media-gen:create-form'
@@ -38,6 +39,7 @@ export function useCreateShared() {
     try {
       localStorage.setItem(FORM_KEY, JSON.stringify({
         negativePrompt: negativePrompt.value,
+        anyMachine: anyMachine.value,
         ...extra,
       }))
     } catch {}
@@ -50,6 +52,7 @@ export function useCreateShared() {
       if (!raw) return {}
       const s = JSON.parse(raw)
       if (s.negativePrompt != null) negativePrompt.value = s.negativePrompt
+      if (s.anyMachine != null) anyMachine.value = s.anyMachine
       return s
     } catch { return {} }
   }
@@ -57,12 +60,14 @@ export function useCreateShared() {
   function resetShared() {
     negativePrompt.value = DEFAULT_NEG
     showAdvanced.value = false
+    anyMachine.value = false
   }
 
   return {
     // Settings
     negativePrompt,
     showAdvanced,
+    anyMachine,
     DEFAULT_NEG,
 
     // Models (re-exported from registry for backward compatibility)

@@ -54,7 +54,8 @@ export async function submitItemToPod(
     let podUrl = meta.apiUrl || meta.podUrl
     if (!podUrl) {
       const requiredGroups = input ? getRequiredGroups(input) : []
-      podUrl = await resolveApiUrl(undefined, undefined, requiredGroups)
+      const skipImagePreference = !!meta.anyMachine
+      podUrl = await resolveApiUrl(undefined, undefined, requiredGroups, { skipImagePreference })
     }
     if (!podUrl) {
       console.warn(`[Submit] ${itemId.slice(0, 8)} has no apiUrl and no pods available — skipping`)

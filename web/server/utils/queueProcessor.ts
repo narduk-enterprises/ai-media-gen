@@ -100,7 +100,8 @@ async function submitPhase(db: DB) {
       const action = input.action || ''
       // Use model-aware routing: determine required groups and find a pod that has them
       const requiredGroups = getRequiredGroups(input)
-      const podUrl = meta.apiUrl || meta.podUrl || await resolveApiUrl(undefined, undefined, requiredGroups)
+      const skipImagePreference = !!meta.anyMachine
+      const podUrl = meta.apiUrl || meta.podUrl || await resolveApiUrl(undefined, undefined, requiredGroups, { skipImagePreference })
 
       // Construct callback URL so the pod can notify us on completion
       let callbackUrl = ''
