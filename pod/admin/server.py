@@ -737,6 +737,7 @@ def _fire_callback(job_id):
                 headers={
                     "Content-Type": "application/json",
                     "X-Webhook-Signature": signature,
+                    "User-Agent": "ai-media-gen-pod/1.0",
                 },
                 method="POST",
             )
@@ -749,8 +750,6 @@ def _fire_callback(job_id):
                 time.sleep(delay)
 
     print(f"[Callback] ❌ {job_id[:8]} all {len(delays)} attempts failed for {callback_url}")
-    if to_remove:
-        print(f"[Cleanup] Removed {len(to_remove)} old jobs")
 
 
 def _comfy_api(path, data=None, method=None, timeout=30):

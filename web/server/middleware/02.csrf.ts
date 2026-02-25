@@ -7,13 +7,18 @@
  * while allowing XHR/fetch calls from our own frontend (which always send
  * custom headers).
  *
- * Skipped for non-mutating methods and preflight (OPTIONS) requests.
+ * Skipped for non-mutating methods, preflight (OPTIONS), and the webhook
+ * endpoint (which has its own HMAC signature authentication).
  */
 export default defineEventHandler((event) => {
   const method = event.method.toUpperCase()
 
   // Only protect state-changing methods
   if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return
+
+  // Webhook endpoint uses HMAC auth — exempt from CSRF
+  const path = getRequestURL(event).pathname
+  if (path === '/api/generate/webhook') return
 
   const xRequestedWith = getHeader(event, 'x-requested-with')
 
