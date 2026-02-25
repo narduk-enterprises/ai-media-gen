@@ -71,21 +71,33 @@ export default defineEventHandler(async (event) => {
     .offset(offset)
 
   // Shape the response
-  const items = rows.map(row => ({
-    id: row.id,
-    type: row.type,
-    url: row.url?.startsWith('data:') ? `/api/media/${row.id}` : row.url,
-    status: row.status,
-    parentId: row.parentId,
-    prompt: row.itemPrompt || row.prompt,
-    qualityScore: row.qualityScore,
-    submittedAt: row.submittedAt,
-    completedAt: row.completedAt,
-    generationId: row.generationId,
-    generationPrompt: row.prompt,
-    settings: row.settings,
-    createdAt: row.createdAt,
-  }))
+  const items = rows.map(row => {
+    // Extract sweepId from settings JSON if present
+    let sweepId: string | null = null
+    if (row.settings) {
+      try {
+        const s = JSON.parse(row.settings)
+        if (s.sweepId) sweepId = s.sweepId
+      } catch { /* ignore */ }
+    }
+
+    return {
+      id: row.id,
+      type: row.type,
+      url: row.url?.startsWith('data:') ? `/api/media/${row.id}` : row.url,
+      status: row.status,
+      parentId: row.parentId,
+      prompt: row.itemPrompt || row.prompt,
+      qualityScore: row.qualityScore,
+      submittedAt: row.submittedAt,
+      completedAt: row.completedAt,
+      generationId: row.generationId,
+      generationPrompt: row.prompt,
+      settings: row.settings,
+      createdAt: row.createdAt,
+      sweepId,
+    }
+  })
 
   return { items, total, limit, offset }
 })

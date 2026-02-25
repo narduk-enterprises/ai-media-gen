@@ -20,6 +20,7 @@ export interface GalleryMediaItem {
   completedAt?: string | null
   qualityScore?: number | null
   parentId?: string | null
+  sweepId?: string | null
 }
 
 interface GalleryApiResponse {

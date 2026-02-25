@@ -149,6 +149,7 @@ function openLightbox(index: number) {
 function copyPrompt(text: string) { navigator.clipboard.writeText(text) }
 function goToVideo(id: string) { navigateTo({ path: '/create', query: { tab: 'img2video', mediaId: id } }) }
 function goToReimagine(id: string) { navigateTo({ path: '/create', query: { tab: 'img2img', mediaId: id } }) }
+function goToSweep(sweepId: string) { navigateTo(`/sweep/${sweepId}`) }
 async function upscaleImage(id: string) { await gen.upscale(id) }
 
 </script>
@@ -255,6 +256,16 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
             <UIcon name="i-lucide-play" class="w-3.5 h-3.5" /> Video
           </div>
 
+          <!-- Sweep badge -->
+          <button
+            v-if="item.sweepId && !isSelectionMode && item.type !== 'video'"
+            class="absolute top-2.5 left-2.5 px-2 py-1 rounded-md bg-amber-500/80 backdrop-blur-sm text-white text-[10px] font-medium flex items-center gap-1 hover:bg-amber-500 transition-colors cursor-pointer z-5"
+            @click.stop="goToSweep(item.sweepId!)"
+            title="View sweep"
+          >
+            <UIcon name="i-lucide-test-tubes" class="w-3 h-3" /> Sweep
+          </button>
+
           <!-- Hover overlay -->
           <div v-if="!isSelectionMode" class="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
             <div class="absolute bottom-0 left-0 right-0 p-3">
@@ -301,6 +312,7 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
           <UButton variant="ghost" size="sm" icon="i-lucide-image-plus" class="text-white/60 hover:text-white" @click="goToReimagine(item.id)">Reimagine</UButton>
           <UButton variant="ghost" size="sm" icon="i-lucide-film" class="text-white/60 hover:text-white" @click="goToVideo(item.id)">Video</UButton>
         </template>
+        <UButton v-if="currentItem?.sweepId" variant="ghost" size="sm" icon="i-lucide-test-tubes" class="text-amber-400/80 hover:text-amber-300" @click="goToSweep(currentItem.sweepId!)">View Sweep</UButton>
         <UButton variant="ghost" size="sm" icon="i-lucide-info" class="text-white/60 hover:text-white" @click="showInfo = !showInfo">Info</UButton>
       </template>
 
