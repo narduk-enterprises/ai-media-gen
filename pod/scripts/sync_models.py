@@ -488,11 +488,8 @@ def sync_civitai_item(item):
         r = requests.get(url, stream=True, timeout=120)
         r.raise_for_status()
 
-        content_disp = r.headers.get("content-disposition", "")
-        match = re.search(r'filename="(.+?)"', content_disp)
-        if match:
-            filename = match.group(1)
-            target_path = os.path.join(MODELS_DIR, subdir, filename)
+        # Note: We intentionally ignore content-disposition filename from Civitai
+        # to ensure consistent filenames that match our code references.
 
         os.makedirs(os.path.dirname(target_path), exist_ok=True)
         with open(target_path, "wb") as f:
