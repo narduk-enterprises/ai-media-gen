@@ -1168,10 +1168,12 @@ onUnmounted(() => {
                   <span class="text-xs text-slate-400 font-mono">({{ gpu.vram }}GB)</span>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span v-if="gpu.spotPrice" class="text-xs font-mono text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded" title="Spot / Bid Price">
+                  <span v-if="gpu.spotPrice" class="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded" title="Spot / Bid Price">
                     ${{ gpu.spotPrice.toFixed(2) }}/hr
                   </span>
-                  <span v-if="gpu.lowestPrice" class="text-xs font-mono text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-bold" title="On-Demand Price">
+                  <span v-if="gpu.lowestPrice" class="text-xs font-mono px-1.5 py-0.5 rounded font-bold" 
+                    :class="gpu.lowestPrice <= gpu.communityPrice && gpu.lowestPrice < gpu.securePrice ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50'" 
+                    :title="gpu.lowestPrice <= gpu.communityPrice && gpu.lowestPrice < gpu.securePrice ? `Community Cloud Price (Secure: $${gpu.securePrice.toFixed(2)}/hr)` : 'Secure Cloud Price'">
                     ${{ gpu.lowestPrice.toFixed(2) }}/hr
                   </span>
                 </div>
