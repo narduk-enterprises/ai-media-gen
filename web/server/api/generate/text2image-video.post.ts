@@ -13,7 +13,7 @@ const pipelineSchema = z.object({
   steps: z.number().min(1).max(50).optional().default(30),
   cfg: z.number().min(1).max(20).optional().default(5.0),
   seed: z.number().int().optional().default(-1),
-  imageModel: z.enum(['cyberrealistic_pony', 'juggernaut', 'wan22', 'z_image', 'z_image_turbo']).optional().default('cyberrealistic_pony'),
+  imageModel: z.enum(['cyberrealistic_pony', 'juggernaut', 'wan22', 'z_image', 'z_image_turbo', 'epicrealism', 'hyperbeast', 'nsfw_sdxl', 'porn_craft']).optional().default('cyberrealistic_pony'),
   samplerName: z.string().optional(),
   scheduler: z.string().optional(),
   videoPrompt: z.string().optional().default(''),

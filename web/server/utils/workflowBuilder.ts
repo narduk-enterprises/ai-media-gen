@@ -316,6 +316,70 @@ export function buildCyberrealisticWorkflow(
   return wf
 }
 
+/** epiCRealism (SD 1.5 checkpoint, photorealism). */
+export function buildEpicRealismWorkflow(opts: Text2ImageOptions) {
+  return injectParams(loadTemplate('sdxl_t2i'), {
+    checkpoint: 'epicrealism_naturalSinRC1.safetensors',
+    prompt: opts.prompt,
+    negative_prompt: opts.negativePrompt || DEFAULT_NEG_PROMPT,
+    width: opts.width ?? 512,
+    height: opts.height ?? 768,
+    steps: opts.steps ?? 25,
+    cfg: opts.cfg ?? 7.0,
+    seed: seed(opts.seed),
+    sampler_name: opts.samplerName ?? 'euler_ancestral',
+    scheduler: opts.scheduler ?? 'normal',
+  })
+}
+
+/** Hyper Beast XXL (fast SDXL checkpoint, 10-step). */
+export function buildHyperBeastWorkflow(opts: Text2ImageOptions) {
+  return injectParams(loadTemplate('sdxl_t2i'), {
+    checkpoint: 'hyperBeastXXL.safetensors',
+    prompt: opts.prompt,
+    negative_prompt: opts.negativePrompt || DEFAULT_NEG_PROMPT,
+    width: opts.width ?? 1024,
+    height: opts.height ?? 1536,
+    steps: opts.steps ?? 10,
+    cfg: opts.cfg ?? 5.0,
+    seed: seed(opts.seed),
+    sampler_name: opts.samplerName ?? 'euler_ancestral',
+    scheduler: opts.scheduler ?? 'normal',
+  })
+}
+
+/** NSFW SDXL (photorealistic SDXL checkpoint). */
+export function buildNsfwSdxlWorkflow(opts: Text2ImageOptions) {
+  return injectParams(loadTemplate('sdxl_t2i'), {
+    checkpoint: 'nsfwSdxl_v2602.safetensors',
+    prompt: opts.prompt,
+    negative_prompt: opts.negativePrompt || DEFAULT_NEG_PROMPT,
+    width: opts.width ?? 1024,
+    height: opts.height ?? 1536,
+    steps: opts.steps ?? 30,
+    cfg: opts.cfg ?? 5.0,
+    seed: seed(opts.seed),
+    sampler_name: opts.samplerName ?? 'dpmpp_2m_sde',
+    scheduler: opts.scheduler ?? 'karras',
+  })
+}
+
+/** Porn Craft (Illustrious SDXL checkpoint). */
+export function buildPornCraftWorkflow(opts: Text2ImageOptions) {
+  return injectParams(loadTemplate('sdxl_t2i'), {
+    checkpoint: 'pornCraftByStableYogi_v50FP32.safetensors',
+    prompt: opts.prompt,
+    negative_prompt: opts.negativePrompt || DEFAULT_NEG_PROMPT,
+    width: opts.width ?? 896,
+    height: opts.height ?? 1152,
+    steps: opts.steps ?? 27,
+    cfg: opts.cfg ?? 7.0,
+    seed: seed(opts.seed),
+    sampler_name: opts.samplerName ?? 'dpmpp_2m',
+    scheduler: opts.scheduler ?? 'karras',
+  })
+}
+
 // =============================================================================
 // Image-to-Image Builders
 // =============================================================================
@@ -753,6 +817,10 @@ function buildText2ImageByModel(model: string, p: Record<string, any>) {
     case 'z_image_turbo': return buildZImageTurboWorkflow(opts)
     case 'juggernaut': return buildJuggernautWorkflow(opts)
     case 'cyberrealistic_pony': return buildCyberrealisticWorkflow({ ...opts, loraName: p.lora_name })
+    case 'epicrealism': return buildEpicRealismWorkflow(opts)
+    case 'hyperbeast': return buildHyperBeastWorkflow(opts)
+    case 'nsfw_sdxl': return buildNsfwSdxlWorkflow(opts)
+    case 'porn_craft': return buildPornCraftWorkflow(opts)
     default: return buildText2ImageWorkflow(opts)
   }
 }

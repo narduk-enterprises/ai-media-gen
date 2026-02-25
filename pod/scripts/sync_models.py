@@ -11,17 +11,18 @@ Supports individual model groups for fine-grained control:
   --profile image                     → All image groups (legacy compat)
 
 Available groups:
-  juggernaut    — Juggernaut XL SDXL checkpoint (~7GB)
-  pony          — CyberRealistic Pony SDXL checkpoint (~7GB)
-  qwen          — Qwen Image + Lightning LoRA (~12GB)
-  flux2         — Flux2 Dev + Turbo LoRA (~15GB)
-  z_image       — Z-Image bf16 max quality (~10GB)
-  z_image_turbo — Z-Image Turbo nvfp4 fast (~8GB)
-  wan22         — Wan 2.2 T2V/I2V + encoders (~40GB)
-  ltx2          — LTX-2 19B + upscaler + distill LoRA (~25GB)
-  ltx2_camera   — LTX-2 camera control LoRAs (~2GB)
-  upscale       — RealESRGAN x2 + x4 (~0.2GB)
-  shared        — Qwen2.5 captioning/remix models (~8GB)
+  juggernaut         — Juggernaut XL SDXL checkpoint (~7GB)
+  pony               — CyberRealistic Pony SDXL checkpoint (~7GB)
+  extra_checkpoints  — epiCRealism + Hyper Beast XXL + NSFW SDXL + Porn Craft (~30GB)
+  qwen               — Qwen Image + Lightning LoRA (~12GB)
+  flux2              — Flux2 Dev + Turbo LoRA (~15GB)
+  z_image            — Z-Image bf16 max quality (~10GB)
+  z_image_turbo      — Z-Image Turbo nvfp4 fast (~8GB)
+  wan22              — Wan 2.2 T2V/I2V + encoders (~40GB)
+  ltx2               — LTX-2 19B + upscaler + distill LoRA (~25GB)
+  ltx2_camera        — LTX-2 camera control LoRAs (~2GB)
+  upscale            — RealESRGAN x2 + x4 (~0.2GB)
+  shared             — Qwen2.5 captioning/remix models (~8GB)
 
 Usage:
   python3 -u sync_models.py --groups juggernaut,upscale
@@ -123,9 +124,9 @@ def _clean_orphaned_tmps():
 
 # ── Profile → Group Mappings (legacy compat) ────────────────────────────────
 PROFILE_TO_GROUPS = {
-    "image": ["juggernaut", "pony", "qwen", "flux2", "z_image", "z_image_turbo", "upscale"],
+    "image": ["juggernaut", "pony", "extra_checkpoints", "qwen", "flux2", "z_image", "z_image_turbo", "upscale"],
     "video": ["wan22", "ltx2", "ltx2_camera", "upscale", "shared"],
-    "full": ["juggernaut", "pony", "qwen", "flux2", "z_image", "z_image_turbo",
+    "full": ["juggernaut", "pony", "extra_checkpoints", "qwen", "flux2", "z_image", "z_image_turbo",
              "wan22", "ltx2", "ltx2_camera", "upscale", "shared"],
 }
 
@@ -312,6 +313,11 @@ CIVITAI_MODELS = [
     {"version_id": 2700613, "filename": "blondeCurlyQ2512.levR.safetensors", "subdir": "loras", "group": "qwen"},
     {"version_id": 1759168, "filename": "juggernautXL_ragnarokBy.safetensors", "subdir": "checkpoints", "group": "juggernaut"},
     {"version_id": 2581228, "filename": "cyberrealisticPony_v160.safetensors", "subdir": "checkpoints", "group": "pony"},
+    # ── Extra Checkpoints ──
+    {"version_id": 94744, "filename": "epicrealism_naturalSinRC1.safetensors", "subdir": "checkpoints", "group": "extra_checkpoints"},
+    {"version_id": 2712294, "filename": "hyperBeastXXL.safetensors", "subdir": "checkpoints", "group": "extra_checkpoints"},
+    {"version_id": 2668773, "filename": "nsfwSdxl_v2602.safetensors", "subdir": "checkpoints", "group": "extra_checkpoints"},
+    {"version_id": 2663626, "filename": "pornCraftByStableYogi_v50FP32.safetensors", "subdir": "checkpoints", "group": "extra_checkpoints"},
 ]
 
 

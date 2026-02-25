@@ -14,7 +14,7 @@ const generateSchema = z.object({
   width: z.number().int().min(512).max(2048).default(1024),
   height: z.number().int().min(512).max(2048).default(1024),
   loraStrength: z.number().min(0).max(2).default(1.0),
-  model: z.enum(['wan22', 'qwen_image', 'qwen_lora', 'flux2_dev', 'flux2_turbo', 'z_image', 'z_image_turbo', 'juggernaut', 'cyberrealistic_pony']).default('wan22'),
+  model: z.enum(['wan22', 'qwen_image', 'qwen_lora', 'flux2_dev', 'flux2_turbo', 'z_image', 'z_image_turbo', 'juggernaut', 'cyberrealistic_pony', 'epicrealism', 'hyperbeast', 'nsfw_sdxl', 'porn_craft']).default('wan22'),
   seed: z.number().int().default(-1),
   cfg: z.number().min(0).max(20).optional(),
   sampler: z.string().optional(),

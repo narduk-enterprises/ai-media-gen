@@ -14,6 +14,10 @@ import { ltx2Video } from './ltx2'
 import { zImageBase, zImageTurbo } from './zimage'
 import { juggernautXL } from './juggernaut'
 import { cyberRealisticPony } from './cyberrealistic'
+import { epicRealism } from './epicrealism'
+import { hyperBeast } from './hyperbeast'
+import { nsfwSdxl } from './nsfw_sdxl'
+import { pornCraft } from './porn_craft'
 
 // ─── Image Model Registry ───────────────────────────────────────────────────
 
@@ -27,6 +31,10 @@ const IMAGE_CONFIGS: ImageModelConfig[] = [
   zImageTurbo,
   juggernautXL,
   cyberRealisticPony,
+  epicRealism,
+  hyperBeast,
+  nsfwSdxl,
+  pornCraft,
 ]
 
 /** All image model definitions (for ModelSelector) */

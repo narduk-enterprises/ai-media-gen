@@ -276,7 +276,7 @@ async function stopPod(podId: string) {
 
 const podUpdating = ref<Record<string, boolean>>({})
 async function updatePod(podId: string) {
-  if (!confirm('Update this pod? This will pull latest code and restart ComfyUI + Admin server.')) return
+  if (!confirm('Update this pod? This will pull latest code and rerun setup (no reboot).')) return
   podUpdating.value[podId] = true
   try {
     const result = await $fetch<{ success: boolean; message: string; output?: string }>('/api/runpod/update-pod', {
