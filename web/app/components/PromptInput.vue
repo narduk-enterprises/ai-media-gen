@@ -14,6 +14,7 @@ const modelValue = defineModel<string>({ default: '' })
 const { remixPrompt, remixLoading } = useRemix()
 const remixing = ref(false)
 const remixError = ref('')
+const generatingPrompt = ref(false)
 
 // Directed remix state
 const directRemixOpen = ref(false)
@@ -90,6 +91,22 @@ function handlePaste(e: ClipboardEvent) {
   }
 }
 
+async function handleGeneratePrompt() {
+  generatingPrompt.value = true
+  remixError.value = ''
+  try {
+    const result = await $fetch<any>('/api/prompt-builder/generate', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    modelValue.value = result.refinedPrompt || result.rawPrompt || ''
+  } catch (e: any) {
+    remixError.value = e?.data?.message || e?.message || 'Generate failed'
+  } finally {
+    generatingPrompt.value = false
+  }
+}
+
 defineExpose({ remixing })
 </script>
 
@@ -106,6 +123,17 @@ defineExpose({ remixing })
       />
     </div>
     <template #hint>
+      <UButton
+        size="xs"
+        :variant="generatingPrompt ? 'soft' : 'outline'"
+        :color="generatingPrompt ? 'primary' : 'neutral'"
+        icon="i-lucide-wand"
+        :loading="generatingPrompt"
+        :disabled="disabled"
+        @click="handleGeneratePrompt"
+      >
+        Generate
+      </UButton>
       <UButton
         size="xs"
         :variant="remixing ? 'soft' : 'outline'"
