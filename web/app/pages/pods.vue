@@ -73,6 +73,7 @@ const QUICK_DEPLOY_PRESETS: QuickDeployPreset[] = [
   { id: 'all_image', label: 'All Image Models', icon: '🎨', description: 'Every image checkpoint + upscale', modelGroups: ['juggernaut', 'pony', 'extra_checkpoints', 'qwen', 'flux2', 'z_image', 'z_image_turbo', 'upscale', 'shared'], minVram: 24, color: 'from-indigo-500 to-blue-600' },
   { id: 'full_stack', label: 'Full Stack', icon: '💎', description: 'All models — image + video', modelGroups: MODEL_GROUPS.map(g => g.value), minVram: 48, color: 'from-slate-700 to-slate-900', isVideo: true },
   { id: 'video_prompt', label: 'Video-to-Prompt', icon: '📝', description: 'Analyze videos → structured prompts', modelGroups: ['video_prompt', 'shared'], minVram: 12, color: 'from-fuchsia-500 to-pink-600' },
+  { id: 'prompt_refine', label: 'Prompt Refinement', icon: '✍️', description: 'LLM prompt enhancement (Qwen 3B)', modelGroups: ['shared'], minVram: 8, color: 'from-teal-500 to-cyan-600' },
 ]
 
 const showQuickDeploy = ref(false)
