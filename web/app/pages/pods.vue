@@ -125,7 +125,7 @@ async function openQuickDeploy(preset: QuickDeployPreset) {
   }
 }
 
-async function quickDeploy(gpuId: string, gpuName: string) {
+async function quickDeploy(gpu: any) {
   const preset = quickDeployPreset.value
   if (!preset || !quickDeployTemplateId.value) return
 
@@ -141,9 +141,9 @@ async function quickDeploy(gpuId: string, gpuName: string) {
       body: {
         name: `${preset.label}`,
         templateId: quickDeployTemplateId.value,
-        gpuTypeId: gpuId,
+        gpuTypeId: gpu.id,
         gpuCount: 1,
-        cloudType: 'ALL',
+        cloudType: gpu.communityPrice ? 'COMMUNITY' : 'SECURE',
         volumeInGb,
         containerDiskInGb,
         modelGroups: preset.modelGroups,
@@ -1154,7 +1154,7 @@ onUnmounted(() => {
               :disabled="quickDeploying"
               class="w-full text-left p-3 rounded-lg border transition-all duration-150 hover:shadow-md hover:border-primary-300 disabled:opacity-50 disabled:cursor-wait"
               :class="idx === 0 ? 'border-emerald-300 bg-emerald-50/50 ring-1 ring-emerald-200' : 'border-slate-200 bg-white hover:bg-slate-50'"
-              @click="quickDeploy(gpu.id, gpu.name)"
+              @click="quickDeploy(gpu)"
             >
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
