@@ -174,22 +174,32 @@ export function getRequiredGroups(input: Record<string, any>): string[] {
   const action = input.action || ''
   const json = JSON.stringify(input).toLowerCase()
 
-  // Check by known model filenames in the workflow payload
-  if (json.includes('cyberrealisticpony') || json.includes('pony')) groups.add('pony')
-  if (json.includes('juggernaut')) groups.add('juggernaut')
-  if (json.includes('flux') || json.includes('flux2')) groups.add('flux2')
-  if (json.includes('wan2.2') || json.includes('wan_2.1') || json.includes('wan22')) groups.add('wan22')
-  if (json.includes('ltxv') || json.includes('ltx2') || json.includes('ltx-video')) groups.add('ltx2')
-  if (json.includes('realesrgan') || json.includes('upscale')) groups.add('upscale')
-  if (json.includes('qwen')) groups.add('shared')
-
-  // Fallback: infer from action type if no specific models detected
-  if (groups.size === 0) {
-    if (action === 'text2video' || action === 'image2video' || action === 'multi_segment_video') {
-      // Default to wan22 for video actions
-      groups.add('wan22')
-    }
+  if (['text2video', 'image2video', 'multi_segment_video'].includes(action)) {
+    // Only search for video models for video actions to avoid matching words in prompts (like 'pony')
+    if (json.includes('ltxv') || json.includes('ltx2') || json.includes('ltx-video')) groups.add('ltx2')
+    if (json.includes('wan2.2') || json.includes('wan_2.1') || json.includes('wan22')) groups.add('wan22')
+    
+    // Default video model if none matched
+    if (groups.size === 0) groups.add('wan22')
+  } else if (['text2image', 'image2image'].includes(action)) {
+    // Only search for image models for image actions
+    if (json.includes('cyberrealisticpony') || json.includes('pony')) groups.add('pony')
+    if (json.includes('juggernaut')) groups.add('juggernaut')
+    if (json.includes('flux') || json.includes('flux2')) groups.add('flux2')
+  } else if (action === 'upscale' || action === 'upscale_video') {
+    groups.add('upscale')
+  } else {
+    // Fallback for unknown actions (e.g., custom raw workflows)
+    if (json.includes('cyberrealisticpony') || json.includes('pony')) groups.add('pony')
+    if (json.includes('juggernaut')) groups.add('juggernaut')
+    if (json.includes('flux') || json.includes('flux2')) groups.add('flux2')
+    if (json.includes('wan2.2') || json.includes('wan_2.1') || json.includes('wan22')) groups.add('wan22')
+    if (json.includes('ltxv') || json.includes('ltx2') || json.includes('ltx-video')) groups.add('ltx2')
+    if (json.includes('realesrgan') || json.includes('upscale')) groups.add('upscale')
   }
+
+  // LLM components (used for prompt enhancement, captioning, etc.)
+  if (json.includes('qwen')) groups.add('shared')
 
   return [...groups]
 }

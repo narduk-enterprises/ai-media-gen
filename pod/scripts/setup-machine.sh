@@ -123,7 +123,7 @@ echo "▸ [2/4] Installing system deps..."
     if [ "$GPU_ARCH" -ge "120" ] && ! echo "$TORCH_ARCHS" | grep -q "sm_${GPU_ARCH}"; then
         echo "  ⚠️  GPU is sm_${GPU_ARCH} (Blackwell) — upgrading PyTorch..."
         pip uninstall -y torch torchvision torchaudio 2>&1 | tail -1 || true
-        pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128 2>&1 | tail -3 || true
+        pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128 2>&1 | tail -3 || true
     fi
     echo "  ✅ system deps installed"
 ) > >(tee -a "$LOGDIR/deps.log") 2>&1
