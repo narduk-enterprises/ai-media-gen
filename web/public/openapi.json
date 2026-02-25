@@ -1,0 +1,322 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AI Media Gen API",
+    "description": "API for AI Media Gen: Generate high-quality AI images and videos, check generation status, and manage pods.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://ai-media-gen.narduk.workers.dev",
+      "description": "Production Server"
+    }
+  ],
+  "paths": {
+    "/api/generate/image": {
+      "post": {
+        "summary": "Generate an image",
+        "operationId": "generateImage",
+        "description": "Submit a prompt to generate one or more images.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "description": "The description of the image to generate."
+                  },
+                  "negativePrompt": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string",
+                    "enum": ["wan22", "qwen_image", "qwen_lora", "flux2_dev", "flux2_turbo", "hyperbeast", "epicrealism", "cyberrealistic_pony", "juggernaut"],
+                    "default": "wan22"
+                  },
+                  "width": {
+                    "type": "integer",
+                    "default": 1024
+                  },
+                  "height": {
+                    "type": "integer",
+                    "default": 1024
+                  },
+                  "steps": {
+                    "type": "integer",
+                    "default": 20
+                  },
+                  "count": {
+                    "type": "integer",
+                    "default": 1
+                  }
+                },
+                "required": ["prompt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generation queued successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "generation": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "status": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/generate/text2video": {
+      "post": {
+        "summary": "Generate a video from text",
+        "operationId": "generateVideo",
+        "description": "Submit a text prompt to generate a video using Wan2.2 or LTX-2.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "description": "The description of the video to generate."
+                  },
+                  "negativePrompt": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string",
+                    "enum": ["wan22", "ltx2"],
+                    "default": "wan22"
+                  },
+                  "width": {
+                    "type": "integer",
+                    "default": 832
+                  },
+                  "height": {
+                    "type": "integer",
+                    "default": 480
+                  },
+                  "numFrames": {
+                    "type": "integer",
+                    "default": 81
+                  },
+                  "steps": {
+                    "type": "integer",
+                    "default": 35
+                  }
+                },
+                "required": ["prompt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Video generation queued successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "generation": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/generate/video2prompt": {
+      "post": {
+        "summary": "Extract a prompt from a video",
+        "operationId": "video2prompt",
+        "description": "Analyze a video and extract a detailed prompt generation using Qwen2.5-VL.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "videoData": {
+                    "type": "string",
+                    "description": "Base64-encoded source video."
+                  },
+                  "frames": {
+                    "type": "integer",
+                    "default": 16
+                  },
+                  "customSystemPrompt": {
+                    "type": "string",
+                    "description": "Optional custom instructions for the extraction."
+                  }
+                },
+                "required": ["videoData"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Analysis queued successfully."
+          }
+        }
+      }
+    },
+    "/api/generations": {
+      "get": {
+        "summary": "List generations",
+        "operationId": "listGenerations",
+        "description": "Get a paginated list of media generation items to check their status and download URLs.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["all", "image", "video"],
+              "default": "all"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of generation items.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "type": { "type": "string" },
+                          "status": { "type": "string", "enum": ["queued", "processing", "complete", "failed"] },
+                          "url": { "type": "string", "nullable": true },
+                          "prompt": { "type": "string" }
+                        }
+                      }
+                    },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runpod/pods": {
+      "get": {
+        "summary": "List RunPods",
+        "operationId": "listPods",
+        "description": "List all configured GPU pods and their statuses.",
+        "responses": {
+          "200": {
+            "description": "List of pods."
+          }
+        }
+      }
+    },
+    "/api/runpod/start": {
+      "post": {
+        "summary": "Start a RunPod",
+        "operationId": "startPod",
+        "description": "Start a specific AI generation machine (pod).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "podId": {
+                    "type": "string",
+                    "description": "The ID of the pod to start."
+                  }
+                },
+                "required": ["podId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pod started."
+          }
+        }
+      }
+    },
+    "/api/runpod/stop": {
+      "post": {
+        "summary": "Stop a RunPod",
+        "operationId": "stopPod",
+        "description": "Stop a specific AI generation machine (pod).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "podId": {
+                    "type": "string",
+                    "description": "The ID of the pod to stop."
+                  }
+                },
+                "required": ["podId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pod stopped."
+          }
+        }
+      }
+    }
+  }
+}

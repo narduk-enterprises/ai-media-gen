@@ -84,6 +84,7 @@ export default defineNuxtConfig({
     preset: 'cloudflare-module',
     experimental: {
       tasks: true,
+      openAPI: true
     },
     scheduledTasks: {
       '* * * * *': ['recovery:sweep'],
