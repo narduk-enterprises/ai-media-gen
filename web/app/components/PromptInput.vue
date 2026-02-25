@@ -11,7 +11,7 @@ const emit = defineEmits<{
 
 const modelValue = defineModel<string>({ default: '' })
 
-const { isSupported, loadProgress, loadingModel } = useWebLLM()
+const { remixPrompt, remixLoading } = useRemix()
 const remixing = ref(false)
 const remixError = ref('')
 
@@ -20,7 +20,6 @@ async function handleRemix() {
   remixing.value = true
   remixError.value = ''
   try {
-    const { remixPrompt } = useWebLLM()
     modelValue.value = await remixPrompt(modelValue.value)
     emit('remix')
   } catch (e: any) {
@@ -87,16 +86,15 @@ defineExpose({ remixing })
     </div>
     <template #hint>
       <UButton
-        v-if="isSupported"
         size="xs"
-        :variant="remixing || loadingModel ? 'soft' : 'outline'"
-        :color="remixing || loadingModel ? 'primary' : 'neutral'"
+        :variant="remixing ? 'soft' : 'outline'"
+        :color="remixing ? 'primary' : 'neutral'"
         icon="i-lucide-sparkles"
-        :loading="remixing || loadingModel"
+        :loading="remixing"
         :disabled="!modelValue.trim() || disabled"
         @click="handleRemix"
       >
-        {{ loadingModel ? `AI (${loadProgress}%)` : 'AI Remix' }}
+        AI Remix
       </UButton>
       <slot name="actions" />
       <span v-if="remixError" class="text-xs text-red-500">{{ remixError }}</span>

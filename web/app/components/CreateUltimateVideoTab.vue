@@ -28,38 +28,26 @@ function onImageClear() {
 const prompt = ref('')
 const audioPrompt = ref('')
 const negativePrompt = ref(DEFAULT_NEGATIVE_PROMPT)
-const remixLoading = ref(false)
-const remixVariations = ref<string[]>([])
+const remixVariationsResult = ref<string[]>([])
 
 onMounted(() => { audioPrompt.value = randomAudioPrompt() })
 
-// ─── Remix (Qwen2.5) ────────────────────────────────────────
+// ─── Remix (shared via useWebLLM) ────────────────────────────
+const { remixVariations: doRemixVariations, remixLoading } = useRemix()
+
 async function remixPrompt() {
   if (!prompt.value.trim() || remixLoading.value) return
-  remixLoading.value = true
-  remixVariations.value = []
+  remixVariationsResult.value = []
   try {
-    const res = await $fetch<{ prompts: string[]; elapsed: number }>('/api/generate/remix', {
-      method: 'POST',
-      body: {
-        prompt: prompt.value.trim(),
-        count: 4,
-        temperature: 0.9,
-        endpoint: effectiveEndpoint.value,
-      },
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    remixVariations.value = res.prompts || []
+    remixVariationsResult.value = await doRemixVariations(prompt.value.trim(), 4)
   } catch (e: any) {
-    gen.error.value = e.data?.message || 'Remix failed'
-  } finally {
-    remixLoading.value = false
+    gen.error.value = e.data?.message || e.message || 'Remix failed'
   }
 }
 
 function useVariation(text: string) {
   prompt.value = text
-  remixVariations.value = []
+  remixVariationsResult.value = []
 }
 
 // ─── Video Settings ──────────────────────────────────────────
@@ -208,11 +196,11 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
         <UTextarea v-model="prompt" placeholder="she turns to camera and smiles, wind blowing through her hair, slow motion, cinematic..." :rows="3" autoresize class="w-full" size="sm" />
 
         <!-- Remix variations -->
-        <div v-if="remixVariations.length > 0" class="space-y-1.5">
+        <div v-if="remixVariationsResult.length > 0" class="space-y-1.5">
           <p class="text-[10px] text-amber-600 font-semibold uppercase tracking-wider">✨ Variations (click to use)</p>
           <div class="grid gap-1.5">
             <button
-              v-for="(v, i) in remixVariations" :key="i"
+              v-for="(v, i) in remixVariationsResult" :key="i"
               class="text-left text-xs p-2.5 rounded-lg border border-amber-200 bg-amber-50/50 hover:bg-amber-100 hover:border-amber-300 transition-colors text-slate-700 leading-relaxed"
               @click="useVariation(v)"
             >{{ v }}</button>

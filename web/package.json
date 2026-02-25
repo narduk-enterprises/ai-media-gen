@@ -13,7 +13,6 @@
     "deploy": "doppler run -- nuxt build && doppler run -- sh -c 'echo \"$RUNPOD_API_KEY\" | wrangler secret put RUNPOD_API_KEY --name ai-media-gen' && doppler run -- wrangler deploy"
   },
   "dependencies": {
-    "@mlc-ai/web-llm": "^0.2.81",
     "@nuxt/image": "^2.0.0",
     "@nuxt/ui": "^4.3.0",
     "drizzle-orm": "^0.45.1",

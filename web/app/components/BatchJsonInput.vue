@@ -8,8 +8,7 @@ const prompts = defineModel<string[]>('prompts', { default: () => [] })
 
 const jsonInput = ref('')
 const fileError = ref('')
-const remixing = ref(false)
-const remixProgress = ref({ current: 0, total: 0 })
+const { remixPrompts: doRemixPrompts, remixLoading: remixing, remixProgress } = useRemix()
 
 function parseBatchJson(raw: string): string[] | null {
   try {
@@ -20,7 +19,6 @@ function parseBatchJson(raw: string): string[] | null {
         if (typeof item === 'string' && item.trim()) {
           result.push(item.trim())
         } else if (typeof item === 'object' && item !== null) {
-          // Support {prompt: "..."} or {Positive: "...", Negative: "...", Audio: "..."}
           const p = item.prompt ?? item.Positive ?? item.positive
           if (typeof p === 'string' && p.trim()) {
             result.push(p.trim())
@@ -40,7 +38,6 @@ function handleFileUpload(event: Event) {
   const file = input.files?.[0]
   if (!file) return
   fileError.value = ''
-
   const reader = new FileReader()
   reader.onload = () => {
     const text = reader.result as string
@@ -66,7 +63,7 @@ function handleParse() {
   if (parsed) {
     prompts.value = parsed
     fileError.value = ''
-    jsonInput.value = '' // collapse after successful parse
+    jsonInput.value = ''
   } else {
     fileError.value = 'Invalid JSON. Expected an array of strings or objects with a "prompt" field.'
   }
@@ -75,7 +72,6 @@ function handleParse() {
 function handlePaste(e: ClipboardEvent) {
   const text = e.clipboardData?.getData('text/plain')?.trim()
   if (!text) return
-  // Try auto-parse on paste — if it looks like JSON, parse immediately
   if (text.startsWith('[')) {
     const parsed = parseBatchJson(text)
     if (parsed) {
@@ -99,52 +95,13 @@ function clearAll() {
 
 /**
  * Remix all prompts via the server-side LLM.
- * Sends prompts in batches of up to 5 to avoid timeouts.
  */
 async function remixAll() {
   if (prompts.value.length === 0) return
-  remixing.value = true
-  fileError.value = ''
-
-  const original = [...prompts.value]
-  const remixed: string[] = []
-  const BATCH_SIZE = 5
-
-  remixProgress.value = { current: 0, total: original.length }
-
   try {
-    for (let i = 0; i < original.length; i += BATCH_SIZE) {
-      const batch = original.slice(i, i + BATCH_SIZE)
-
-      // Send each prompt in the batch concurrently
-      const results = await Promise.allSettled(
-        batch.map(prompt =>
-          $fetch<{ prompts: string[]; elapsed: number }>('/api/generate/remix', {
-            method: 'POST',
-            headers: { 'X-Requested-With': 'fetch' },
-            body: { prompt, count: 1 },
-          })
-        )
-      )
-
-      for (let j = 0; j < results.length; j++) {
-        const result = results[j]!
-        if (result.status === 'fulfilled' && result.value?.prompts?.[0]) {
-          remixed.push(result.value.prompts[0])
-        } else {
-          // Keep original if remix fails
-          remixed.push(original[i + j]!)
-        }
-        remixProgress.value.current = remixed.length
-      }
-    }
-
-    prompts.value = remixed
+    prompts.value = await doRemixPrompts(prompts.value)
   } catch (e: any) {
     fileError.value = `Remix failed: ${e.message}`
-  } finally {
-    remixing.value = false
-    remixProgress.value = { current: 0, total: 0 }
   }
 }
 </script>
