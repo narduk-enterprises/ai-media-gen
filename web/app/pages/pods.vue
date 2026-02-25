@@ -43,7 +43,7 @@ const MODEL_GROUPS = [
   { value: 'z_image', label: 'Z-Image (HQ)', icon: '💎', sizeGb: 10, category: 'Image' },
   { value: 'z_image_turbo', label: 'Z-Image Turbo', icon: '🚀', sizeGb: 8, category: 'Image' },
   { value: 'wan22', label: 'Wan 2.2 T2V/I2V', icon: '🎬', sizeGb: 40, category: 'Video' },
-  { value: 'wan22_t2v', label: 'Wan 2.2 T2V Only', icon: '🎬', sizeGb: 22, category: 'Video' },
+  { value: 'wan22_t2v', label: 'Wan 2.2 T2V Only', icon: '🎬', sizeGb: 80, category: 'Video' },
   { value: 'ltx2', label: 'LTX-2 19B', icon: '🎥', sizeGb: 25, category: 'Video' },
   { value: 'ltx2_camera', label: 'LTX-2 Camera LoRAs', icon: '📷', sizeGb: 2, category: 'Video' },
   { value: 'upscale', label: 'RealESRGAN Upscale', icon: '🔍', sizeGb: 1, category: 'Shared' },

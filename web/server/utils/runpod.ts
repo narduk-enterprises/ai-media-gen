@@ -267,8 +267,8 @@ export async function deployRunPod(
   // Estimated sizes per group (GB) for auto volume sizing
   const GROUP_SIZE_GB: Record<string, number> = {
     juggernaut: 7, pony: 7, extra_checkpoints: 30, qwen: 12, flux2: 15,
-    z_image: 10, z_image_turbo: 8, wan22: 40, ltx2: 25,
-    ltx2_camera: 2, upscale: 1, shared: 8,
+    z_image: 10, z_image_turbo: 8, wan22: 40, wan22_t2v: 80, ltx2: 25,
+    ltx2_camera: 2, upscale: 1, shared: 8, video_prompt: 5,
   }
   const estimatedSize = modelGroups.length > 0
     ? modelGroups.reduce((sum, g) => sum + (GROUP_SIZE_GB[g] || 5), 0)
