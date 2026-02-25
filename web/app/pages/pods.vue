@@ -28,7 +28,7 @@ const deployState = reactive({
   gpuCount: 1,
   cloudType: 'SECURE',
   dataCenter: 'ANY',
-  volumeInGb: 30,
+  volumeInGb: 40,
   containerDiskInGb: 40,
   modelGroups: ['juggernaut', 'upscale'] as string[],
 })
@@ -113,7 +113,7 @@ async function quickDeploy(gpuId: string, gpuName: string) {
   if (!preset || !quickDeployTemplateId.value) return
 
   const diskEstimate = calcPresetDisk(preset)
-  const volumeInGb = Math.max(30, Math.ceil(diskEstimate * 1.3))
+  const volumeInGb = Math.max(40, Math.ceil(diskEstimate * 1.3))
   const containerDiskInGb = preset.isVideo ? 20 : 10
 
   quickDeploying.value = true
@@ -151,7 +151,7 @@ const estimatedDiskGb = computed(() => {
 
 // Auto-update volume when groups change
 watch(() => deployState.modelGroups, () => {
-  deployState.volumeInGb = Math.max(30, Math.ceil(estimatedDiskGb.value * 1.3)) // 30% headroom
+  deployState.volumeInGb = Math.max(40, Math.ceil(estimatedDiskGb.value * 1.3)) // 30% headroom
 }, { deep: true })
 
 function toggleGroup(value: string) {
