@@ -11,7 +11,7 @@ const text2videoSchema = z.object({
   width: z.number().min(256).max(1920).optional().default(832),
   height: z.number().min(256).max(1920).optional().default(480),
   numFrames: z.number().min(9).max(1441).optional().default(81),
-  steps: z.number().min(1).max(50).optional().default(4),
+  steps: z.number().min(1).max(50).optional().default(35),
   loraStrength: z.number().min(0).max(2).optional().default(1.0),
   model: z.enum(['wan22', 'ltx2']).optional().default('wan22'),
   seed: z.number().int().optional().default(-1),

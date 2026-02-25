@@ -15,13 +15,13 @@ const selectedModel = ref('ltx2')
 const negativePrompt = ref(LTX2_NEGATIVE_PROMPT)
 const numFrames = ref<number[]>([97])
 const count = ref(1)
-const steps = ref(20)
+const steps = ref(35)
 const resolutionIndex = ref(0)
 const seed = ref(-1)
-const loraStrength = ref(0.7)
+const loraStrength = ref(0.65)
 const audioPrompt = ref('')
 const cameraLora = ref('')
-const cfg = ref(3.0)
+const cfg = ref(4.0)
 const fps = ref(24)
 const textEncoder = ref('')
 const showLibrary = ref(false)
@@ -199,6 +199,20 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
 
     <!-- ═══ 2. Model ═══ -->
     <ModelSelector :models="VIDEO_MODELS" :selected="selectedModel" color="cyan" @update:selected="selectedModel = $event as string" />
+
+    <!-- ═══ 2.5 Wan 2.2 Quality Toggle ═══ -->
+    <div v-if="selectedModel === 'wan22'" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/60">
+      <UIcon name="i-lucide-gauge" class="w-4 h-4 text-amber-600 shrink-0" />
+      <div class="flex gap-2">
+        <UButton size="xs" :variant="steps <= 4 ? 'soft' : 'ghost'" :color="steps <= 4 ? 'warning' : 'neutral'" @click="steps = 4; cfg = 1">
+          ⚡ Fast (4 steps)
+        </UButton>
+        <UButton size="xs" :variant="steps > 4 ? 'soft' : 'ghost'" :color="steps > 4 ? 'success' : 'neutral'" @click="steps = 25; cfg = 4.0">
+          💎 Quality (25 steps)
+        </UButton>
+      </div>
+      <span class="text-[10px] text-amber-600 ml-auto">{{ steps <= 4 ? 'Distilled LoRA — fast but lower quality' : 'Base model — slower but much better quality' }}</span>
+    </div>
 
     <!-- ═══ 3. Video Settings ═══ -->
     <UCard variant="outline">

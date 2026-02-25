@@ -444,9 +444,11 @@ export interface Text2VideoOptions {
   audioPrompt?: string | null
 }
 
-/** Wan 2.2 T2V with LightX2V 4-step LoRAs. */
+/** Wan 2.2 T2V with LightX2V 4-step LoRAs (fast mode). */
 export function buildText2VideoWorkflow(opts: Text2VideoOptions) {
   const steps = opts.steps ?? 4
+  // Auto quality mode: if steps > 4, use base model without distilled LoRAs
+  if (steps > 4) return buildWan22QualityT2vWorkflow(opts)
   return injectParams(loadTemplate('wan_t2v'), {
     prompt: opts.prompt,
     negative_prompt: opts.negativePrompt || DEFAULT_NEG_PROMPT,
@@ -457,6 +459,24 @@ export function buildText2VideoWorkflow(opts: Text2VideoOptions) {
     half_steps: Math.floor(steps / 2),
     seed: seed(opts.seed),
     lora_strength: opts.loraStrength ?? 1.0,
+  })
+}
+
+/** Wan 2.2 T2V quality mode — base model, no distilled LoRAs, more steps. */
+function buildWan22QualityT2vWorkflow(opts: Text2VideoOptions) {
+  const steps = opts.steps ?? 25
+  return injectParams(loadTemplate('wan_t2v_quality'), {
+    prompt: opts.prompt,
+    negative_prompt: opts.negativePrompt || DEFAULT_NEG_PROMPT,
+    width: opts.width ?? 832,
+    height: opts.height ?? 480,
+    frames: opts.frames ?? 81,
+    steps,
+    half_steps: Math.floor(steps / 2),
+    cfg: 4.0,
+    sampler_name: 'dpmpp_2m_sde',
+    scheduler: 'karras',
+    seed: seed(opts.seed),
   })
 }
 
