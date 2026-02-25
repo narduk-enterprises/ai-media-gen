@@ -2,13 +2,19 @@
 const route = useRoute()
 const { user, loggedIn, logout } = useAuth()
 
-const navItems = [
-  { label: 'Create', to: '/create', icon: 'i-lucide-sparkles' },
-  { label: 'Gallery', to: '/gallery', icon: 'i-lucide-image' },
-  { label: 'Feed', to: '/feed', icon: 'i-lucide-play' },
-  { label: 'Pods', to: '/pods', icon: 'i-lucide-server' },
-  { label: 'Settings', to: '/settings', icon: 'i-lucide-settings' },
-]
+const navItems = computed(() => {
+  const items = [
+    { label: 'Create', to: '/create', icon: 'i-lucide-sparkles' },
+    { label: 'Gallery', to: '/gallery', icon: 'i-lucide-image' },
+    { label: 'Feed', to: '/feed', icon: 'i-lucide-play' },
+    { label: 'Pods', to: '/pods', icon: 'i-lucide-server' },
+    { label: 'Settings', to: '/settings', icon: 'i-lucide-settings' },
+  ]
+  if (user.value?.isAdmin) {
+    items.push({ label: 'Prompts', to: '/manage-prompts', icon: 'i-lucide-wand' })
+  }
+  return items
+})
 
 const mobileMenuOpen = ref(false)
 
