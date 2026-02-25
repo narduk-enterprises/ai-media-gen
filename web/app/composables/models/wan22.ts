@@ -50,6 +50,7 @@ export const wan22Video: VideoModelConfig = {
   params: {
     steps: { min: 1, max: 50, default: 4, hint: '4 = fast (distilled). 20-30 = quality (base model)' },
     cfg: { min: 1, max: 15, default: 4.0, step: 0.5, hint: 'Only used in quality mode (>4 steps)' },
+    fps: { min: 8, max: 30, default: 16, hint: 'Higher = faster motion but shorter video' },
     resolutions: [
       { label: '640 × 640', w: 640, h: 640 },
       { label: '512 × 512', w: 512, h: 512 },
