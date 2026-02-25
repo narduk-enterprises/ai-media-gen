@@ -3,7 +3,7 @@
  * Most feature-rich video model: audio prompts, camera LoRAs, I2V presets.
  * Supports durations up to 60 seconds (1441 frames at 24 FPS).
  */
-import type { VideoModelConfig, CameraLoraDef } from './types'
+import type { VideoModelConfig, CameraLoraDef, TextEncoderDef } from './types'
 
 // ─── Camera LoRAs ───────────────────────────────────────────────────────────
 
@@ -15,6 +15,14 @@ export const LTX2_CAMERA_LORAS: CameraLoraDef[] = [
   { id: 'jib-up', label: 'Jib Up', filename: 'ltx-2-19b-lora-camera-control-jib-up.safetensors' },
   { id: 'jib-down', label: 'Jib Down', filename: 'ltx-2-19b-lora-camera-control-jib-down.safetensors' },
   { id: 'static', label: 'Static', filename: 'ltx-2-19b-lora-camera-control-static.safetensors' },
+]
+
+// ─── Text Encoders ──────────────────────────────────────────────────────────
+
+export const LTX2_TEXT_ENCODERS: TextEncoderDef[] = [
+  { id: 'default', label: 'Default (FP4)', filename: '' },
+  { id: 'heretic', label: 'Heretic (FP8)', filename: 'gemma_3_12B_it_heretic_fp8_e4m3fn.safetensors' },
+  { id: 'sikaworld', label: 'Sikaworld HiFi', filename: 'gemma-3-12b-it-abliterated-sikaworld-high-fidelity-edition.safetensors' },
 ]
 
 // ─── I2V Preset Keys (definitions live in workflow_loader.py) ───────────────
@@ -65,6 +73,7 @@ export const ltx2Video: VideoModelConfig = {
       { label: '~60s', value: 1441, description: '1 minute (high VRAM)' },
     ],
     cameraLoras: LTX2_CAMERA_LORAS,
+    textEncoders: LTX2_TEXT_ENCODERS,
     supportsAudio: true,
     hasI2vPresets: true,
   },

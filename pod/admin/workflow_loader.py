@@ -356,7 +356,7 @@ def build_text2video_workflow(prompt, negative_prompt="", width=832, height=480,
 def build_ltx_2_t2v_workflow(prompt, negative_prompt="", width=1280, height=720,
                               frames=97, steps=20, seed=None, fps=24,
                               lora_strength=1.0, camera_lora=None,
-                              audio_prompt=None):
+                              audio_prompt=None, text_encoder=None):
     """LTX-2 19B T2V with distilled LoRA + spatial upscaler.
     
     Args:
@@ -364,6 +364,8 @@ def build_ltx_2_t2v_workflow(prompt, negative_prompt="", width=1280, height=720,
                      Available: 'dolly-left'. Loaded at lora_strength.
         audio_prompt: Optional separate audio description. If provided,
                       appended to the main prompt for audio-video conditioning.
+        text_encoder: Optional text encoder filename. Defaults to
+                      gemma_3_12B_it_fp4_mixed.safetensors (from template).
     """
     seed = _seed(seed)
     # Build combined prompt: video description + optional audio guidance
@@ -378,6 +380,10 @@ def build_ltx_2_t2v_workflow(prompt, negative_prompt="", width=1280, height=720,
         "fps": fps, "fps_int": int(fps),
         "lora_strength": lora_strength,
     })
+
+    # Override text encoder if specified
+    if text_encoder and "92:60" in wf:
+        wf["92:60"]["inputs"]["text_encoder"] = text_encoder
 
     # Optionally add a camera motion LoRA
     CAMERA_LORAS = {
@@ -403,7 +409,8 @@ def build_ltx_2_i2v_workflow(image_filename, prompt="", negative_prompt="",
                               width=1280, height=720, frames=97, steps=20,
                               seed=None, fps=24, lora_strength=1.0,
                               image_strength=1.0, camera_lora=None,
-                              audio_prompt=None, preset=None):
+                              audio_prompt=None, preset=None,
+                              text_encoder=None):
     """LTX-2 19B I2V with distilled LoRA + spatial upscaler.
     
     Args:
@@ -413,6 +420,8 @@ def build_ltx_2_i2v_workflow(image_filename, prompt="", negative_prompt="",
         camera_lora: Optional camera motion LoRA name, e.g. 'dolly-left'.
         audio_prompt: Optional separate audio description.
         preset: Optional preset name or 'random' for random selection.
+        text_encoder: Optional text encoder filename. Defaults to
+                      gemma_3_12B_it_fp4_mixed.safetensors (from template).
     """
     seed = _seed(seed)
     full_prompt = prompt or "smooth natural motion, cinematic quality"
@@ -429,6 +438,10 @@ def build_ltx_2_i2v_workflow(image_filename, prompt="", negative_prompt="",
         "lora_strength": lora_strength,
         "image_strength": image_strength,
     })
+
+    # Override text encoder if specified
+    if text_encoder and "92:60" in wf:
+        wf["92:60"]["inputs"]["text_encoder"] = text_encoder
 
     # ── Apply I2V preset (randomizes scheduler/CFG/sampler params) ──
     if preset:

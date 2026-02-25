@@ -36,6 +36,13 @@ export interface CameraLoraDef {
   filename: string
 }
 
+export interface TextEncoderDef {
+  id: string
+  label: string
+  /** Safetensors filename on the pod */
+  filename: string
+}
+
 // ─── Model Definition ───────────────────────────────────────────────────────
 
 export interface ModelDef {
@@ -82,6 +89,8 @@ export interface VideoModelParams {
   durations: DurationPreset[]
   /** Available camera motion LoRAs */
   cameraLoras?: CameraLoraDef[]
+  /** Available text encoder variants */
+  textEncoders?: TextEncoderDef[]
   /** Whether the model supports audio prompts */
   supportsAudio?: boolean
   /** Whether the model has I2V presets */

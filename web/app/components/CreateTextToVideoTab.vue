@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VIDEO_MODELS, LTX2_CAMERA_LORAS } from '~/composables/models'
+import { VIDEO_MODELS, LTX2_CAMERA_LORAS, LTX2_TEXT_ENCODERS } from '~/composables/models'
 import { AUDIO_PRESETS, DEFAULT_NEGATIVE_PROMPT, LTX2_NEGATIVE_PROMPT } from '~/composables/useVideoDefaults'
 import type { VideoPreset } from '~/components/VideoPromptLibrary.vue'
 import type { BatchItem } from '~/components/BatchJsonInput.vue'
@@ -23,6 +23,7 @@ const audioPrompt = ref('')
 const cameraLora = ref('')
 const cfg = ref(3.0)
 const fps = ref(24)
+const textEncoder = ref('')
 const showLibrary = ref(false)
 const showAdvanced = ref(false)
 
@@ -88,7 +89,7 @@ async function generate() {
       numFrames: numFrames.value, steps: steps.value,
       width: currentResolution.value.w, height: currentResolution.value.h,
       loraStrength: loraStrength.value, model: selectedModel.value, seed: seed.value,
-      ...(isLtx2.value ? { audioPrompt: audioPrompt.value, cfg: cfg.value, fps: fps.value, cameraLora: cameraLora.value || undefined } : {}),
+      ...(isLtx2.value ? { audioPrompt: audioPrompt.value, cfg: cfg.value, fps: fps.value, cameraLora: cameraLora.value || undefined, textEncoder: textEncoder.value || undefined } : {}),
     })
   } else {
     const expandedFrames: number[] = []
@@ -98,7 +99,7 @@ async function generate() {
       numFrames: expandedFrames, steps: steps.value,
       width: currentResolution.value.w, height: currentResolution.value.h,
       loraStrength: loraStrength.value, model: selectedModel.value, seed: seed.value,
-      ...(isLtx2.value ? { audioPrompt: audioPrompt.value, cfg: cfg.value, fps: fps.value, cameraLora: cameraLora.value || undefined } : {}),
+      ...(isLtx2.value ? { audioPrompt: audioPrompt.value, cfg: cfg.value, fps: fps.value, cameraLora: cameraLora.value || undefined, textEncoder: textEncoder.value || undefined } : {}),
     })
   }
 }
@@ -128,14 +129,16 @@ onMounted(() => {
   if (s.t2v_cameraLora != null) cameraLora.value = s.t2v_cameraLora
   if (s.t2v_cfg != null) cfg.value = s.t2v_cfg
   if (s.t2v_fps != null) fps.value = s.t2v_fps
+  if (s.t2v_textEncoder != null) textEncoder.value = s.t2v_textEncoder
 })
 
-watch([prompt, selectedModel, negativePrompt, steps, seed, resolutionIndex, numFrames, count, audioPrompt, cameraLora, cfg, fps], () => {
+watch([prompt, selectedModel, negativePrompt, steps, seed, resolutionIndex, numFrames, count, audioPrompt, cameraLora, cfg, fps, textEncoder], () => {
   shared.persistForm({
     t2v_prompt: prompt.value, t2v_model: selectedModel.value, t2v_neg: negativePrompt.value,
     t2v_steps: steps.value, t2v_seed: seed.value, t2v_resIdx: resolutionIndex.value,
     t2v_numFrames: numFrames.value, t2v_count: count.value, t2v_audioPrompt: audioPrompt.value,
     t2v_cameraLora: cameraLora.value, t2v_cfg: cfg.value, t2v_fps: fps.value,
+    t2v_textEncoder: textEncoder.value,
   })
 }, { deep: true })
 
@@ -239,6 +242,20 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
             >{{ cam.label }}</UButton>
           </div>
           <p class="text-[10px] text-slate-400">Adds a camera motion LoRA to the generation. Only one can be active at a time.</p>
+        </div>
+
+        <!-- Text Encoder -->
+        <div class="space-y-2">
+          <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">🧠 Text Encoder</h3>
+          <div class="flex flex-wrap gap-1.5">
+            <UButton
+              v-for="enc in LTX2_TEXT_ENCODERS" :key="enc.id" size="xs"
+              :variant="textEncoder === enc.filename ? 'soft' : 'ghost'"
+              :color="textEncoder === enc.filename ? 'primary' : 'neutral'"
+              @click="textEncoder = enc.filename"
+            >{{ enc.label }}</UButton>
+          </div>
+          <p class="text-[10px] text-slate-400">Abliterated encoders may produce more realistic or uncensored video results.</p>
         </div>
 
         <!-- Advanced LTX-2 controls -->

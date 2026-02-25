@@ -24,6 +24,6 @@ export {
 export { wan22Image, wan22Video } from './wan22'
 export { qwenImage } from './qwen'
 export { flux2Turbo, flux2Dev } from './flux2'
-export { ltx2Video, LTX2_CAMERA_LORAS, LTX2_I2V_PRESET_KEYS } from './ltx2'
+export { ltx2Video, LTX2_CAMERA_LORAS, LTX2_TEXT_ENCODERS, LTX2_I2V_PRESET_KEYS } from './ltx2'
 export type { Ltx2I2vPreset } from './ltx2'
 export { zImageBase, zImageTurbo } from './zimage'

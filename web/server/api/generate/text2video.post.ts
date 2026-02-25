@@ -19,6 +19,7 @@ const text2videoSchema = z.object({
   fps: z.number().min(8).max(60).optional(),
   cfg: z.number().min(0).max(15).optional(),
   cameraLora: z.string().optional(),
+  textEncoder: z.string().optional(),
   endpoint: z.string().optional(),
   // Optional: reuse an existing generation to group batch items together
   generationId: z.string().uuid().optional(),
@@ -33,7 +34,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, negativePrompt, width, height, numFrames, steps, loraStrength, model, seed, audioPrompt, fps, cfg, cameraLora, endpoint, generationId } = parsed.data
+  const { prompt, negativePrompt, width, height, numFrames, steps, loraStrength, model, seed, audioPrompt, fps, cfg, cameraLora, textEncoder, endpoint, generationId } = parsed.data
   const db = useDatabase()
 
   // Build input payload early so we can extract required model groups for routing
@@ -50,6 +51,7 @@ export default defineEventHandler(async (event) => {
     model, seed,
     ...(audioPrompt ? { audio_prompt: audioPrompt } : {}),
     ...(cameraLora ? { camera_lora: cameraLora } : {}),
+    ...(isLtx2 && textEncoder ? { text_encoder: textEncoder } : {}),
     ...(isLtx2 && fps ? { fps } : {}),
     ...(isLtx2 && cfg != null ? { cfg } : {}),
   }

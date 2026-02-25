@@ -300,6 +300,7 @@ export function useGeneration() {
     seed?: number
     audioPrompt?: string
     cameraLora?: string
+    textEncoder?: string
     count?: number
     append?: boolean
   }) {
@@ -345,6 +346,7 @@ export function useGeneration() {
               seed: opts.seed ?? -1,
               ...(itemAudio ? { audioPrompt: itemAudio } : {}),
               ...(opts.cameraLora ? { cameraLora: opts.cameraLora } : {}),
+              ...(opts.textEncoder ? { textEncoder: opts.textEncoder } : {}),
               ...(opts.cfg != null ? { cfg: opts.cfg } : {}),
               ...(opts.fps != null ? { fps: opts.fps } : {}),
               ...(batchGenId ? { generationId: batchGenId } : {}),

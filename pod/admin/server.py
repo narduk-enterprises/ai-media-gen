@@ -960,13 +960,14 @@ def _comfy_download_file(file_info, dest_dir):
     return out_path
 
 
-def _build_ltx2_i2v_workflow(image_filename, prompt, neg_prompt, width, height, frames, steps, fps, seed, camera_lora=None, preset=None, lora_strength=1.0, image_strength=1.0):
+def _build_ltx2_i2v_workflow(image_filename, prompt, neg_prompt, width, height, frames, steps, fps, seed, camera_lora=None, preset=None, lora_strength=1.0, image_strength=1.0, text_encoder=None):
     """Build an LTX-2 I2V workflow — delegates to workflow_loader."""
     return wfl.build_ltx_2_i2v_workflow(
         image_filename=image_filename, prompt=prompt, negative_prompt=neg_prompt,
         width=width, height=height, frames=frames, steps=steps,
         seed=seed, fps=fps, lora_strength=lora_strength,
         image_strength=image_strength, camera_lora=camera_lora, preset=preset,
+        text_encoder=text_encoder,
     )
 
 
@@ -1294,6 +1295,7 @@ def _run_multi_segment(job_id, request_data):
                     width=width, height=height,
                     frames=frames, steps=steps, fps=fps,
                     seed=seed, camera_lora=camera_lora,
+                    text_encoder=data.get("text_encoder"),
                 )
                 output_prefix = "LTX-2-I2V"
 
@@ -1485,6 +1487,7 @@ def _run_single_generation(job_id, action, data):
                     preset=data.get("preset"),
                     lora_strength=data.get("lora_strength", 1.0),
                     image_strength=data.get("image_strength", 1.0),
+                    text_encoder=data.get("text_encoder"),
                 )
                 output_prefix = "LTX-2-I2V"
 
@@ -1649,6 +1652,7 @@ def _run_single_generation(job_id, action, data):
                     fps=vid_fps, seed=seed,
                     lora_strength=data.get("lora_strength", 1.0),
                     image_strength=data.get("image_strength", 1.0),
+                    text_encoder=data.get("text_encoder"),
                 )
                 output_prefix = "LTX-2-I2V"
             else:
@@ -1732,6 +1736,7 @@ def _run_single_generation(job_id, action, data):
                     lora_strength=data.get("lora_strength", 1.0),
                     camera_lora=data.get("camera_lora"),
                     audio_prompt=data.get("audio_prompt"),
+                    text_encoder=data.get("text_encoder"),
                 )
                 output_prefix = "LTX-2"
             else:
