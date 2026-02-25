@@ -58,16 +58,17 @@ interface QuickDeployPreset {
   modelGroups: string[]
   minVram: number
   color: string
+  isVideo?: boolean
 }
 
 const QUICK_DEPLOY_PRESETS: QuickDeployPreset[] = [
-  { id: 'juggernaut', label: 'JuggernautXL', icon: '🖼️', description: 'High-quality photorealistic images', modelGroups: ['juggernaut', 'upscale'], minVram: 12, color: 'from-violet-500 to-purple-600' },
-  { id: 'pony', label: 'CyberRealistic Pony', icon: '🐴', description: 'Stylized & creative images', modelGroups: ['pony', 'upscale'], minVram: 12, color: 'from-pink-500 to-rose-600' },
-  { id: 'flux2', label: 'Flux2', icon: '⚡', description: 'Fast dev & turbo image gen', modelGroups: ['flux2', 'upscale'], minVram: 24, color: 'from-amber-500 to-orange-600' },
-  { id: 'wan22_video', label: 'Wan 2.2 Video', icon: '🎬', description: 'Text/image-to-video (Wan)', modelGroups: ['wan22', 'upscale', 'shared'], minVram: 24, color: 'from-cyan-500 to-blue-600' },
-  { id: 'ltx2_video', label: 'LTX-2 Video', icon: '🎥', description: 'LTX-2 19B video generation', modelGroups: ['ltx2', 'ltx2_camera', 'upscale', 'shared'], minVram: 24, color: 'from-emerald-500 to-teal-600' },
-  { id: 'all_image', label: 'All Image Models', icon: '🎨', description: 'Every image checkpoint + upscale', modelGroups: ['juggernaut', 'pony', 'extra_checkpoints', 'qwen', 'flux2', 'z_image', 'z_image_turbo', 'upscale'], minVram: 24, color: 'from-indigo-500 to-blue-600' },
-  { id: 'full_stack', label: 'Full Stack', icon: '💎', description: 'All models — image + video', modelGroups: MODEL_GROUPS.map(g => g.value), minVram: 48, color: 'from-slate-700 to-slate-900' },
+  { id: 'juggernaut', label: 'JuggernautXL', icon: '🖼️', description: 'High-quality photorealistic images', modelGroups: ['juggernaut', 'upscale', 'shared'], minVram: 12, color: 'from-violet-500 to-purple-600' },
+  { id: 'pony', label: 'CyberRealistic Pony', icon: '🐴', description: 'Stylized & creative images', modelGroups: ['pony', 'upscale', 'shared'], minVram: 12, color: 'from-pink-500 to-rose-600' },
+  { id: 'flux2', label: 'Flux2', icon: '⚡', description: 'Fast dev & turbo image gen', modelGroups: ['flux2', 'upscale', 'shared'], minVram: 24, color: 'from-amber-500 to-orange-600' },
+  { id: 'wan22_video', label: 'Wan 2.2 Video', icon: '🎬', description: 'Text/image-to-video (Wan)', modelGroups: ['wan22', 'upscale', 'shared'], minVram: 24, color: 'from-cyan-500 to-blue-600', isVideo: true },
+  { id: 'ltx2_video', label: 'LTX-2 Video', icon: '🎥', description: 'LTX-2 19B video generation', modelGroups: ['ltx2', 'ltx2_camera', 'upscale', 'shared'], minVram: 24, color: 'from-emerald-500 to-teal-600', isVideo: true },
+  { id: 'all_image', label: 'All Image Models', icon: '🎨', description: 'Every image checkpoint + upscale', modelGroups: ['juggernaut', 'pony', 'extra_checkpoints', 'qwen', 'flux2', 'z_image', 'z_image_turbo', 'upscale', 'shared'], minVram: 24, color: 'from-indigo-500 to-blue-600' },
+  { id: 'full_stack', label: 'Full Stack', icon: '💎', description: 'All models — image + video', modelGroups: MODEL_GROUPS.map(g => g.value), minVram: 48, color: 'from-slate-700 to-slate-900', isVideo: true },
 ]
 
 const showQuickDeploy = ref(false)
@@ -110,7 +111,8 @@ async function quickDeploy(gpuId: string, gpuName: string) {
   if (!preset || !quickDeployTemplateId.value) return
 
   const diskEstimate = calcPresetDisk(preset)
-  const volumeInGb = Math.ceil(diskEstimate * 1.3)
+  const volumeInGb = Math.max(20, Math.ceil(diskEstimate * 1.3))
+  const containerDiskInGb = preset.isVideo ? 20 : 10
 
   quickDeploying.value = true
   try {
@@ -124,7 +126,7 @@ async function quickDeploy(gpuId: string, gpuName: string) {
         gpuCount: 1,
         cloudType: 'ALL',
         volumeInGb,
-        containerDiskInGb: 40,
+        containerDiskInGb,
         modelGroups: preset.modelGroups,
       },
     })
