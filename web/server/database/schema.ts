@@ -84,6 +84,17 @@ export const promptGenerationLog = sqliteTable('prompt_generation_log', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 })
 
+// ─── Prompt Cache ───────────────────────────────────────────
+export const promptCache = sqliteTable('prompt_cache', {
+  id: text('id').primaryKey(),
+  templateId: text('template_id').references(() => promptTemplates.id, { onDelete: 'set null' }),
+  templateName: text('template_name'),
+  rawPrompt: text('raw_prompt').notNull(),
+  refinedPrompt: text('refined_prompt').notNull(),
+  similarityHash: text('similarity_hash'),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+})
+
 // ─── Type helpers ───────────────────────────────────────────
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -97,3 +108,5 @@ export type NewPromptTemplate = typeof promptTemplates.$inferInsert
 export type PromptAttribute = typeof promptAttributes.$inferSelect
 export type NewPromptAttribute = typeof promptAttributes.$inferInsert
 export type PromptGenerationLogEntry = typeof promptGenerationLog.$inferSelect
+export type PromptCacheEntry = typeof promptCache.$inferSelect
+export type NewPromptCacheEntry = typeof promptCache.$inferInsert

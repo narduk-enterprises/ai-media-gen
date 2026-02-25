@@ -3,8 +3,8 @@
  *
  * Pipeline: random template → weighted attribute fill → LLM refinement → similarity check → store.
  */
-import { eq, desc, sql } from 'drizzle-orm'
-import { promptTemplates, promptAttributes, promptGenerationLog } from '../database/schema'
+import { eq, desc, asc, sql } from 'drizzle-orm'
+import { promptTemplates, promptAttributes, promptGenerationLog, promptCache } from '../database/schema'
 
 // ─── Weighted Random Selection ──────────────────────────────
 
@@ -148,6 +148,44 @@ export async function generatePrompt(
   userId?: string,
   maxRetries: number = 3,
 ): Promise<GenerateResult> {
+  // ── Step 0: Try to consume a cached prompt first ──────────
+  const cached = await db
+    .select()
+    .from(promptCache)
+    .orderBy(asc(promptCache.createdAt))
+    .limit(1)
+
+  if (cached.length > 0) {
+    const entry = cached[0]!
+    // Delete from cache (consume it)
+    await db.delete(promptCache).where(eq(promptCache.id, entry.id))
+
+    // Copy to generation log for history tracking
+    const logId = crypto.randomUUID()
+    await db.insert(promptGenerationLog).values({
+      id: logId,
+      templateId: entry.templateId,
+      rawPrompt: entry.rawPrompt,
+      refinedPrompt: entry.refinedPrompt,
+      similarityHash: entry.similarityHash,
+      userId: userId || null,
+      createdAt: new Date().toISOString(),
+    })
+
+    console.log(`[PromptGen] Served from cache (id=${entry.id})`)
+    return {
+      id: logId,
+      templateId: entry.templateId,
+      templateName: entry.templateName,
+      rawPrompt: entry.rawPrompt,
+      refinedPrompt: entry.refinedPrompt,
+      similarityHash: entry.similarityHash,
+    }
+  }
+
+  // ── Fallback: live generation ─────────────────────────────
+  console.log('[PromptGen] Cache empty, generating live...')
+
   // 1. Fetch a random active template
   const templates = await db
     .select()
@@ -217,4 +255,64 @@ export async function generatePrompt(
     refinedPrompt,
     similarityHash,
   }
+}
+
+// ─── Cache Fill ─────────────────────────────────────────────
+
+/**
+ * Pre-generate prompts and store them in the cache table.
+ * Used by the fill-cache admin endpoint.
+ */
+export async function fillPromptCache(
+  db: any,
+  ai: any,
+  count: number = 10,
+): Promise<number> {
+  const templates = await db
+    .select()
+    .from(promptTemplates)
+    .where(eq(promptTemplates.isActive, true))
+
+  if (templates.length === 0) {
+    throw new Error('No active templates found. Create at least one template first.')
+  }
+
+  const allAttrs = await db
+    .select({
+      category: promptAttributes.category,
+      value: promptAttributes.value,
+      weight: promptAttributes.weight,
+    })
+    .from(promptAttributes)
+    .where(eq(promptAttributes.isActive, true))
+
+  const attrsByCategory: Record<string, WeightedItem[]> = {}
+  for (const attr of allAttrs) {
+    if (!attrsByCategory[attr.category]) {
+      attrsByCategory[attr.category] = []
+    }
+    attrsByCategory[attr.category]!.push({ value: attr.value, weight: attr.weight ?? 1.0 })
+  }
+
+  let added = 0
+  for (let i = 0; i < count; i++) {
+    const template = templates[Math.floor(Math.random() * templates.length)]!
+    const rawPrompt = fillTemplate(template.template, attrsByCategory)
+    const refinedPrompt = await refineWithLLM(rawPrompt, ai)
+    const similarityHash = computeSimilarityHash(refinedPrompt)
+
+    await db.insert(promptCache).values({
+      id: crypto.randomUUID(),
+      templateId: template.id,
+      templateName: template.name,
+      rawPrompt,
+      refinedPrompt,
+      similarityHash,
+      createdAt: new Date().toISOString(),
+    })
+    added++
+  }
+
+  console.log(`[PromptGen] Filled cache with ${added} prompts`)
+  return added
 }
