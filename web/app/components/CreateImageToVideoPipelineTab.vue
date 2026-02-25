@@ -32,6 +32,10 @@ const IMAGE_MODELS = [
   { id: 'juggernaut', label: 'Juggernaut XL', icon: 'i-lucide-shield' },
   { id: 'wan22', label: 'Wan 2.2', icon: 'i-lucide-wand-sparkles' },
   { id: 'z_image', label: 'Z-Image', icon: 'i-lucide-zap' },
+  { id: 'epicrealism', label: 'epiCRealism', icon: 'i-lucide-camera' },
+  { id: 'hyperbeast', label: 'Hyper Beast XXL', icon: 'i-lucide-zap' },
+  { id: 'nsfw_sdxl', label: 'NSFW SDXL', icon: 'i-lucide-flame' },
+  { id: 'porn_craft', label: 'Porn Craft', icon: 'i-lucide-sparkles' },
 ]
 
 const imagePrompt = ref('')

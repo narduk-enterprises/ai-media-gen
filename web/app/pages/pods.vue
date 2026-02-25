@@ -37,6 +37,7 @@ const deployState = reactive({
 const MODEL_GROUPS = [
   { value: 'juggernaut', label: 'Juggernaut XL', icon: '🖼️', sizeGb: 7, category: 'Image' },
   { value: 'pony', label: 'CyberRealistic Pony', icon: '🐴', sizeGb: 7, category: 'Image' },
+  { value: 'extra_checkpoints', label: 'Extra Checkpoints', icon: '🎨', sizeGb: 30, category: 'Image' },
   { value: 'qwen', label: 'Qwen Image', icon: '✨', sizeGb: 12, category: 'Image' },
   { value: 'flux2', label: 'Flux2 Dev + Turbo', icon: '⚡', sizeGb: 15, category: 'Image' },
   { value: 'z_image', label: 'Z-Image (HQ)', icon: '💎', sizeGb: 10, category: 'Image' },
@@ -68,7 +69,7 @@ function toggleGroup(value: string) {
 
 function selectPreset(preset: 'image' | 'video' | 'all' | 'none') {
   const presets: Record<string, string[]> = {
-    image: ['juggernaut', 'pony', 'qwen', 'flux2', 'z_image', 'z_image_turbo', 'upscale'],
+    image: ['juggernaut', 'pony', 'extra_checkpoints', 'qwen', 'flux2', 'z_image', 'z_image_turbo', 'upscale'],
     video: ['wan22', 'ltx2', 'ltx2_camera', 'upscale', 'shared'],
     all: MODEL_GROUPS.map(g => g.value),
     none: [],

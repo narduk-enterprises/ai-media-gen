@@ -736,7 +736,7 @@ export const I2V_PRESETS: Record<string, I2vPreset> = {
 export function applyI2vPreset(wf: any, presetName: string): void {
   if (presetName === 'random') {
     const keys = Object.keys(I2V_PRESETS)
-    presetName = keys[Math.floor(Math.random() * keys.length)]
+    presetName = keys[Math.floor(Math.random() * keys.length)]!
   }
 
   const preset = I2V_PRESETS[presetName]

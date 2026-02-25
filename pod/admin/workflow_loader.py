@@ -276,6 +276,66 @@ def build_cyberrealistic_workflow(prompt, negative_prompt="", width=1024,
     return wf
 
 
+def build_epicrealism_workflow(prompt, negative_prompt="", width=512,
+                                height=768, steps=25, cfg=7.0, seed=None,
+                                sampler_name="euler_ancestral", scheduler="normal"):
+    """epiCRealism (SD 1.5 checkpoint, photorealism)."""
+    seed = _seed(seed)
+    return _inject(_load_template("sdxl_t2i"), {
+        "checkpoint": "epicrealism_naturalSinRC1.safetensors",
+        "prompt": prompt,
+        "negative_prompt": negative_prompt or DEFAULT_NEG_PROMPT,
+        "width": width, "height": height,
+        "steps": steps, "cfg": cfg, "seed": seed,
+        "sampler_name": sampler_name, "scheduler": scheduler,
+    })
+
+
+def build_hyperbeast_workflow(prompt, negative_prompt="", width=1024,
+                               height=1536, steps=10, cfg=5.0, seed=None,
+                               sampler_name="euler_ancestral", scheduler="normal"):
+    """Hyper Beast XXL (fast SDXL checkpoint, 10-step)."""
+    seed = _seed(seed)
+    return _inject(_load_template("sdxl_t2i"), {
+        "checkpoint": "hyperBeastXXL.safetensors",
+        "prompt": prompt,
+        "negative_prompt": negative_prompt or DEFAULT_NEG_PROMPT,
+        "width": width, "height": height,
+        "steps": steps, "cfg": cfg, "seed": seed,
+        "sampler_name": sampler_name, "scheduler": scheduler,
+    })
+
+
+def build_nsfw_sdxl_workflow(prompt, negative_prompt="", width=1024,
+                              height=1536, steps=30, cfg=5.0, seed=None,
+                              sampler_name="dpmpp_2m_sde", scheduler="karras"):
+    """NSFW SDXL (photorealistic SDXL checkpoint)."""
+    seed = _seed(seed)
+    return _inject(_load_template("sdxl_t2i"), {
+        "checkpoint": "nsfwSdxl_v2602.safetensors",
+        "prompt": prompt,
+        "negative_prompt": negative_prompt or DEFAULT_NEG_PROMPT,
+        "width": width, "height": height,
+        "steps": steps, "cfg": cfg, "seed": seed,
+        "sampler_name": sampler_name, "scheduler": scheduler,
+    })
+
+
+def build_porn_craft_workflow(prompt, negative_prompt="", width=896,
+                               height=1152, steps=27, cfg=7.0, seed=None,
+                               sampler_name="dpmpp_2m", scheduler="karras"):
+    """Porn Craft (Illustrious SDXL checkpoint)."""
+    seed = _seed(seed)
+    return _inject(_load_template("sdxl_t2i"), {
+        "checkpoint": "pornCraftByStableYogi_v50FP32.safetensors",
+        "prompt": prompt,
+        "negative_prompt": negative_prompt or DEFAULT_NEG_PROMPT,
+        "width": width, "height": height,
+        "steps": steps, "cfg": cfg, "seed": seed,
+        "sampler_name": sampler_name, "scheduler": scheduler,
+    })
+
+
 def build_qwen_lora_workflow(prompt, negative_prompt="", width=1024,
                               height=1536, steps=30, cfg=4.0, seed=None,
                               lora_strength=0.75,

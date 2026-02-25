@@ -159,6 +159,7 @@ _GROUP_KEY_FILES = {
         ("clip", "gemma_3_12B_it_fp4_mixed.safetensors"),
     ],
     "ltx2_camera": [("loras", "ltx-2-19b-lora-camera-control-static.safetensors")],
+    "extra_checkpoints": [("checkpoints", "epicrealism_naturalSinRC1.safetensors")],
     "upscale": [("upscale_models", "RealESRGAN_x4.pth")],
     "shared": [
         ("transformers/Qwen--Qwen2.5-3B-Instruct", "config.json"),
@@ -1563,6 +1564,34 @@ def _run_single_generation(job_id, action, data):
                     scheduler=data.get("scheduler", "karras"),
                     lora_name=data.get("lora_name"), lora_strength=data.get("lora_strength", 0.7),
                 )
+            elif model == "epicrealism":
+                wf = wfl.build_epicrealism_workflow(
+                    prompt=data.get("prompt", ""), negative_prompt=data.get("negative_prompt", ""),
+                    width=w, height=h, steps=steps, cfg=data.get("cfg", 7.0), seed=seed,
+                    sampler_name=data.get("sampler_name", "euler_ancestral"),
+                    scheduler=data.get("scheduler", "normal"),
+                )
+            elif model == "hyperbeast":
+                wf = wfl.build_hyperbeast_workflow(
+                    prompt=data.get("prompt", ""), negative_prompt=data.get("negative_prompt", ""),
+                    width=w, height=h, steps=steps, cfg=data.get("cfg", 5.0), seed=seed,
+                    sampler_name=data.get("sampler_name", "euler_ancestral"),
+                    scheduler=data.get("scheduler", "normal"),
+                )
+            elif model == "nsfw_sdxl":
+                wf = wfl.build_nsfw_sdxl_workflow(
+                    prompt=data.get("prompt", ""), negative_prompt=data.get("negative_prompt", ""),
+                    width=w, height=h, steps=steps, cfg=data.get("cfg", 5.0), seed=seed,
+                    sampler_name=data.get("sampler_name", "dpmpp_2m_sde"),
+                    scheduler=data.get("scheduler", "karras"),
+                )
+            elif model == "porn_craft":
+                wf = wfl.build_porn_craft_workflow(
+                    prompt=data.get("prompt", ""), negative_prompt=data.get("negative_prompt", ""),
+                    width=w, height=h, steps=steps, cfg=data.get("cfg", 7.0), seed=seed,
+                    sampler_name=data.get("sampler_name", "dpmpp_2m"),
+                    scheduler=data.get("scheduler", "karras"),
+                )
             elif model == "qwen_lora":
                 wf = wfl.build_qwen_lora_workflow(
                     prompt=data.get("prompt", ""), negative_prompt=data.get("negative_prompt", ""),
@@ -1614,6 +1643,34 @@ def _run_single_generation(job_id, action, data):
                     prompt=img_prompt, negative_prompt=data.get("negative_prompt", ""),
                     width=w, height=h, steps=steps, cfg=data.get("cfg", 5.0), seed=seed,
                     sampler_name=data.get("sampler_name", "dpmpp_2m_sde"),
+                    scheduler=data.get("scheduler", "karras"),
+                )
+            elif model == "epicrealism":
+                wf = wfl.build_epicrealism_workflow(
+                    prompt=img_prompt, negative_prompt=data.get("negative_prompt", ""),
+                    width=w, height=h, steps=steps, cfg=data.get("cfg", 7.0), seed=seed,
+                    sampler_name=data.get("sampler_name", "euler_ancestral"),
+                    scheduler=data.get("scheduler", "normal"),
+                )
+            elif model == "hyperbeast":
+                wf = wfl.build_hyperbeast_workflow(
+                    prompt=img_prompt, negative_prompt=data.get("negative_prompt", ""),
+                    width=w, height=h, steps=steps, cfg=data.get("cfg", 5.0), seed=seed,
+                    sampler_name=data.get("sampler_name", "euler_ancestral"),
+                    scheduler=data.get("scheduler", "normal"),
+                )
+            elif model == "nsfw_sdxl":
+                wf = wfl.build_nsfw_sdxl_workflow(
+                    prompt=img_prompt, negative_prompt=data.get("negative_prompt", ""),
+                    width=w, height=h, steps=steps, cfg=data.get("cfg", 5.0), seed=seed,
+                    sampler_name=data.get("sampler_name", "dpmpp_2m_sde"),
+                    scheduler=data.get("scheduler", "karras"),
+                )
+            elif model == "porn_craft":
+                wf = wfl.build_porn_craft_workflow(
+                    prompt=img_prompt, negative_prompt=data.get("negative_prompt", ""),
+                    width=w, height=h, steps=steps, cfg=data.get("cfg", 7.0), seed=seed,
+                    sampler_name=data.get("sampler_name", "dpmpp_2m"),
                     scheduler=data.get("scheduler", "karras"),
                 )
             else:
