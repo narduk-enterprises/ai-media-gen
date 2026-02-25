@@ -13,6 +13,8 @@ useSeoMeta({
 
 const { user } = useAuth()
 
+const csrfHeaders = { 'X-Requested-With': 'XMLHttpRequest' }
+
 // ─── Guard: admin only ──────────────────────────────────────
 const isAdmin = computed(() => user.value?.isAdmin === true)
 
@@ -44,6 +46,7 @@ async function createTemplate() {
   try {
     await $fetch('/api/prompt-builder/templates', {
       method: 'POST',
+      headers: csrfHeaders,
       body: newTemplate.value,
     })
     newTemplate.value = { name: '', template: '', category: 'general' }
@@ -55,6 +58,7 @@ async function updateTemplate(tpl: any) {
   try {
     await $fetch(`/api/prompt-builder/templates/${tpl.id}`, {
       method: 'PUT',
+      headers: csrfHeaders,
       body: { name: tpl.name, template: tpl.template, category: tpl.category, isActive: tpl.isActive },
     })
     editingTemplate.value = null
@@ -64,7 +68,7 @@ async function updateTemplate(tpl: any) {
 
 async function deleteTemplate(id: string) {
   try {
-    await $fetch(`/api/prompt-builder/templates/${id}`, { method: 'DELETE' })
+    await $fetch(`/api/prompt-builder/templates/${id}`, { method: 'DELETE', headers: csrfHeaders })
     await fetchTemplates()
   } catch { /* ignore */ }
 }
@@ -97,6 +101,7 @@ async function createAttribute() {
   try {
     await $fetch('/api/prompt-builder/attributes', {
       method: 'POST',
+      headers: csrfHeaders,
       body: newAttribute.value,
     })
     newAttribute.value = { category: newAttribute.value.category, value: '', weight: 1.0 }
@@ -111,6 +116,7 @@ async function bulkCreateAttributes() {
   try {
     await $fetch('/api/prompt-builder/attributes', {
       method: 'POST',
+      headers: csrfHeaders,
       body: { items: values.map(v => ({ category: bulkCategory.value.trim(), value: v })) },
     })
     bulkValues.value = ''
@@ -122,6 +128,7 @@ async function updateAttributeWeight(attr: any, newWeight: number) {
   try {
     await $fetch(`/api/prompt-builder/attributes/${attr.id}`, {
       method: 'PUT',
+      headers: csrfHeaders,
       body: { weight: newWeight },
     })
     attr.weight = newWeight
@@ -132,6 +139,7 @@ async function toggleAttributeActive(attr: any) {
   try {
     await $fetch(`/api/prompt-builder/attributes/${attr.id}`, {
       method: 'PUT',
+      headers: csrfHeaders,
       body: { isActive: !attr.isActive },
     })
     attr.isActive = !attr.isActive
@@ -140,7 +148,7 @@ async function toggleAttributeActive(attr: any) {
 
 async function deleteAttribute(id: string) {
   try {
-    await $fetch(`/api/prompt-builder/attributes/${id}`, { method: 'DELETE' })
+    await $fetch(`/api/prompt-builder/attributes/${id}`, { method: 'DELETE', headers: csrfHeaders })
     await fetchAttributes()
   } catch { /* ignore */ }
 }
@@ -184,7 +192,7 @@ async function testGenerate() {
   generateError.value = ''
   generatedResult.value = null
   try {
-    const result = await $fetch<any>('/api/prompt-builder/generate', { method: 'POST' })
+    const result = await $fetch<any>('/api/prompt-builder/generate', { method: 'POST', headers: csrfHeaders })
     generatedResult.value = result
   } catch (e: any) {
     generateError.value = e.data?.message || e.message || 'Generation failed'
