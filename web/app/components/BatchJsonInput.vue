@@ -1,27 +1,39 @@
 <script setup lang="ts">
+export interface BatchItem {
+  prompt: string
+  negativePrompt?: string
+  audioPrompt?: string
+}
+
 defineProps<{
   label?: string
   placeholder?: string
+  /** When true, displays per-item negative/audio fields in the preview list */
+  richMode?: boolean
 }>()
 
-const prompts = defineModel<string[]>('prompts', { default: () => [] })
+const items = defineModel<BatchItem[]>('items', { default: () => [] })
 
 const jsonInput = ref('')
 const fileError = ref('')
 const { remixPrompts: doRemixPrompts, remixLoading: remixing, remixProgress } = useRemix()
 
-function parseBatchJson(raw: string): string[] | null {
+function parseBatchJson(raw: string): BatchItem[] | null {
   try {
     const parsed = JSON.parse(raw)
     if (Array.isArray(parsed)) {
-      const result: string[] = []
+      const result: BatchItem[] = []
       for (const item of parsed) {
         if (typeof item === 'string' && item.trim()) {
-          result.push(item.trim())
+          result.push({ prompt: item.trim() })
         } else if (typeof item === 'object' && item !== null) {
           const p = item.prompt ?? item.Positive ?? item.positive
           if (typeof p === 'string' && p.trim()) {
-            result.push(p.trim())
+            result.push({
+              prompt: p.trim(),
+              negativePrompt: item.negativePrompt ?? item.negative_prompt ?? item.negative ?? undefined,
+              audioPrompt: item.audioPrompt ?? item.audio_prompt ?? item.audio ?? undefined,
+            })
           }
         }
       }
@@ -43,7 +55,7 @@ function handleFileUpload(event: Event) {
     const text = reader.result as string
     const parsed = parseBatchJson(text)
     if (parsed) {
-      prompts.value = parsed
+      items.value = parsed
       jsonInput.value = text
       fileError.value = ''
     } else {
@@ -61,7 +73,7 @@ function handleParse() {
   fileError.value = ''
   const parsed = parseBatchJson(raw)
   if (parsed) {
-    prompts.value = parsed
+    items.value = parsed
     fileError.value = ''
     jsonInput.value = ''
   } else {
@@ -76,19 +88,19 @@ function handlePaste(e: ClipboardEvent) {
     const parsed = parseBatchJson(text)
     if (parsed) {
       nextTick(() => {
-        prompts.value = parsed
+        items.value = parsed
         fileError.value = ''
       })
     }
   }
 }
 
-function removePrompt(index: number) {
-  prompts.value = prompts.value.filter((_, i) => i !== index)
+function removeItem(index: number) {
+  items.value = items.value.filter((_, i) => i !== index)
 }
 
 function clearAll() {
-  prompts.value = []
+  items.value = []
   jsonInput.value = ''
   fileError.value = ''
 }
@@ -97,13 +109,21 @@ function clearAll() {
  * Remix all prompts via the server-side LLM.
  */
 async function remixAll() {
-  if (prompts.value.length === 0) return
+  if (items.value.length === 0) return
   try {
-    prompts.value = await doRemixPrompts(prompts.value)
+    const remixed = await doRemixPrompts(items.value.map(i => i.prompt))
+    items.value = items.value.map((item, idx) => ({
+      ...item,
+      prompt: remixed[idx] ?? item.prompt,
+    }))
   } catch (e: any) {
     fileError.value = `Remix failed: ${e.message}`
   }
 }
+
+/** Backward-compat: flat prompt list (for consumers that only need strings) */
+const prompts = computed(() => items.value.map(i => i.prompt))
+defineExpose({ prompts })
 </script>
 
 <template>
@@ -133,7 +153,7 @@ async function remixAll() {
         Parse JSON
       </UButton>
       <UButton
-        v-if="prompts.length > 0"
+        v-if="items.length > 0"
         size="xs"
         variant="outline"
         color="primary"
@@ -142,9 +162,9 @@ async function remixAll() {
         :disabled="remixing"
         @click="remixAll"
       >
-        {{ remixing ? `Remixing ${remixProgress.current}/${remixProgress.total}` : `AI Remix All (${prompts.length})` }}
+        {{ remixing ? `Remixing ${remixProgress.current}/${remixProgress.total}` : `AI Remix All (${items.length})` }}
       </UButton>
-      <UButton v-if="prompts.length > 0" size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="clearAll">
+      <UButton v-if="items.length > 0" size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="clearAll">
         Clear All
       </UButton>
     </div>
@@ -163,7 +183,7 @@ async function remixAll() {
       <p class="text-[10px] text-slate-500 leading-relaxed">
         Accepts an array of strings: <code class="bg-slate-200 px-1 rounded text-[10px]">["prompt 1", "prompt 2"]</code>
         <br />
-        Or objects: <code class="bg-slate-200 px-1 rounded text-[10px]">[{"prompt": "prompt 1"}, {"prompt": "prompt 2"}]</code>
+        Or objects: <code class="bg-slate-200 px-1 rounded text-[10px]">[{"prompt": "...", "negativePrompt": "...", "audioPrompt": "..."}]</code>
       </p>
       <slot name="hint" />
     </div>
@@ -182,19 +202,25 @@ async function remixAll() {
       </div>
     </div>
 
-    <!-- Parsed prompts list -->
-    <UCard v-if="prompts.length > 0" variant="subtle">
+    <!-- Parsed items list -->
+    <UCard v-if="items.length > 0" variant="subtle">
       <div class="flex items-center gap-2 mb-3">
-        <span class="text-[10px] text-slate-500 uppercase tracking-wider font-medium">{{ prompts.length }} prompt{{ prompts.length !== 1 ? 's' : '' }}</span>
+        <span class="text-[10px] text-slate-500 uppercase tracking-wider font-medium">{{ items.length }} prompt{{ items.length !== 1 ? 's' : '' }}</span>
         <slot name="badges" />
       </div>
       <div class="space-y-1.5 max-h-64 overflow-y-auto">
-        <div v-for="(prompt, i) in prompts" :key="i" class="flex items-start gap-2 group">
+        <div v-for="(item, i) in items" :key="i" class="flex items-start gap-2 group">
           <span class="text-[10px] text-slate-400 font-mono w-6 shrink-0 text-right pt-0.5">{{ i + 1 }}</span>
-          <p class="text-xs text-slate-600 leading-relaxed flex-1 line-clamp-2">{{ prompt }}</p>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-slate-600 leading-relaxed line-clamp-2">{{ item.prompt }}</p>
+            <div v-if="richMode && (item.negativePrompt || item.audioPrompt)" class="flex flex-wrap gap-2 mt-0.5">
+              <span v-if="item.negativePrompt" class="text-[10px] text-red-400 truncate max-w-[200px]">⛔ {{ item.negativePrompt }}</span>
+              <span v-if="item.audioPrompt" class="text-[10px] text-amber-500 truncate max-w-[200px]">🔊 {{ item.audioPrompt }}</span>
+            </div>
+          </div>
           <button
             class="p-0.5 rounded text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-            @click="removePrompt(i)"
+            @click="removeItem(i)"
           >
             <UIcon name="i-lucide-x" class="w-3 h-3" />
           </button>

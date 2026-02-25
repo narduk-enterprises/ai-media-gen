@@ -2,6 +2,7 @@
 import { VIDEO_MODELS, LTX2_CAMERA_LORAS } from '~/composables/models'
 import { AUDIO_PRESETS, DEFAULT_NEGATIVE_PROMPT, LTX2_NEGATIVE_PROMPT } from '~/composables/useVideoDefaults'
 import type { VideoPreset } from '~/components/VideoPromptLibrary.vue'
+import type { BatchItem } from '~/components/BatchJsonInput.vue'
 
 const gen = useGeneration()
 const shared = useCreateShared()
@@ -9,7 +10,7 @@ const shared = useCreateShared()
 // ─── Local State ────────────────────────────────────────────────────────
 const prompt = ref('')
 const batchMode = ref(false)
-const batchText = ref('')
+const batchItems = ref<BatchItem[]>([])
 const selectedModel = ref('ltx2')
 const negativePrompt = ref(LTX2_NEGATIVE_PROMPT)
 const numFrames = ref<number[]>([97])
@@ -65,20 +66,15 @@ function applyPreset(preset: VideoPreset) {
   showLibrary.value = false
 }
 
-// ─── Batch prompts from text ────────────────────────────────────────────
-const batchPrompts = computed(() =>
-  batchText.value.split('\n').map(l => l.trim()).filter(Boolean),
-)
-
 // ─── Generate ───────────────────────────────────────────────────────────
 const allPrompts = computed(() => {
-  if (batchMode.value && batchPrompts.value.length > 0) return batchPrompts.value
+  if (batchMode.value && batchItems.value.length > 0) return batchItems.value.map(i => i.prompt)
   if (prompt.value.trim()) return [prompt.value.trim()]
   return []
 })
 
 const totalCount = computed(() => {
-  if (batchMode.value) return allPrompts.value.length * numFrames.value.length
+  if (batchMode.value) return batchItems.value.length * numFrames.value.length
   return numFrames.value.length * count.value
 })
 const canGenerate = computed(() => allPrompts.value.length > 0)
@@ -87,7 +83,8 @@ async function generate() {
   if (!canGenerate.value) return
   if (batchMode.value) {
     await gen.generateText2Video({
-      prompts: allPrompts.value, negativePrompt: negativePrompt.value,
+      batchItems: batchItems.value,
+      negativePrompt: negativePrompt.value,
       numFrames: numFrames.value, steps: steps.value,
       width: currentResolution.value.w, height: currentResolution.value.h,
       loraStrength: loraStrength.value, model: selectedModel.value, seed: seed.value,
@@ -171,22 +168,18 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
         <CountSelector v-model="count" label="Videos per duration" :options="[1, 2, 4]" class="mt-3" />
       </div>
 
-      <!-- Batch mode — one prompt per line -->
+      <!-- Batch mode — JSON array -->
       <div v-else class="space-y-2">
         <div class="flex items-center justify-between">
           <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Batch Prompts</span>
-          <UBadge v-if="batchPrompts.length > 0" size="xs" variant="subtle" color="info">{{ batchPrompts.length }} prompt{{ batchPrompts.length !== 1 ? 's' : '' }} × {{ numFrames.length }} duration{{ numFrames.length !== 1 ? 's' : '' }} = {{ totalCount }} video{{ totalCount !== 1 ? 's' : '' }}</UBadge>
+          <UBadge v-if="batchItems.length > 0" size="xs" variant="subtle" color="info">{{ batchItems.length }} prompt{{ batchItems.length !== 1 ? 's' : '' }} × {{ numFrames.length }} duration{{ numFrames.length !== 1 ? 's' : '' }} = {{ totalCount }} video{{ totalCount !== 1 ? 's' : '' }}</UBadge>
         </div>
-        <UTextarea
-          v-model="batchText"
-          :rows="6" autoresize
-          placeholder="One prompt per line:
-A cat walking through a garden, cinematic
-Ocean waves crashing on rocks, golden hour
-Cyberpunk city rain at night, neon lights"
-          class="w-full font-mono text-sm" size="sm"
+        <BatchJsonInput
+          v-model:items="batchItems"
+          label="Video Batch Prompts"
+          rich-mode
+          placeholder='[{"prompt": "...", "negativePrompt": "...", "audioPrompt": "..."}]'
         />
-        <p class="text-[10px] text-slate-400">Each line becomes a separate video. Empty lines are ignored.</p>
       </div>
     </div>
 

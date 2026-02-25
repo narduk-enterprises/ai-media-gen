@@ -286,6 +286,8 @@ export function useGeneration() {
   async function generateText2Video(opts: {
     prompt?: string
     prompts?: string[]
+    /** Rich batch items with per-item negativePrompt/audioPrompt overrides */
+    batchItems?: { prompt: string; negativePrompt?: string; audioPrompt?: string }[]
     negativePrompt?: string
     numFrames?: number | number[]
     steps?: number
@@ -301,11 +303,19 @@ export function useGeneration() {
     count?: number
     append?: boolean
   }) {
-    const allPrompts = opts.prompts?.length ? opts.prompts : opts.prompt?.trim() ? [opts.prompt.trim()] : []
-    if (allPrompts.length === 0) return
+    // Build the list of items to generate — batchItems take priority
+    const itemsToGenerate: { prompt: string; negativePrompt?: string; audioPrompt?: string }[] =
+      opts.batchItems?.length
+        ? opts.batchItems
+        : opts.prompts?.length
+          ? opts.prompts.map(p => ({ prompt: p }))
+          : opts.prompt?.trim()
+            ? [{ prompt: opts.prompt.trim() }]
+            : []
+    if (itemsToGenerate.length === 0) return
 
     const durations = Array.isArray(opts.numFrames) ? opts.numFrames : [opts.numFrames ?? 81]
-    const totalJobs = allPrompts.length * durations.length
+    const totalJobs = itemsToGenerate.length * durations.length
 
     submitting.value = true
     error.value = ''
@@ -315,21 +325,25 @@ export function useGeneration() {
     let batchGenId: string | undefined
     let submitted = 0
 
-    for (const p of allPrompts) {
+    for (const item of itemsToGenerate) {
       for (const nf of durations) {
         try {
+          // Per-item overrides fall back to global opts
+          const itemNeg = item.negativePrompt ?? opts.negativePrompt ?? ''
+          const itemAudio = item.audioPrompt ?? opts.audioPrompt ?? ''
+
           const result = await $fetch<{
             generation: { id: string; prompt: string; imageCount: number; status: string; createdAt: string }
             item: MediaItemResult
           }>('/api/generate/text2video', {
             method: 'POST',
             body: {
-              prompt: p, negativePrompt: opts.negativePrompt || '',
+              prompt: item.prompt, negativePrompt: itemNeg,
               numFrames: nf, steps: opts.steps ?? 20,
               width: opts.width ?? 1280, height: opts.height ?? 720,
               loraStrength: opts.loraStrength ?? 1.0, model: opts.model ?? 'ltx2',
               seed: opts.seed ?? -1,
-              ...(opts.audioPrompt ? { audioPrompt: opts.audioPrompt } : {}),
+              ...(itemAudio ? { audioPrompt: itemAudio } : {}),
               ...(opts.cameraLora ? { cameraLora: opts.cameraLora } : {}),
               ...(opts.cfg != null ? { cfg: opts.cfg } : {}),
               ...(opts.fps != null ? { fps: opts.fps } : {}),
