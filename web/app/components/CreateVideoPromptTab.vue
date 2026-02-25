@@ -66,6 +66,7 @@ async function generate() {
 
     const { jobId } = await $fetch<{ jobId: string }>('/api/generate/video2prompt', {
       method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
       body: {
         videoData,
         frames: frames.value,

@@ -24,6 +24,7 @@ Available groups:
   upscale            — RealESRGAN x2 + x4 (~0.2GB)
   shared             — Qwen2.5 captioning/remix models (~8GB)
   video_prompt       — Qwen2.5-VL-7B AWQ for video-to-prompt (~5GB)
+  wan22_t2v          — Wan 2.2 T2V only (no I2V) (~22GB)
 
 Usage:
   python3 -u sync_models.py --groups juggernaut,upscale
@@ -131,7 +132,7 @@ PROFILE_TO_GROUPS = {
              "wan22", "ltx2", "ltx2_camera", "upscale", "shared", "video_prompt"],
 }
 
-ALL_GROUPS = list(PROFILE_TO_GROUPS["full"])
+ALL_GROUPS = list(PROFILE_TO_GROUPS["full"]) + ["wan22_t2v"]
 
 # ── All models, grouped by name ─────────────────────────────────────────────
 
@@ -155,6 +156,25 @@ REPOS = [
             "split_files/diffusion_models/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors": "diffusion_models",
             "split_files/diffusion_models/wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors": "diffusion_models",
             "split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors": "diffusion_models",
+            "split_files/loras/wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "loras",
+            "split_files/loras/wan2.2_t2v_lightx2v_4steps_lora_v1.1_low_noise.safetensors": "loras",
+        },
+    },
+    # ── Wan 2.2 T2V Only (slimmed — no I2V models) ──
+    {
+        "repo": "Comfy-Org/Wan_2.1_ComfyUI_repackaged",
+        "group": "wan22_t2v",
+        "files": {
+            "split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors": "clip",
+        },
+    },
+    {
+        "repo": "Comfy-Org/Wan_2.2_ComfyUI_Repackaged",
+        "group": "wan22_t2v",
+        "files": {
+            "split_files/vae/wan_2.1_vae.safetensors": "vae",
+            "split_files/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors": "diffusion_models",
+            "split_files/diffusion_models/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors": "diffusion_models",
             "split_files/loras/wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "loras",
             "split_files/loras/wan2.2_t2v_lightx2v_4steps_lora_v1.1_low_noise.safetensors": "loras",
         },
@@ -316,7 +336,9 @@ REPOS = [
 # ── Civitai Models ───────────────────────────────────────────────────────────
 CIVITAI_MODELS = [
     {"version_id": 1565668, "filename": "detailz-wan.safetensors", "subdir": "loras", "group": "wan22"},
+    {"version_id": 1565668, "filename": "detailz-wan.safetensors", "subdir": "loras", "group": "wan22_t2v"},
     {"version_id": 2124694, "filename": "instareal-wan-2.2.safetensors", "subdir": "loras", "group": "wan22"},
+    {"version_id": 2124694, "filename": "instareal-wan-2.2.safetensors", "subdir": "loras", "group": "wan22_t2v"},
     {"version_id": 2607212, "filename": "nsfw-master-flux-z-image-turbo-v1.safetensors", "subdir": "loras", "group": "z_image_turbo"},
     {"version_id": 2700613, "filename": "blondeCurlyQ2512.levR.safetensors", "subdir": "loras", "group": "qwen"},
     {"version_id": 1759168, "filename": "juggernautXL_ragnarokBy.safetensors", "subdir": "checkpoints", "group": "juggernaut"},
