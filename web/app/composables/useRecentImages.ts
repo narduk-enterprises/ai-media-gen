@@ -1,48 +1,45 @@
 /**
  * Shared composable for fetching recent images from the gallery.
  * Supports paginated loading: initial fetch + loadMore for additional batches.
+ *
+ * Uses the flat media-item pagination from GET /api/generations?type=image.
  */
 export function useRecentImages(pageSize = 20) {
   const images = ref<{ id: string; url: string; prompt: string }[]>([])
   const loading = ref(false)
   const hasMore = ref(true)
-  const seenIds = new Set<string>()
-  // Track how many generations we've consumed (API offset is by generation, not item)
-  let generationsConsumed = 0
+  let currentOffset = 0
 
   async function fetchPage() {
-    // Fetch enough generations to hopefully fill `pageSize` images
-    const fetchLimit = Math.max(50, pageSize * 3)
-    const data = await $fetch<{ generations: { items: { id: string; url: string | null; type: string; status: string; prompt: string | null }[] }[]; total: number }>('/api/generations', {
-      params: { limit: fetchLimit, offset: generationsConsumed, type: 'image' },
+    const data = await $fetch<{
+      items: { id: string; url: string | null; type: string; status: string; prompt: string | null }[]
+      total: number
+      limit: number
+      offset: number
+    }>('/api/generations', {
+      params: { limit: pageSize, offset: currentOffset, type: 'image' },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
 
     const result: { id: string; url: string; prompt: string }[] = []
-    const gens = data.generations ?? []
-    generationsConsumed += gens.length
-
-    for (const gen of gens) {
-      for (const item of gen.items) {
-        if (item.type === 'image' && item.url && !seenIds.has(item.id)) {
-          seenIds.add(item.id)
-          result.push({ id: item.id, url: item.url, prompt: item.prompt || '' })
-          if (result.length >= pageSize) break
-        }
+    for (const item of data.items) {
+      if (item.url) {
+        result.push({ id: item.id, url: item.url, prompt: item.prompt || '' })
       }
-      if (result.length >= pageSize) break
     }
 
-    // If we got fewer than pageSize or consumed all generations, there's no more
-    if (result.length < pageSize || gens.length < fetchLimit) hasMore.value = false
+    currentOffset += data.items.length
+    if (data.items.length < pageSize || currentOffset >= data.total) {
+      hasMore.value = false
+    }
 
     return result
   }
 
   async function fetch() {
     loading.value = true
-    seenIds.clear()
-    generationsConsumed = 0
+    currentOffset = 0
+    hasMore.value = true
     try {
       const result = await fetchPage()
       images.value = result
