@@ -57,17 +57,40 @@ export default defineEventHandler(async (event) => {
       }
     }
   } else {
-    try {
-      const resp = await fetch(sourceItem.url)
-      if (resp.ok) {
-        const buf = await resp.arrayBuffer()
-        const uint8 = new Uint8Array(buf)
-        let binary = ''
-        for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]!)
-        mediaBase64 = btoa(binary)
+    // Try R2 first (same as images), then fall back to full URL fetch
+    const bucket = useMediaBucket(event)
+    if (bucket) {
+      try {
+        console.log(`[Upscale] Attempting R2 read for video key: ${mediaItemId}`)
+        mediaBase64 = await readBase64FromR2(bucket, mediaItemId)
+        console.log(`[Upscale] R2 read result: ${mediaBase64 ? `${mediaBase64.length} chars` : 'null'}`)
+      } catch (e: any) {
+        console.warn(`[Upscale] R2 read failed: ${e.message}`)
       }
-    } catch (e: any) {
-      console.warn(`[Upscale] Failed to fetch video: ${e.message}`)
+    } else {
+      console.warn('[Upscale] No R2 bucket available')
+    }
+    if (!mediaBase64 && sourceItem.url) {
+      try {
+        // Resolve relative URLs to absolute
+        const fullUrl = sourceItem.url.startsWith('http')
+          ? sourceItem.url
+          : `${useRuntimeConfig().public?.appUrl || 'https://ai-media-gen.narduk.workers.dev'}${sourceItem.url}`
+        console.log(`[Upscale] Falling back to URL fetch: ${fullUrl}`)
+        const resp = await fetch(fullUrl)
+        if (resp.ok) {
+          const buf = await resp.arrayBuffer()
+          const uint8 = new Uint8Array(buf)
+          console.log(`[Upscale] Fetched ${uint8.length} bytes from URL`)
+          let binary = ''
+          for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]!)
+          mediaBase64 = btoa(binary)
+        } else {
+          console.warn(`[Upscale] URL fetch failed: status ${resp.status}`)
+        }
+      } catch (e: any) {
+        console.warn(`[Upscale] Failed to fetch video: ${e.message}`)
+      }
     }
   }
 
