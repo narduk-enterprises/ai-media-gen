@@ -536,8 +536,8 @@ function formatSettingKey(key: string): string {
             : 'border-slate-100'"
         >
           <!-- Complete image -->
-          <div v-if="entry.status === 'complete' && entry.url" class="aspect-square relative" @click="openLightbox(entry)">
-            <img :src="entry.url" :alt="entry.label" class="w-full h-full object-cover" loading="lazy" />
+          <div v-if="entry.status === 'complete' && entry.url" class="relative" @click="openLightbox(entry)">
+            <img :src="entry.url" :alt="entry.label" class="w-full h-auto block" loading="lazy" />
 
             <!-- Hover overlay -->
             <div class="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
@@ -554,7 +554,7 @@ function formatSettingKey(key: string): string {
           </div>
 
           <!-- Pending -->
-          <div v-else-if="entry.status === 'pending'" class="aspect-square bg-slate-50 flex items-center justify-center">
+          <div v-else-if="entry.status === 'pending'" class="aspect-square bg-slate-50 flex items-center justify-center min-h-40">
             <div class="text-center">
               <div class="w-6 h-6 border-2 border-amber-200 border-t-amber-500 rounded-full animate-spin mx-auto mb-1.5" />
               <span class="text-[10px] text-slate-400">Generating…</span>
@@ -562,7 +562,7 @@ function formatSettingKey(key: string): string {
           </div>
 
           <!-- Failed -->
-          <div v-else class="aspect-square bg-red-50/50 flex items-center justify-center">
+          <div v-else class="aspect-square bg-red-50/50 flex items-center justify-center min-h-40">
             <div class="text-center">
               <UIcon name="i-lucide-x-circle" class="w-6 h-6 text-red-300 mx-auto mb-1" />
               <span class="text-[10px] text-red-400">Failed</span>
