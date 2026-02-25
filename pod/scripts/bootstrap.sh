@@ -152,7 +152,14 @@ echo ""
 # ══ STEP 4: ComfyUI + Custom nodes ══
 echo "▸ [4/5] Installing ComfyUI + custom nodes..."
 (
-    if [ ! -f /workspace/ComfyUI/main.py ]; then
+    if [ -f /workspace/ComfyUI/main.py ]; then
+        echo "  ComfyUI already installed, updating..."
+        cd /workspace/ComfyUI && git pull --ff-only 2>/dev/null || true
+    elif [ -d /workspace/ComfyUI ]; then
+        echo "  ComfyUI dir exists but incomplete, re-cloning..."
+        rm -rf /workspace/ComfyUI
+        git clone --depth 1 https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
+    else
         git clone --depth 1 https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
     fi
     cd /workspace/ComfyUI && pip install -q -r requirements.txt 2>&1 | tail -3 || true
