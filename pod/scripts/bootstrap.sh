@@ -59,6 +59,7 @@ cp "$REPO_DIR/pod/admin/workflow_loader.py" /workspace/admin/workflow_loader.py
 cp "$REPO_DIR/pod/admin/workflows/"*        /workspace/admin/workflows/
 cp "$REPO_DIR/pod/scripts/manage-pod.sh"    /workspace/manage.sh
 cp "$REPO_DIR/pod/scripts/sync_models.py"   /workspace/sync_models.py
+cp "$REPO_DIR/pod/scripts/StonxSaveText.py" /workspace/StonxSaveText.py
 cp "$REPO_DIR/pod/requirements.txt"         /workspace/requirements.txt 2>/dev/null || true
 chmod +x /workspace/manage.sh
 echo "  ✅ Files synced"
@@ -86,6 +87,10 @@ if [ -d /workspace/_repo/.git ]; then
   cp /workspace/_repo/pod/admin/workflows/*        /workspace/admin/workflows/ 2>/dev/null || true
   cp /workspace/_repo/pod/scripts/sync_models.py   /workspace/sync_models.py
   cp /workspace/_repo/pod/scripts/supervisord.conf /workspace/supervisord.conf
+  cp /workspace/_repo/pod/scripts/StonxSaveText.py /workspace/StonxSaveText.py
+  if [ -d /workspace/ComfyUI/custom_nodes ]; then
+      cp /workspace/StonxSaveText.py /workspace/ComfyUI/custom_nodes/ 2>/dev/null || true
+  fi
   echo "  ✅ Code updated"
 fi
 
@@ -193,6 +198,12 @@ echo "▸ [4/5] Installing ComfyUI + custom nodes..."
         fi
         echo "  ✅ $name"
     done
+    
+    # Install StonxSaveText node
+    if [ -f "$REPO_DIR/pod/scripts/StonxSaveText.py" ]; then
+        cp "$REPO_DIR/pod/scripts/StonxSaveText.py" "$NODES/StonxSaveText.py"
+        echo "  ✅ StonxSaveText"
+    fi
 ) > >(tee -a "$LOGDIR/nodes.log") 2>&1
 echo ""
 

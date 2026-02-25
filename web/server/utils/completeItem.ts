@@ -15,6 +15,7 @@ export interface RunPodResult {
   status: string
   output?: { output?: { data?: string } }
   error?: string
+  result_text?: string
 }
 
 /**
@@ -53,20 +54,28 @@ export async function completeMediaItem(
 
   const generationId = fresh.generationId
 
-  if (result.status === 'COMPLETED' && result.output?.output?.data) {
-    const base64Data = result.output.output.data
-
-    // Determine content type from the item
-    const [itemRow] = await db.select({ type: mediaItems.type })
-      .from(mediaItems).where(eq(mediaItems.id, itemId)).limit(1)
-    const isVideo = itemRow?.type === 'video'
-
+  if (result.status === 'COMPLETED') {
     let url: string
-    if (bucket) {
-      url = await uploadImageToR2(bucket, itemId, base64Data, isVideo ? 'video/mp4' : 'image/png')
+
+    if (result.output?.output?.data) {
+      const base64Data = result.output.output.data
+
+      // Determine content type from the item
+      const [itemRow] = await db.select({ type: mediaItems.type })
+        .from(mediaItems).where(eq(mediaItems.id, itemId)).limit(1)
+      const isVideo = itemRow?.type === 'video'
+
+      if (bucket) {
+        url = await uploadImageToR2(bucket, itemId, base64Data, isVideo ? 'video/mp4' : 'image/png')
+      } else {
+        const mime = isVideo ? 'video/mp4' : 'image/png'
+        url = `data:${mime};base64,${base64Data}`
+      }
+    } else if (result.result_text) {
+      // Text result directly stored in url column
+      url = result.result_text
     } else {
-      const mime = isVideo ? 'video/mp4' : 'image/png'
-      url = `data:${mime};base64,${base64Data}`
+      return { outcome: 'failed', error: 'No output data found in completed job' }
     }
 
     await db.update(mediaItems)

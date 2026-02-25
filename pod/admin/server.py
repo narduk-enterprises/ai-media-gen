@@ -1381,6 +1381,45 @@ def _comfy_queue_and_wait_image(workflow, poll_interval=3):
         # (loops forever — server may be backed up)
 
 
+def _comfy_queue_and_wait_text(workflow, poll_interval=3):
+    """Queue a ComfyUI prompt and wait for text output via /history polling.
+    Returns the extracted text string."""
+    client_id = str(uuid.uuid4())
+    result = _comfy_api("/prompt", {"prompt": workflow, "client_id": client_id}, timeout=300)
+
+    if isinstance(result, dict) and "error" in result and "prompt_id" not in result and "exec_info" not in result:
+        error = result.get("error", {})
+        node_errors = result.get("node_errors", {})
+        msg = error.get("message", "unknown") if isinstance(error, dict) else str(error)
+        raise RuntimeError(f"ComfyUI rejected prompt: {msg} | node_errors: {json.dumps(node_errors)[:500]}")
+
+    prompt_id = result.get("prompt_id") if isinstance(result, dict) else None
+    print(f"[Orchestrator] Text prompt queued: prompt_id={prompt_id}")
+
+    while True:
+        if prompt_id:
+            try:
+                history = _comfy_api(f"/history/{prompt_id}")
+                if prompt_id in history:
+                    entry = history[prompt_id]
+                    status = entry.get("status", {})
+                    if status.get("status_str") == "error":
+                        raise RuntimeError(f"ComfyUI execution failed: {status}")
+                    if status.get("completed", False) or status.get("status_str") == "success":
+                        outputs = entry.get("outputs", {})
+                        # Search for the text output
+                        for node_out in outputs.values():
+                            if "text" in node_out:
+                                text_list = node_out["text"]
+                                if text_list and len(text_list) > 0:
+                                    return text_list[0]
+                        return "" # Return empty string if no text found but completed
+            except (urllib.error.URLError, ConnectionError, RuntimeError) as e:
+                if isinstance(e, RuntimeError) and "execution failed" in str(e):
+                    raise
+        time.sleep(poll_interval)
+
+
 # ── Prompt Remix (Qwen2.5-3B-Instruct) ──────────────────────────────────────
 
 _remix_pipeline = None
@@ -1413,13 +1452,14 @@ def _get_remix_pipeline():
         if _remix_pipeline is not None:
             return _remix_pipeline
         from transformers import pipeline as hf_pipeline
+        import torch
         model_path = "/workspace/models/transformers/Qwen--Qwen2.5-3B-Instruct"
         print(f"[Remix] Loading Qwen2.5-3B-Instruct from {model_path}...")
         _remix_pipeline = hf_pipeline(
             "text-generation",
             model=model_path,
             device_map="auto",
-            torch_dtype="auto",
+            torch_dtype=torch.bfloat16,
         )
         print("[Remix] ✅ Model loaded")
         return _remix_pipeline
@@ -1443,13 +1483,31 @@ def _remix_prompts(prompt, count=1, temperature=0.9, instruction=None):
             {"role": "system", "content": system},
             {"role": "user", "content": user_msg},
         ]
-        result = pipe(
-            messages,
-            max_new_tokens=300,
-            temperature=temperature,
-            do_sample=True,
-            top_p=0.95,
-        )
+        
+        # Ensure temperature > 0 if do_sample is True
+        safe_temp = max(0.01, temperature)
+        
+        try:
+            result = pipe(
+                messages,
+                max_new_tokens=300,
+                temperature=safe_temp,
+                do_sample=True,
+                top_p=0.95,
+            )
+        except Exception as e:
+            if "probability tensor" in str(e).lower() or "inf" in str(e).lower() or "nan" in str(e).lower():
+                print(f"[Remix] Warning: encountered NaN logits, retrying without top_p filter: {e}")
+                result = pipe(
+                    messages,
+                    max_new_tokens=300,
+                    temperature=safe_temp,
+                    do_sample=True,
+                    top_k=50,
+                )
+            else:
+                raise e
+                
         text = result[0]["generated_text"]
         # The pipeline returns the full conversation; extract the assistant's reply
         if isinstance(text, list):
@@ -1888,6 +1946,43 @@ def _run_single_generation(job_id, action, data):
                 _jobs[job_id]["result_type"] = "video"
                 _jobs[job_id]["segments_completed"] = 1
             _log(f"✅ Done! Video: {os.path.getsize(out_path) / 1048576:.1f} MB")
+
+        elif action == "video2prompt":
+            vid_data = base64.b64decode(data["video"])
+            vid_filename = f"v2p_{job_id[:8]}.mp4"
+            vid_path = os.path.join(COMFY_DIR, "input", vid_filename)
+            with open(vid_path, "wb") as f:
+                f.write(vid_data)
+            _log(f"✅ Video uploaded as {vid_filename}")
+
+            frames = data.get("frames", 16)
+            custom_prompt = data.get("custom_system_prompt", "")
+            target_model = data.get("target_model", "Qwen2.5-VL-7B-Instruct-AWQ")
+
+            wf = wfl.build_video2prompt_workflow(
+                video_filename=vid_filename,
+                frames=frames,
+                custom_system_prompt=custom_prompt,
+                target_model=target_model
+            )
+
+            _log(f"⏳ Queuing Video-to-Prompt ({frames} frames, model={target_model})...")
+            text_result = _comfy_queue_and_wait_text(wf, poll_interval=3)
+            
+            # Save the prompt text to a plain TXT file so frontend can download it if needed
+            job_dir = os.path.join(JOBS_DIR, job_id)
+            os.makedirs(job_dir, exist_ok=True)
+            txt_path = os.path.join(job_dir, "prompt.txt")
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.write(text_result)
+
+            with _jobs_lock:
+                _jobs[job_id]["status"] = "completed"
+                _jobs[job_id]["result_text"] = text_result
+                _jobs[job_id]["result_path"] = txt_path
+                _jobs[job_id]["result_type"] = "text"
+                _jobs[job_id]["segments_completed"] = 1
+            _log(f"✅ Prompt generated: {len(text_result)} characters")
 
         elif action == "custom_workflow":
             # Raw ComfyUI workflow JSON — queue directly

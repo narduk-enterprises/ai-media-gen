@@ -44,6 +44,7 @@ const modeTabs: TabsItem[] = [
   { label: 'Text → Video', icon: 'i-lucide-film', value: 'text2video', slot: 'text2video' },
   { label: 'Image → Image', icon: 'i-lucide-image-plus', value: 'img2img', slot: 'img2img' },
   { label: 'Image → Video', icon: 'i-lucide-film', value: 'img2video', slot: 'img2video' },
+  { label: 'Video → Prompt', icon: 'i-lucide-file-text', value: 'video2prompt', slot: 'video2prompt' },
   { label: 'Custom', icon: 'i-lucide-code-2', value: 'custom', slot: 'custom' },
 ]
 
@@ -55,6 +56,7 @@ const i2iTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalC
 const img2videoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const customTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const sweepTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
+const video2promptTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 
 const activeTab = computed(() => {
   if (mode.value === 'text2image') return t2iTab.value
@@ -63,6 +65,7 @@ const activeTab = computed(() => {
   if (mode.value === 'text2video') return t2vTab.value
   if (mode.value === 'img2img') return i2iTab.value
   if (mode.value === 'img2video') return img2videoTab.value
+  if (mode.value === 'video2prompt') return video2promptTab.value
   if (mode.value === 'custom') return customTab.value
   return null
 })
@@ -157,10 +160,13 @@ const gridClass = computed(() => {
       <template #custom>
         <CreateCustomWorkflowTab ref="customTab" />
       </template>
+      <template #video2prompt>
+        <CreateVideoPromptTab ref="video2promptTab" />
+      </template>
     </UTabs>
 
     <!-- ═══ Generate Button (sticky) ═══ -->
-    <div class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 py-3 px-4 z-10">
+    <div v-if="mode !== 'video2prompt'" class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 py-3 px-4 z-10">
       <div class="max-w-6xl mx-auto flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <UButton variant="outline" color="neutral" size="sm" icon="i-lucide-rotate-ccw" @click="resetForm">Start Over</UButton>
@@ -177,6 +183,7 @@ const gridClass = computed(() => {
 
     <!-- ═══ Results ═══ -->
     <CreateResults
+      v-if="mode !== 'video2prompt'"
       :results="gen.results.value" :generating="gen.generating.value" :can-generate="canGenerate" :is-video-mode="isVideoMode"
       :total-done="gen.totalDone.value" :total-failed="gen.totalFailed.value" :total-pending="gen.totalPending.value"
       :completed-media="gen.completedMedia.value" :batch-progress="gen.batchProgress.value" :action-loading="gen.actionLoading.value"

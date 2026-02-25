@@ -856,3 +856,24 @@ def build_video_upscale_workflow(video_filename, scale=2, fps=24):
     }
 
     return wf
+
+
+# =============================================================================
+# Video to Prompt Builders
+# =============================================================================
+
+def build_video2prompt_workflow(video_filename: str, frames=16, custom_system_prompt="", target_model="Qwen2.5-VL-7B-Instruct-AWQ"):
+    """
+    Builds the workflow to extract a prompt from a video using IF_VideoPrompts.
+    """
+    wf = _load_template("video2prompt")
+    
+    node = wf["1"]["inputs"]
+    node["video_file"] = video_filename
+    node["frame_sample_count"] = frames
+    node["custom_system_prompt"] = custom_system_prompt
+    node["model_name"] = target_model
+    node["profile"] = "None" if custom_system_prompt else "HyVideoAnalyzer - Simple one line prompt"
+    
+    return wf
+

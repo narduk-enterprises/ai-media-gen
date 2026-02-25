@@ -93,29 +93,39 @@ export default defineEventHandler(async (event) => {
 
   const getSpeedScore = (name: string) => Math.max(10, GPU_SPEED_SCORES[name] || 20)
 
-  // Filter to GPUs that have stock (lowestPrice exists and > 0) and sort cheapest first
+  // Filter to GPUs that have either community or secure pricing and sort by community price first
   const gpus = (data.gpuTypes || [])
-    .filter((g: any) => g.lowestPrice?.uninterruptablePrice > 0 || g.lowestPrice?.minimumBidPrice > 0)
+    .filter((g: any) => g.communityPrice > 0 || g.securePrice > 0 || g.lowestPrice?.uninterruptablePrice > 0)
     .map((g: any) => {
-      const price = g.lowestPrice?.uninterruptablePrice ? g.lowestPrice.uninterruptablePrice : (g.lowestPrice?.minimumBidPrice ? g.lowestPrice.minimumBidPrice : null)
-      const spot = g.lowestPrice?.minimumBidPrice ? g.lowestPrice.minimumBidPrice : null
+      // Prioritize community price, fallback to lowest price uninterruptable, then secure
+      const price = g.communityPrice > 0 ? g.communityPrice : (g.lowestPrice?.uninterruptablePrice || g.securePrice)
+      
+      const spot = g.lowestPrice?.minimumBidPrice || null
       const speedScore = getSpeedScore(g.displayName)
-      // valueScore is speed per dollar. If price is 0, give it a massive score.
-      const valueScore = price ? Math.round(speedScore / price) : 9999
+      
+      // valueScore is speed per dollar based on the community/primary price.
+      const valueScore = price ? Math.round(speedScore / price) : (speedScore * 100) // Huge value if somehow 0
       
       return {
         id: g.id,
         name: g.displayName,
         vram: g.memoryInGb,
-        securePrice: g.securePrice,
-        communityPrice: g.communityPrice,
-        lowestPrice: price,
+        securePrice: g.securePrice > 0 ? g.securePrice : null,
+        communityPrice: g.communityPrice > 0 ? g.communityPrice : null,
         spotPrice: spot,
+        price, // The primary price we use for sorting and value
         speedScore,
         valueScore,
       }
     })
-    .sort((a: any, b: any) => (a.lowestPrice || 999) - (b.lowestPrice || 999))
+    .sort((a: any, b: any) => {
+       // Sort by primary price (which prefers community) ascending
+       const priceA = a.price || 9999
+       const priceB = b.price || 9999
+       if (priceA !== priceB) return priceA - priceB
+       // If prices are equal, sort by speed descending
+       return b.speedScore - a.speedScore
+    })
 
   return {
     gpus,

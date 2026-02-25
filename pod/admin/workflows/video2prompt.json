@@ -1,0 +1,41 @@
+{
+  "1": {
+    "inputs": {
+      "input_mode": "Video File",
+      "model_name": "Qwen2.5-VL-7B-Instruct-AWQ",
+      "profile": "HyVideoAnalyzer - Simple one line prompt",
+      "max_new_tokens": 1024,
+      "frame_sample_count": 16,
+      "temperature": 0.7,
+      "analysis_type": "Full sequence",
+      "language": "English",
+      "video_file": "placeholder.mp4",
+      "fps": 8.0,
+      "max_pixels": 262144,
+      "fallback_frame_count": 4,
+      "custom_system_prompt": "",
+      "prefix": "",
+      "suffix": "",
+      "seed": -1,
+      "negative_prompt": "None",
+      "model_offload": "Yes",
+      "precision": "float16"
+    },
+    "class_type": "VideoPromptNode",
+    "_meta": {
+      "title": "IF Video Prompts \ud83c\udfa5\ud83e\udde0"
+    }
+  },
+  "2": {
+    "inputs": {
+      "text": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "StonxSaveText",
+    "_meta": {
+      "title": "Save Text (Stonx)"
+    }
+  }
+}

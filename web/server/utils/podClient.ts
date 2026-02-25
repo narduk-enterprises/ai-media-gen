@@ -54,6 +54,7 @@ export interface GenerationStatus {
   error?: string | null
   video_base64?: string | null
   image_base64?: string | null
+  result_text?: string | null
 }
 
 export interface HealthResponse {
@@ -92,11 +93,13 @@ export interface SyncState {
  */
 export interface JobResult {
   status: 'COMPLETED' | 'FAILED' | 'IN_PROGRESS' | 'IN_QUEUE'
-  output?: { output?: { data?: string; filename?: string; type?: string } }
+  output?: { output?: { data?: string; filename?: string; type?: string; result_text?: string } }
   error?: string
   /** Segment progress info */
   currentSegment?: number
   segmentsTotal?: number
+  /** Text tasks result */
+  result_text?: string
 }
 
 // ── Config ─────────────────────────────────────────────────────
@@ -268,6 +271,31 @@ export async function submitCustomWorkflow(
 }
 
 /**
+ * Submit a video-to-prompt job.
+ */
+export async function submitVideo2Prompt(
+  input: Record<string, any>,
+  podUrl?: string,
+  callbackUrl?: string,
+  callbackSecret?: string,
+): Promise<{ job_id: string; status: string }> {
+  const url = podUrl || getPodUrl()
+  return await $fetch(`${url}/generate/video2prompt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      video: input.video,
+      frames: input.frames,
+      custom_system_prompt: input.custom_system_prompt,
+      target_model: input.target_model || 'Qwen2.5-VL-7B-Instruct-AWQ',
+      callback_url: callbackUrl,
+      callback_secret: callbackSecret,
+    },
+    timeout: 30_000,
+  })
+}
+
+/**
  * Submit an image-to-video job.
  */
 export async function submitImage2Video(
@@ -421,6 +449,16 @@ export async function checkJobStatus(
     })
 
     if (status.status === 'completed') {
+      if (status.result_text) {
+        return {
+          status: 'COMPLETED',
+          result_text: status.result_text,
+          output: { output: { result_text: status.result_text, type: 'text' } },
+          currentSegment: status.segments_total,
+          segmentsTotal: status.segments_total,
+        }
+      }
+
       let data = status.video_base64 || status.image_base64
       let type: string = (status.has_video || status.video_base64) ? 'video' : 'image'
 

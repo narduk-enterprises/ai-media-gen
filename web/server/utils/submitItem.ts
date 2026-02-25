@@ -15,6 +15,7 @@ import {
   submitText2Image, submitImage2Image, submitImage2Video,
   submitText2Video, submitUpscale, submitMultiSegmentVideo,
   submitCustomWorkflow, submitText2ImageThenVideo,
+  submitVideo2Prompt,
 } from './podClient'
 import { resolveApiUrl, getRequiredGroups } from './ai'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
@@ -97,6 +98,9 @@ export async function submitItemToPod(
         break
       case 'text2image_then_video':
         response = await submitText2ImageThenVideo(input, podUrl, callbackUrl, callbackSecret)
+        break
+      case 'video2prompt':
+        response = await submitVideo2Prompt(input, podUrl, callbackUrl, callbackSecret)
         break
       default: {
         const request = buildRequestFromMeta(meta)
