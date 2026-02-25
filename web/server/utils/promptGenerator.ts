@@ -99,7 +99,7 @@ export async function refineWithLLM(
   if (!ai) return rawPrompt // fallback if no AI binding
 
   try {
-    const response = await ai.run('@cf/meta/llama-3.1-8b-instruct', {
+    const response = await ai.run('@cf/nousresearch/hermes-2-pro-mistral-7b', {
       messages: [
         {
           role: 'system',
