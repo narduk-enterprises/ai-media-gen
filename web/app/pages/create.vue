@@ -15,6 +15,7 @@ const route = useRoute()
 const modeTabs: TabsItem[] = [
   { label: 'Text → Image', icon: 'i-lucide-image', value: 'text2image', slot: 'text2image' },
   { label: '🎬 Video', icon: 'i-lucide-clapperboard', value: 'ultimateVideo', slot: 'ultimateVideo' },
+  { label: 'Sweep', icon: 'i-lucide-test-tubes', value: 'sweep', slot: 'sweep' },
   { label: 'Text → Video', icon: 'i-lucide-film', value: 'text2video', slot: 'text2video' },
   { label: 'Image → Image', icon: 'i-lucide-image-plus', value: 'img2img', slot: 'img2img' },
   { label: 'Image → Video', icon: 'i-lucide-film', value: 'img2video', slot: 'img2video' },
@@ -28,10 +29,12 @@ const t2vTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalC
 const i2iTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const img2videoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const customTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
+const sweepTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 
 const activeTab = computed(() => {
   if (mode.value === 'text2image') return t2iTab.value
   if (mode.value === 'ultimateVideo') return ultimateVideoTab.value
+  if (mode.value === 'sweep') return sweepTab.value
   if (mode.value === 'text2video') return t2vTab.value
   if (mode.value === 'img2img') return i2iTab.value
   if (mode.value === 'img2video') return img2videoTab.value
@@ -113,6 +116,9 @@ const gridClass = computed(() => {
       </template>
       <template #ultimateVideo>
         <CreateUltimateVideoTab ref="ultimateVideoTab" :prefill-media-id="prefillMediaId" />
+      </template>
+      <template #sweep>
+        <CreateSweepTab ref="sweepTab" />
       </template>
       <template #text2video>
         <CreateTextToVideoTab ref="t2vTab" />

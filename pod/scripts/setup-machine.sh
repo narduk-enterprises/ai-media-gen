@@ -157,6 +157,8 @@ echo "▸ [3/4] Installing ComfyUI + custom nodes..."
     mkdir -p "$NODES"
     for pair in \
       "https://github.com/civitai/civitai_comfy_nodes.git civitai_comfy_nodes" \
+      "https://github.com/MoonGoblinDev/Civicomfy.git Civicomfy" \
+      "https://github.com/BAIKEMARK/ComfyUI-Civitai-Toolkit.git ComfyUI-Civitai-Toolkit" \
       "https://github.com/Fannovel16/ComfyUI-Video-Matting.git ComfyUI-Video-Matting" \
       "https://github.com/ltdrdata/ComfyUI-Manager.git ComfyUI-Manager" \
       "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git ComfyUI-VideoHelperSuite"
