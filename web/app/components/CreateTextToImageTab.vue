@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { IMAGE_MODELS, IMAGE_MODEL_PARAMS, type ModelDef } from '~/composables/useCreateShared'
+import type { BatchItem } from '~/components/BatchJsonInput.vue'
 
 const gen = useGeneration()
 const shared = useCreateShared()
 
 // ─── Local State ────────────────────────────────────────────────────────
 const prompt = ref('')
-const batchPrompts = ref<string[]>([])
+const batchItems = ref<BatchItem[]>([])
 const batchMode = ref(false)
 const selectedModels = ref<string[]>(['wan22'])
 const count = ref(1)
@@ -47,7 +48,7 @@ watch(primaryModel, (id) => {
 
 // ─── Generate ───────────────────────────────────────────────────────────
 const prompts = computed(() => {
-  if (batchMode.value && batchPrompts.value.length > 0) return batchPrompts.value
+  if (batchMode.value && batchItems.value.length > 0) return batchItems.value.map(i => i.prompt)
   if (prompt.value.trim()) {
     const out: string[] = []
     for (let i = 0; i < count.value; i++) out.push(prompt.value.trim())
@@ -135,7 +136,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: false })
     </div>
 
     <!-- Batch mode -->
-    <BatchJsonInput v-if="batchMode" v-model:prompts="batchPrompts">
+    <BatchJsonInput v-if="batchMode" v-model:items="batchItems">
       <template #badges>
         <UBadge size="xs" variant="subtle" color="primary">{{ totalCount }} total image{{ totalCount !== 1 ? 's' : '' }}</UBadge>
       </template>
