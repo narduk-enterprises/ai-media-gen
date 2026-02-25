@@ -229,6 +229,21 @@ REPOS = [
             "split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors": "clip",
         },
     },
+    # ── LTX-2 Abliterated Text Encoders ──
+    {
+        "repo": "DreamFast/gemma-3-12b-it-heretic",
+        "group": "ltx2",
+        "files": {
+            "comfyui/gemma_3_12B_it_heretic_fp8_e4m3fn.safetensors": "clip",
+        },
+    },
+    {
+        "repo": "Sikaworld1990/gemma-3-12b-it-abliterated-sikaworld-high-fidelity-edition-Ltx-2",
+        "group": "ltx2",
+        "files": {
+            "gemma-3-12b-it-abliterated-sikaworld-high-fidelity-edition.safetensors": "clip",
+        },
+    },
     # ── LTX-2 Camera LoRAs ──
     {
         "repo": "Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Left",

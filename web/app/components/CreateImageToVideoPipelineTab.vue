@@ -44,6 +44,82 @@ const motionPrompt = ref('')
 const audioPrompt = ref('')
 const negativePrompt = ref(DEFAULT_NEGATIVE_PROMPT)
 
+// ─── Batch JSON ──────────────────────────────────────────────
+interface BatchPipelineItem {
+  imagePrompt: string
+  motionPrompt?: string
+  audioPrompt?: string
+  negativePrompt?: string
+}
+
+const batchItems = ref<BatchPipelineItem[]>([])
+const showBatchInput = ref(false)
+const batchJsonInput = ref('')
+const batchError = ref('')
+const hasBatch = computed(() => batchItems.value.length > 0)
+
+const BATCH_EXAMPLE = JSON.stringify([
+  {
+    imagePrompt: 'Stunning blonde girl on a tropical beach, golden hour, soft wind in her hair, cinematic photography',
+    motionPrompt: 'she turns to camera and smiles, wind blowing through her hair, slow motion',
+    audioPrompt: 'ocean waves, tropical ambience, gentle breeze',
+    negativePrompt: 'worst quality, blurry, distorted',
+  },
+  {
+    imagePrompt: 'Beautiful brunette in a sunlit European café, morning light, espresso on the table',
+    motionPrompt: 'she takes a sip of espresso and glances up, soft smile, steam rising',
+    audioPrompt: 'café ambience, clinking cups, soft jazz',
+  },
+], null, 2)
+
+function parseBatchItems(raw: string): BatchPipelineItem[] | null {
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return null
+    const result: BatchPipelineItem[] = []
+    for (const item of parsed) {
+      const ip = typeof item === 'string' ? item : (item.imagePrompt ?? item.image_prompt ?? item.prompt ?? '')
+      if (typeof ip === 'string' && ip.trim()) {
+        result.push({
+          imagePrompt: ip.trim(),
+          motionPrompt: item.motionPrompt ?? item.motion_prompt ?? item.videoPrompt ?? item.video_prompt ?? undefined,
+          audioPrompt: item.audioPrompt ?? item.audio_prompt ?? item.audio ?? undefined,
+          negativePrompt: item.negativePrompt ?? item.negative_prompt ?? item.negative ?? undefined,
+        })
+      }
+    }
+    return result.length > 0 ? result : null
+  } catch {
+    return null
+  }
+}
+
+function loadBatchJson() {
+  batchError.value = ''
+  const parsed = parseBatchItems(batchJsonInput.value.trim())
+  if (parsed) {
+    batchItems.value = parsed
+    batchJsonInput.value = ''
+    showBatchInput.value = false
+  } else {
+    batchError.value = 'Invalid JSON. Expected an array of objects with "imagePrompt" field.'
+  }
+}
+
+function loadBatchExample() {
+  batchJsonInput.value = BATCH_EXAMPLE
+}
+
+function removeBatchItem(idx: number) {
+  batchItems.value = batchItems.value.filter((_, i) => i !== idx)
+}
+
+function clearBatch() {
+  batchItems.value = []
+  batchJsonInput.value = ''
+  batchError.value = ''
+}
+
 // ─── Video Settings ──────────────────────────────────────────
 const selectedModel = ref('ltx2')
 const steps = ref(20)
@@ -75,14 +151,45 @@ watch(selectedModel, (id) => {
 const hasGalleryImage = computed(() => !!selectedMediaId.value || !!uploadedBase64.value)
 const hasImagePrompt = computed(() => imagePrompt.value.trim().length > 0)
 const canGenerate = computed(() => {
+  if (hasBatch.value) return true
   if (sourceMode.value === 'gallery') return hasGalleryImage.value
   return hasImagePrompt.value
 })
-const totalCount = computed(() => canGenerate.value ? count.value : 0)
+const totalCount = computed(() => {
+  if (hasBatch.value) return batchItems.value.length
+  return canGenerate.value ? count.value : 0
+})
 
 // ─── Generate ────────────────────────────────────────────────
 async function generate() {
   if (!canGenerate.value) return
+
+  // Batch mode: loop through all batch items as pipeline jobs
+  if (hasBatch.value) {
+    let genId: string | undefined
+    for (const item of batchItems.value) {
+      const result = await gen.generatePipelineVideo({
+        prompt: item.imagePrompt,
+        negativePrompt: (item.negativePrompt ?? negativePrompt.value).trim(),
+        width: width.value,
+        height: height.value,
+        steps: imageSteps.value,
+        cfg: imageCfg.value,
+        seed: seed.value,
+        imageModel: imageModel.value,
+        videoPrompt: item.motionPrompt?.trim() || item.imagePrompt,
+        videoModel: selectedModel.value,
+        videoSteps: steps.value,
+        videoFrames: numFrames.value,
+        videoFps: fps.value,
+        loraStrength: loraStrength.value,
+        imageStrength: imageStrength.value,
+        count: 1,
+        ...(genId ? { generationId: genId } : {}),
+      })
+    }
+    return
+  }
 
   if (sourceMode.value === 'gallery' && selectedMediaId.value) {
     // Use existing gallery image → I2V via video.post.ts
@@ -213,7 +320,58 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
       </div>
     </UCard>
 
-    <!-- ═══ 2. Motion Prompt ═══ -->
+    <!-- ═══ Batch JSON Import ═══ -->
+    <UCard variant="outline" :class="showBatchInput ? 'ring-1 ring-violet-300' : ''">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2 cursor-pointer" @click="showBatchInput = !showBatchInput">
+          <UIcon name="i-lucide-braces" class="w-4 h-4 text-violet-500" />
+          <span class="text-sm font-medium text-slate-700">Batch JSON</span>
+          <UBadge v-if="hasBatch" variant="subtle" color="primary" size="xs">{{ batchItems.length }} items</UBadge>
+        </div>
+        <UButton size="xs" :variant="showBatchInput ? 'soft' : 'ghost'" :color="showBatchInput ? 'primary' : 'neutral'" @click="showBatchInput = !showBatchInput">
+          {{ showBatchInput ? 'Hide' : 'Paste Batch' }}
+        </UButton>
+      </div>
+      <p v-if="!showBatchInput && !hasBatch" class="text-[10px] text-slate-400">
+        Paste a JSON array — each object has: <code class="bg-slate-200 px-1 rounded">imagePrompt</code>, <code class="bg-slate-200 px-1 rounded">motionPrompt</code>, <code class="bg-slate-200 px-1 rounded">audioPrompt</code>, <code class="bg-slate-200 px-1 rounded">negativePrompt</code>.
+        Each item generates an image (CyberRealistic Pony) then animates it with LTX-2.
+      </p>
+      <div v-if="showBatchInput" class="space-y-3">
+        <UTextarea v-model="batchJsonInput" :rows="8" autoresize
+          placeholder='[{ "imagePrompt": "...", "motionPrompt": "...", "audioPrompt": "..." }]'
+          class="font-mono text-xs" size="sm" />
+        <UAlert v-if="batchError" color="error" variant="subtle" :title="batchError" size="sm" />
+        <div class="flex items-center gap-2">
+          <UButton size="sm" color="primary" icon="i-lucide-check" @click="loadBatchJson">Load Batch</UButton>
+          <UButton size="sm" variant="soft" color="secondary" icon="i-lucide-sparkles" @click="loadBatchExample">Load Example</UButton>
+          <UButton size="sm" variant="ghost" color="neutral" @click="showBatchInput = false; batchJsonInput = ''; batchError = ''">Cancel</UButton>
+        </div>
+      </div>
+
+      <!-- Batch items list -->
+      <div v-if="hasBatch" class="mt-3 space-y-1.5 max-h-64 overflow-y-auto">
+        <div v-for="(item, i) in batchItems" :key="i" class="flex items-start gap-2 group p-2 rounded-lg border border-slate-100 hover:border-violet-200">
+          <span class="text-[10px] text-slate-400 font-mono w-6 shrink-0 text-right pt-0.5">{{ i + 1 }}</span>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-slate-700 font-medium line-clamp-1">🖼️ {{ item.imagePrompt }}</p>
+            <p v-if="item.motionPrompt" class="text-[10px] text-cyan-600 line-clamp-1">🎬 {{ item.motionPrompt }}</p>
+            <div class="flex gap-3">
+              <span v-if="item.audioPrompt" class="text-[10px] text-amber-500 truncate max-w-[200px]">🔊 {{ item.audioPrompt }}</span>
+              <span v-if="item.negativePrompt" class="text-[10px] text-red-400 truncate max-w-[200px]">⛔ {{ item.negativePrompt }}</span>
+            </div>
+          </div>
+          <button class="p-0.5 rounded text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0" @click="removeBatchItem(i)">
+            <UIcon name="i-lucide-x" class="w-3 h-3" />
+          </button>
+        </div>
+        <div class="flex items-center gap-2 mt-2">
+          <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="clearBatch">Clear Batch</UButton>
+        </div>
+      </div>
+    </UCard>
+
+    <!-- ═══ 2. Motion Prompt (hidden when batch active) ═══ -->
+    <template v-if="!hasBatch">
     <UCard variant="outline">
       <div class="space-y-3">
         <div>
@@ -253,6 +411,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
         <UTextarea v-model="negativePrompt" placeholder="Things to avoid..." :rows="1" autoresize class="w-full" size="sm" />
       </div>
     </UCard>
+    </template>
 
     <!-- ═══ 5. I2V Presets ═══ -->
     <UCard v-if="isLtx2" variant="outline">
