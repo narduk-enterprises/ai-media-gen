@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { resolveApiUrl } from '../../utils/ai'
+import { resolveApiUrl, getRequiredGroups } from '../../utils/ai'
 import { submitItemToComfyUI } from '../../utils/submitItem'
 import { generations, mediaItems } from '../../database/schema'
 
@@ -34,8 +34,29 @@ export default defineEventHandler(async (event) => {
   }
 
   const { prompt, negativePrompt, width, height, numFrames, steps, loraStrength, model, seed, audioPrompt, fps, cfg, cameraLora, endpoint, generationId } = parsed.data
-  const apiUrl = await resolveApiUrl(endpoint, 'video')
   const db = useDatabase()
+
+  // Build input payload early so we can extract required model groups for routing
+  const isLtx2 = model === 'ltx2'
+  const inputPayload: Record<string, any> = {
+    action: 'text2video',
+    prompt,
+    negative_prompt: negativePrompt,
+    width, height,
+    num_frames: numFrames,
+    frames: numFrames,
+    steps,
+    lora_strength: loraStrength,
+    model, seed,
+    ...(audioPrompt ? { audio_prompt: audioPrompt } : {}),
+    ...(cameraLora ? { camera_lora: cameraLora } : {}),
+    ...(isLtx2 && fps ? { fps } : {}),
+    ...(isLtx2 && cfg != null ? { cfg } : {}),
+  }
+
+  // Model-aware routing: pass required groups so the router picks a pod with the right models
+  const requiredGroups = getRequiredGroups(inputPayload)
+  const apiUrl = await resolveApiUrl(endpoint, 'video', requiredGroups)
   const now = new Date().toISOString()
 
   // Either reuse existing generation or create a new one
@@ -71,22 +92,7 @@ export default defineEventHandler(async (event) => {
   const videoId = crypto.randomUUID()
 
   // Insert as 'queued' — the cron/background will submit
-  const isLtx2 = model === 'ltx2'
-  const inputPayload: Record<string, any> = {
-    action: 'text2video',
-    prompt,
-    negative_prompt: negativePrompt,
-    width, height,
-    num_frames: numFrames,
-    frames: numFrames,
-    steps,
-    lora_strength: loraStrength,
-    model, seed,
-    ...(audioPrompt ? { audio_prompt: audioPrompt } : {}),
-    ...(cameraLora ? { camera_lora: cameraLora } : {}),
-    ...(isLtx2 && fps ? { fps } : {}),
-    ...(isLtx2 && cfg != null ? { cfg } : {}),
-  }
+  // inputPayload already built above for model-aware routing
 
   await db.insert(mediaItems).values({
     id: videoId,

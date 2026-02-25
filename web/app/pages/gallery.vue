@@ -204,7 +204,7 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
     <!-- Body -->
     <div class="max-w-400 mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <!-- Loading -->
-      <GallerySkeletonGrid v-if="pending && !mediaItems.length" />
+      <GallerySkeletonGrid v-if="pending && !mediaItems.length" :large="largeGrid" />
 
       <!-- Error -->
       <div v-else-if="error" class="p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm max-w-lg mx-auto">
@@ -268,17 +268,28 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
             <UButton size="sm" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="downloadMedia(item.url, item.type)" />
           </div>
         </div>
+
+        <!-- Inline loading skeletons during infinite scroll -->
+        <template v-if="loadingMore">
+          <div
+            v-for="i in 6"
+            :key="'skeleton-' + i"
+            :class="[
+              'break-inside-avoid rounded-xl overflow-hidden border border-slate-200 bg-slate-100 animate-pulse',
+              largeGrid ? 'mb-4' : 'mb-3'
+            ]"
+          >
+            <div :class="['w-full', i % 3 === 0 ? 'aspect-3/4' : i % 3 === 1 ? 'aspect-square' : 'aspect-4/3']" />
+          </div>
+        </template>
       </div>
 
       <!-- Infinite scroll sentinel -->
       <div ref="sentinelRef" class="flex justify-center mt-6 py-4">
-        <div v-if="loadingMore" class="flex items-center gap-2 text-sm text-slate-400">
-          <UIcon name="i-lucide-loader-2" class="w-4 h-4 animate-spin" /> Loading more…
-        </div>
-        <UButton v-else-if="hasMore" variant="ghost" size="xs" color="neutral" @click="loadMore()">
+        <UButton v-if="hasMore && !loadingMore" variant="ghost" size="xs" color="neutral" @click="loadMore()">
           {{ mediaItems.length }} of {{ total }} loaded
         </UButton>
-        <span v-else-if="mediaItems.length > 0" class="text-xs text-slate-300">All {{ total }} items loaded</span>
+        <span v-else-if="!hasMore && mediaItems.length > 0" class="text-xs text-slate-300">All {{ total }} items loaded</span>
       </div>
     </div>
 

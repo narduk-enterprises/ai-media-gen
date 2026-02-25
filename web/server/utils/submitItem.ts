@@ -11,11 +11,12 @@
 import { eq } from 'drizzle-orm'
 import { mediaItems } from '../database/schema'
 import {
-  submitJob, buildRequestFromMeta, getPodUrl,
+  submitJob, buildRequestFromMeta,
   submitText2Image, submitImage2Image, submitImage2Video,
   submitText2Video, submitUpscale, submitMultiSegmentVideo,
   submitCustomWorkflow, submitText2ImageThenVideo,
 } from './podClient'
+import { resolveApiUrl, getRequiredGroups } from './ai'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 
 type DB = DrizzleD1Database<any>
@@ -49,10 +50,14 @@ export async function submitItemToPod(
       return null
     }
 
-    // Extract pod URL from metadata (stored when generation was created)
-    const podUrl = meta.apiUrl || meta.podUrl || getPodUrl()
+    // Extract pod URL from metadata, with model-aware fallback routing
+    let podUrl = meta.apiUrl || meta.podUrl
     if (!podUrl) {
-      console.warn(`[Submit] ${itemId.slice(0, 8)} has no apiUrl in metadata — skipping`)
+      const requiredGroups = input ? getRequiredGroups(input) : []
+      podUrl = await resolveApiUrl(undefined, undefined, requiredGroups)
+    }
+    if (!podUrl) {
+      console.warn(`[Submit] ${itemId.slice(0, 8)} has no apiUrl and no pods available — skipping`)
       return null
     }
 
