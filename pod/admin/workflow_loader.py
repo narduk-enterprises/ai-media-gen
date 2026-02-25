@@ -797,6 +797,8 @@ def build_video_upscale_workflow(video_filename, scale=2, fps=24):
                 "video": video_filename,
                 "force_rate": fps,
                 "force_size": "Disabled",
+                "custom_width": 0,
+                "custom_height": 0,
                 "frame_load_cap": 0,
                 "skip_first_frames": 0,
                 "select_every_nth": 1,
@@ -844,6 +846,7 @@ def build_video_upscale_workflow(video_filename, scale=2, fps=24):
             "loop_count": 0,
             "filename_prefix": "upscaled",
             "format": "video/h264-mp4",
+            "pingpong": False,
             "save_output": True,
             "images": output_source,
             "audio": ["1", 2],  # pass through audio from source
