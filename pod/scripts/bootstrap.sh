@@ -131,7 +131,7 @@ echo "▸ [3/5] Installing system deps..."
 (
     apt-get update -qq >/dev/null 2>&1 || true
     apt-get install -y -qq git wget ffmpeg >/dev/null 2>&1 || true
-    pip install -q -r /workspace/requirements.txt 2>&1 | tail -1 || true
+    pip install -q sqlalchemy -r /workspace/requirements.txt 2>&1 | tail -1 || true
 
     GPU_ARCH=$(python3 -c "import torch; cc=torch.cuda.get_device_capability(0); print(f'{cc[0]}{cc[1]}')" 2>/dev/null || echo "0")
     TORCH_ARCHS=$(python3 -c "import torch; print(torch.cuda.get_arch_list())" 2>/dev/null || echo "[]")
