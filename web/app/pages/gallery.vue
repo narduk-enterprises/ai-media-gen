@@ -14,8 +14,10 @@ function formatDuration(submittedAt?: string | null, completedAt?: string | null
   const remainSecs = secs % 60
   return remainSecs > 0 ? `${mins}m ${remainSecs}s` : `${mins}m`
 }
+type TypeFilter = 'all' | 'image' | 'video'
+const typeFilter = useCookie<TypeFilter>('gallery-type', { default: () => 'all' })
 
-const { mediaItems, total, pending, loadingMore, hasMore, error, refresh, loadMore, deleteItems } = useGallery()
+const { mediaItems, total, pending, loadingMore, hasMore, error, refresh, loadMore, deleteItems } = useGallery(typeFilter as Ref<string>)
 const gen = useGeneration()
 const actionLoading = gen.actionLoading
 const toast = useToast()
@@ -102,9 +104,10 @@ watch(loadingMore, (val) => {
 // ─── Filters ──────────────────────────────────────────────────────────
 const searchQuery = ref('')
 const sortOrder = useCookie<'newest' | 'oldest'>('gallery-sort', { default: () => 'newest' })
-type TypeFilter = 'all' | 'image' | 'video'
-const typeFilter = useCookie<TypeFilter>('gallery-type', { default: () => 'all' })
 const largeGrid = useCookie<boolean>('gallery-grid', { default: () => true })
+
+// Re-fetch when type filter changes
+watch(typeFilter, () => refresh())
 
 // ─── Parsed settings (JSON → object, cached) ─────────────────────────
 const parsedSettings = computed(() => {
@@ -122,7 +125,6 @@ const parsedSettings = computed(() => {
 // ─── Filtered & sorted media ─────────────────────────────────────────
 const filteredMedia = computed(() => {
   let items = mediaItems.value
-  if (typeFilter.value !== 'all') items = items.filter(i => i.type === typeFilter.value)
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase()
     items = items.filter(i => i.prompt.toLowerCase().includes(q))
@@ -258,7 +260,7 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
           <div v-if="!isSelectionMode" class="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
             <div class="absolute bottom-0 left-0 right-0 p-3">
               <p class="text-white text-xs line-clamp-2 leading-relaxed">{{ item.prompt }}</p>
-              <p class="text-white/50 text-[10px] mt-0.5">{{ formatDate(item.createdAt) }}</p>
+              <p class="text-white/50 text-[10px] mt-0.5">{{ formatDate(item.completedAt || item.createdAt) }}</p>
             </div>
           </div>
 

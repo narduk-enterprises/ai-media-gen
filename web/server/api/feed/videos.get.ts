@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
         sql`${mediaItems.url} != ''`
       )
     )
-    .orderBy(desc(mediaItems.createdAt))
+    .orderBy(desc(mediaItems.completedAt), desc(mediaItems.createdAt))
     .limit(limit)
     .offset(offset)
 

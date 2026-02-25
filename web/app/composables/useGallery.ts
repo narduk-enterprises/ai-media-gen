@@ -29,7 +29,7 @@ interface GalleryApiResponse {
   offset: number
 }
 
-export function useGallery() {
+export function useGallery(typeFilter?: Ref<string>) {
   const mediaItems = ref<GalleryMediaItem[]>([])
   const total = ref(0)
   const pending = ref(true)
@@ -43,7 +43,7 @@ export function useGallery() {
     error.value = null
     try {
       const result = await $fetch<GalleryApiResponse>('/api/generations', {
-        params: { limit: PAGE_SIZE, offset: 0 },
+        params: { limit: PAGE_SIZE, offset: 0, type: typeFilter?.value || 'all' },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
 
@@ -61,7 +61,7 @@ export function useGallery() {
     loadingMore.value = true
     try {
       const result = await $fetch<GalleryApiResponse>('/api/generations', {
-        params: { limit: PAGE_SIZE, offset: mediaItems.value.length },
+        params: { limit: PAGE_SIZE, offset: mediaItems.value.length, type: typeFilter?.value || 'all' },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
 
