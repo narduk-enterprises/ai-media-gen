@@ -28,7 +28,7 @@ const deployState = reactive({
   gpuCount: 1,
   cloudType: 'SECURE',
   dataCenter: 'ANY',
-  volumeInGb: 20,
+  volumeInGb: 30,
   containerDiskInGb: 40,
   modelGroups: ['juggernaut', 'upscale'] as string[],
 })
@@ -47,6 +47,7 @@ const MODEL_GROUPS = [
   { value: 'ltx2_camera', label: 'LTX-2 Camera LoRAs', icon: '📷', sizeGb: 2, category: 'Video' },
   { value: 'upscale', label: 'RealESRGAN Upscale', icon: '🔍', sizeGb: 1, category: 'Shared' },
   { value: 'shared', label: 'AI Remix + Caption', icon: '💬', sizeGb: 8, category: 'Shared' },
+  { value: 'video_prompt', label: 'Video-to-Prompt (AWQ)', icon: '📝', sizeGb: 5, category: 'Shared' },
 ]
 
 // ─── Quick Deploy Presets ────────────────────────────────────────────────────
@@ -69,6 +70,7 @@ const QUICK_DEPLOY_PRESETS: QuickDeployPreset[] = [
   { id: 'ltx2_video', label: 'LTX-2 Video', icon: '🎥', description: 'LTX-2 19B video generation', modelGroups: ['ltx2', 'ltx2_camera', 'upscale', 'shared'], minVram: 24, color: 'from-emerald-500 to-teal-600', isVideo: true },
   { id: 'all_image', label: 'All Image Models', icon: '🎨', description: 'Every image checkpoint + upscale', modelGroups: ['juggernaut', 'pony', 'extra_checkpoints', 'qwen', 'flux2', 'z_image', 'z_image_turbo', 'upscale', 'shared'], minVram: 24, color: 'from-indigo-500 to-blue-600' },
   { id: 'full_stack', label: 'Full Stack', icon: '💎', description: 'All models — image + video', modelGroups: MODEL_GROUPS.map(g => g.value), minVram: 48, color: 'from-slate-700 to-slate-900', isVideo: true },
+  { id: 'video_prompt', label: 'Video-to-Prompt', icon: '📝', description: 'Analyze videos → structured prompts', modelGroups: ['video_prompt', 'shared'], minVram: 12, color: 'from-fuchsia-500 to-pink-600' },
 ]
 
 const showQuickDeploy = ref(false)
@@ -111,7 +113,7 @@ async function quickDeploy(gpuId: string, gpuName: string) {
   if (!preset || !quickDeployTemplateId.value) return
 
   const diskEstimate = calcPresetDisk(preset)
-  const volumeInGb = Math.max(20, Math.ceil(diskEstimate * 1.3))
+  const volumeInGb = Math.max(30, Math.ceil(diskEstimate * 1.3))
   const containerDiskInGb = preset.isVideo ? 20 : 10
 
   quickDeploying.value = true
@@ -149,7 +151,7 @@ const estimatedDiskGb = computed(() => {
 
 // Auto-update volume when groups change
 watch(() => deployState.modelGroups, () => {
-  deployState.volumeInGb = Math.ceil(estimatedDiskGb.value * 1.3) // 30% headroom
+  deployState.volumeInGb = Math.max(30, Math.ceil(estimatedDiskGb.value * 1.3)) // 30% headroom
 }, { deep: true })
 
 function toggleGroup(value: string) {
