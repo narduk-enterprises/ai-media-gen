@@ -16,7 +16,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  select: [payload: { mediaItemId?: string; base64?: string; url: string }]
+  select: [payload: { mediaItemId?: string; base64?: string; url: string; file?: File }]
   'update:selected': [ids: string[]]
   clear: []
 }>()
@@ -86,7 +86,7 @@ function readFile(file: File) {
     const dataUrl = reader.result as string
     uploadPreview.value = dataUrl
     const base64 = dataUrl.split(',')[1] || ''
-    emit('select', { base64, url: dataUrl })
+    emit('select', { base64, url: dataUrl, file })
   }
   reader.readAsDataURL(file)
 }

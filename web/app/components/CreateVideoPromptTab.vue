@@ -2,22 +2,25 @@
 const props = defineProps<{ prefillMediaId?: string | null }>()
 const gen = useGeneration()
 
-// ─── Source Video ───────────────────────────────────────────
+// ─── Source file ref (for FormData upload) ──────────────────
 const selectedMediaId = ref<string | null>(null)
 const uploadedBase64 = ref('')
+const uploadedFile = ref<File | null>(null)
 
 watch(() => props.prefillMediaId, (id) => {
   if (id) selectedMediaId.value = id
 }, { immediate: true })
 
-function onVideoSelect(payload: { mediaItemId?: string; base64?: string; url: string }) {
+function onVideoSelect(payload: { mediaItemId?: string; base64?: string; url: string; file?: File }) {
   selectedMediaId.value = payload.mediaItemId || null
   uploadedBase64.value = payload.base64 || ''
+  uploadedFile.value = payload.file || null
 }
 
 function onVideoClear() {
   selectedMediaId.value = null
   uploadedBase64.value = ''
+  uploadedFile.value = null
 }
 
 // ─── Settings ─────────────────────────────────────────
@@ -25,7 +28,7 @@ const customSystemPrompt = ref('')
 const selectedModel = ref('Qwen2.5-VL-7B-Instruct-AWQ')
 const frames = ref(16)
 
-const hasVideo = computed(() => !!selectedMediaId.value || !!uploadedBase64.value)
+const hasVideo = computed(() => !!selectedMediaId.value || !!uploadedFile.value || !!uploadedBase64.value)
 const canGenerate = computed(() => hasVideo.value)
 
 // ─── Generate ───────────────────────────────────────────────
@@ -40,40 +43,37 @@ async function generate() {
   generatedText.value = ''
 
   try {
-    let videoData = uploadedBase64.value
-    // If selecting an existing media id, we'd ideally fetch its base64 or pass its path.
-    // However, our backend `video2prompt` currently expects `videoData` as base64.
-    // If a user selects from gallery, we need to fetch the file and convert it to base64.
-    if (selectedMediaId.value && !videoData) {
-       // A proper implementation would fetch the video Blob and read as Base64.
-       // For now, let's show an error if they try to select from gallery without fetching data.
-       const vidUrl = (document.querySelector(`video[src*="${selectedMediaId.value}"]`) as HTMLVideoElement)?.src
-       if (vidUrl) {
-           const blob = await fetch(vidUrl).then(r => r.blob())
-           const reader = new FileReader()
-           videoData = await new Promise<string>((resolve) => {
-              reader.onload = () => resolve((reader.result as string).split(',')[1] || '')
-              reader.readAsDataURL(blob)
-           })
-       }
+    // Build a File/Blob for the video
+    let videoBlob: Blob | File | null = uploadedFile.value
+
+    if (!videoBlob && selectedMediaId.value) {
+      // Fetch video from gallery URL
+      const vidEl = document.querySelector(`video[src*="${selectedMediaId.value}"]`) as HTMLVideoElement | null
+      if (vidEl?.src) {
+        videoBlob = await fetch(vidEl.src).then(r => r.blob())
+      }
     }
 
-    if (!videoData) {
+    if (!videoBlob) {
       errorMsg.value = 'Failed to load video data for generation.'
       isGenerating.value = false
       return
     }
 
+    // Use FormData to send the binary file (not base64)
+    const formData = new FormData()
+    formData.append('video', videoBlob, 'video.mp4')
+    formData.append('frames', String(frames.value))
+    if (customSystemPrompt.value.trim()) {
+      formData.append('customSystemPrompt', customSystemPrompt.value.trim())
+    }
+    formData.append('targetModel', selectedModel.value)
+
     const { jobId } = await $fetch<{ jobId: string }>('/api/generate/video2prompt', {
       method: 'POST',
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      body: {
-        videoData,
-        frames: frames.value,
-        customSystemPrompt: customSystemPrompt.value.trim() || undefined,
-        targetModel: selectedModel.value,
-      },
-      timeout: 30000,
+      body: formData,
+      timeout: 60000,
     })
     
     // Poll the generation endpoint for completion

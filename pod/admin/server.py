@@ -1948,12 +1948,25 @@ def _run_single_generation(job_id, action, data):
             _log(f"✅ Done! Video: {os.path.getsize(out_path) / 1048576:.1f} MB")
 
         elif action == "video2prompt":
-            vid_data = base64.b64decode(data["video"])
             vid_filename = f"v2p_{job_id[:8]}.mp4"
             vid_path = os.path.join(COMFY_DIR, "input", vid_filename)
-            with open(vid_path, "wb") as f:
-                f.write(vid_data)
-            _log(f"✅ Video uploaded as {vid_filename}")
+
+            # Prefer video_url (downloads from R2), fall back to base64
+            video_url = data.get("video_url")
+            if video_url:
+                _log(f"⬇ Downloading video from URL...")
+                r = requests.get(video_url, timeout=120)
+                r.raise_for_status()
+                with open(vid_path, "wb") as f:
+                    f.write(r.content)
+                _log(f"✅ Video downloaded ({len(r.content) / 1048576:.1f}MB) as {vid_filename}")
+            elif data.get("video"):
+                vid_data = base64.b64decode(data["video"])
+                with open(vid_path, "wb") as f:
+                    f.write(vid_data)
+                _log(f"✅ Video decoded from base64 as {vid_filename}")
+            else:
+                raise ValueError("No video provided — need either 'video_url' or 'video' (base64)")
 
             frames = data.get("frames", 16)
             custom_prompt = data.get("custom_system_prompt", "")

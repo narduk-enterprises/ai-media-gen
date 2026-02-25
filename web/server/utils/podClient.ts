@@ -272,6 +272,7 @@ export async function submitCustomWorkflow(
 
 /**
  * Submit a video-to-prompt job.
+ * Uses video_url (R2 download link) instead of base64 video data.
  */
 export async function submitVideo2Prompt(
   input: Record<string, any>,
@@ -284,7 +285,7 @@ export async function submitVideo2Prompt(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: {
-      video: input.video,
+      video_url: input.video_url,
       frames: input.frames,
       custom_system_prompt: input.custom_system_prompt,
       target_model: input.target_model || 'Qwen2.5-VL-7B-Instruct-AWQ',
