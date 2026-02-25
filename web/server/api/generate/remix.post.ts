@@ -15,6 +15,7 @@ export default defineEventHandler(async (event) => {
     prompt: string
     count?: number
     temperature?: number
+    instruction?: string
     endpoint?: EndpointType | string
   }>(event)
 
@@ -34,6 +35,7 @@ export default defineEventHandler(async (event) => {
         prompt: body.prompt,
         count,
         temperature,
+        ...(body.instruction ? { instruction: body.instruction } : {}),
       },
       timeout: 120_000,
     })

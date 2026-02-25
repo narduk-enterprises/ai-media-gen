@@ -15,6 +15,10 @@ const { remixPrompt, remixLoading } = useRemix()
 const remixing = ref(false)
 const remixError = ref('')
 
+// Directed remix state
+const directRemixOpen = ref(false)
+const directInstruction = ref('')
+
 async function handleRemix() {
   if (!modelValue.value.trim()) return
   remixing.value = true
@@ -25,6 +29,23 @@ async function handleRemix() {
   } catch (e: any) {
     remixError.value = e?.message || 'Remix failed'
     console.error('[Remix] Error:', e)
+  } finally {
+    remixing.value = false
+  }
+}
+
+async function handleDirectedRemix() {
+  if (!modelValue.value.trim() || !directInstruction.value.trim()) return
+  remixing.value = true
+  remixError.value = ''
+  directRemixOpen.value = false
+  try {
+    modelValue.value = await remixPrompt(modelValue.value, directInstruction.value.trim())
+    directInstruction.value = ''
+    emit('remix')
+  } catch (e: any) {
+    remixError.value = e?.message || 'Directed remix failed'
+    console.error('[DirectedRemix] Error:', e)
   } finally {
     remixing.value = false
   }
@@ -96,6 +117,39 @@ defineExpose({ remixing })
       >
         AI Remix
       </UButton>
+      <UPopover v-model:open="directRemixOpen">
+        <UButton
+          size="xs"
+          variant="outline"
+          color="neutral"
+          icon="i-lucide-pencil"
+          :loading="remixing"
+          :disabled="!modelValue.trim() || disabled"
+        >
+          Direct
+        </UButton>
+        <template #content>
+          <div class="p-3 w-72 space-y-2">
+            <p class="text-xs text-slate-500 font-medium">How should the prompt change?</p>
+            <UInput
+              v-model="directInstruction"
+              placeholder="e.g. make it nighttime, add rain..."
+              size="sm"
+              autofocus
+              @keydown.enter="handleDirectedRemix"
+            />
+            <UButton
+              size="xs"
+              color="primary"
+              block
+              :disabled="!directInstruction.trim()"
+              @click="handleDirectedRemix"
+            >
+              Apply Change
+            </UButton>
+          </div>
+        </template>
+      </UPopover>
       <slot name="actions" />
       <span v-if="remixError" class="text-xs text-red-500">{{ remixError }}</span>
     </template>

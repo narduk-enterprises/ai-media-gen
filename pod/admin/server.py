@@ -1387,12 +1387,22 @@ _remix_pipeline = None
 _remix_lock = threading.Lock()
 
 _REMIX_SYSTEM = (
-    "You are a creative AI image prompt engineer. Given a user's image generation prompt, "
-    "create a variation that is visually distinct but thematically related. Make it more vivid, "
-    "detailed, and cinematic. Add interesting artistic styles, lighting, color palettes, "
-    "composition details, and atmosphere. Keep the core subject but transform the scene into "
-    "something fresh and stunning. Output ONLY the new prompt, nothing else. No explanations, "
+    "You are an AI image prompt editor. Given a user's image generation prompt, "
+    "create a SUBTLE variation that stays very close to the original. Keep the same "
+    "subject, scene, and overall composition. Only make small adjustments: slightly "
+    "different lighting, minor detail additions, a small shift in color palette, or "
+    "a subtle change in angle or atmosphere. The result should feel like a variant "
+    "of the SAME image, not a completely different one. Preserve at least 80%% of the "
+    "original wording. Output ONLY the new prompt, nothing else. No explanations, "
     "no quotes, no prefixes."
+)
+
+_REMIX_DIRECTED_SYSTEM = (
+    "You are an AI image prompt editor. Given a user's image generation prompt and "
+    "a specific change instruction, apply ONLY that change to the prompt while keeping "
+    "everything else as close to the original as possible. Do not add extra creative "
+    "embellishments beyond what was requested. Output ONLY the modified prompt, nothing "
+    "else. No explanations, no quotes, no prefixes."
 )
 
 def _get_remix_pipeline():
@@ -1414,14 +1424,24 @@ def _get_remix_pipeline():
         print("[Remix] ✅ Model loaded")
         return _remix_pipeline
 
-def _remix_prompts(prompt, count=1, temperature=0.9):
-    """Generate creative prompt variations using Qwen2.5-3B-Instruct."""
+def _remix_prompts(prompt, count=1, temperature=0.9, instruction=None):
+    """Generate prompt variations using Qwen2.5-3B-Instruct.
+    
+    If instruction is provided, uses directed remix (apply specific change).
+    Otherwise uses subtle variation mode.
+    """
     pipe = _get_remix_pipeline()
     prompts = []
     for _ in range(count):
+        if instruction:
+            system = _REMIX_DIRECTED_SYSTEM
+            user_msg = f"Original prompt:\n{prompt}\n\nApply this change: {instruction}"
+        else:
+            system = _REMIX_SYSTEM
+            user_msg = f"Create a subtle variation of this image prompt:\n\n{prompt}"
         messages = [
-            {"role": "system", "content": _REMIX_SYSTEM},
-            {"role": "user", "content": f"Create a creative variation of this image prompt:\n\n{prompt}"},
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_msg},
         ]
         result = pipe(
             messages,
@@ -2514,10 +2534,11 @@ class AdminHandler(BaseHTTPRequestHandler):
                 return self._json(400, {"error": "'prompt' field required"})
             count = min(max(data.get("count", 1), 1), 10)
             temperature = data.get("temperature", 0.9)
+            instruction = data.get("instruction")  # optional directed remix
 
             try:
                 t0 = time.time()
-                prompts = _remix_prompts(prompt, count=count, temperature=temperature)
+                prompts = _remix_prompts(prompt, count=count, temperature=temperature, instruction=instruction)
                 elapsed = round(time.time() - t0, 2)
                 return self._json(200, {"prompts": prompts, "elapsed_seconds": elapsed})
             except Exception as e:

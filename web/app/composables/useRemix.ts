@@ -13,13 +13,13 @@ export function useRemix() {
    * Call the server-side remix API.
    * Returns an array of `count` remixed prompts.
    */
-  async function remixServer(prompt: string, count = 1): Promise<string[]> {
+  async function remixServer(prompt: string, count = 1, instruction?: string): Promise<string[]> {
     const { effectiveEndpoint } = useAppSettings()
 
     const response = await $fetch<{ prompts: string[]; elapsed: number }>('/api/generate/remix', {
       method: 'POST',
       headers: { 'X-Requested-With': 'fetch' },
-      body: { prompt, count, endpoint: effectiveEndpoint.value },
+      body: { prompt, count, endpoint: effectiveEndpoint.value, ...(instruction ? { instruction } : {}) },
     })
 
     if (!response?.prompts?.length) {
@@ -31,8 +31,8 @@ export function useRemix() {
   /**
    * Remix a single prompt. Returns the remixed string.
    */
-  async function remixPrompt(prompt: string): Promise<string> {
-    const results = await remixServer(prompt, 1)
+  async function remixPrompt(prompt: string, instruction?: string): Promise<string> {
+    const results = await remixServer(prompt, 1, instruction)
     return results[0]!
   }
 
@@ -40,8 +40,8 @@ export function useRemix() {
    * Generate multiple variations of a single prompt.
    * Returns `count` variations.
    */
-  async function remixVariations(prompt: string, count = 4): Promise<string[]> {
-    return await remixServer(prompt, count)
+  async function remixVariations(prompt: string, count = 4, instruction?: string): Promise<string[]> {
+    return await remixServer(prompt, count, instruction)
   }
 
   /**
