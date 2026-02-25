@@ -8,14 +8,17 @@ import { generations, mediaItems } from '../../database/schema'
 const text2videoSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
   negativePrompt: z.string().optional().default(''),
-  width: z.number().min(256).max(1280).optional().default(832),
-  height: z.number().min(256).max(1280).optional().default(480),
-  numFrames: z.number().min(41).max(721).optional().default(81),
+  width: z.number().min(256).max(1920).optional().default(832),
+  height: z.number().min(256).max(1920).optional().default(480),
+  numFrames: z.number().min(9).max(1441).optional().default(81),
   steps: z.number().min(1).max(50).optional().default(4),
   loraStrength: z.number().min(0).max(2).optional().default(1.0),
   model: z.enum(['wan22', 'ltx2']).optional().default('wan22'),
   seed: z.number().int().optional().default(-1),
   audioPrompt: z.string().optional().default(''),
+  fps: z.number().min(8).max(60).optional(),
+  cfg: z.number().min(0).max(15).optional(),
+  cameraLora: z.string().optional(),
   endpoint: z.string().optional(),
   // Optional: reuse an existing generation to group batch items together
   generationId: z.string().uuid().optional(),
@@ -30,7 +33,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message || 'Invalid input' })
   }
 
-  const { prompt, negativePrompt, width, height, numFrames, steps, loraStrength, model, seed, audioPrompt, endpoint, generationId } = parsed.data
+  const { prompt, negativePrompt, width, height, numFrames, steps, loraStrength, model, seed, audioPrompt, fps, cfg, cameraLora, endpoint, generationId } = parsed.data
   const apiUrl = await resolveApiUrl(endpoint, 'video')
   const db = useDatabase()
   const now = new Date().toISOString()
@@ -75,11 +78,14 @@ export default defineEventHandler(async (event) => {
     negative_prompt: negativePrompt,
     width, height,
     num_frames: numFrames,
+    frames: numFrames,
     steps,
     lora_strength: loraStrength,
     model, seed,
     ...(audioPrompt ? { audio_prompt: audioPrompt } : {}),
-    ...(body.cameraLora ? { camera_lora: body.cameraLora } : {}),
+    ...(cameraLora ? { camera_lora: cameraLora } : {}),
+    ...(isLtx2 && fps ? { fps } : {}),
+    ...(isLtx2 && cfg != null ? { cfg } : {}),
   }
 
   await db.insert(mediaItems).values({

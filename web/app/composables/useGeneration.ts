@@ -297,6 +297,7 @@ export function useGeneration() {
     model?: string
     seed?: number
     audioPrompt?: string
+    cameraLora?: string
     count?: number
     append?: boolean
   }) {
@@ -324,13 +325,14 @@ export function useGeneration() {
             method: 'POST',
             body: {
               prompt: p, negativePrompt: opts.negativePrompt || '',
-              numFrames: nf, steps: opts.steps ?? 4,
-              cfg: opts.cfg, fps: opts.fps,
-              width: opts.width ?? 832, height: opts.height ?? 480,
-
-              loraStrength: opts.loraStrength ?? 1.0, model: opts.model ?? 'wan22',
+              numFrames: nf, steps: opts.steps ?? 20,
+              width: opts.width ?? 1280, height: opts.height ?? 720,
+              loraStrength: opts.loraStrength ?? 1.0, model: opts.model ?? 'ltx2',
               seed: opts.seed ?? -1,
               ...(opts.audioPrompt ? { audioPrompt: opts.audioPrompt } : {}),
+              ...(opts.cameraLora ? { cameraLora: opts.cameraLora } : {}),
+              ...(opts.cfg != null ? { cfg: opts.cfg } : {}),
+              ...(opts.fps != null ? { fps: opts.fps } : {}),
               ...(batchGenId ? { generationId: batchGenId } : {}),
             },
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
