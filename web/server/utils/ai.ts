@@ -186,7 +186,8 @@ export function getRequiredGroups(input: Record<string, any>): string[] {
     // Only search for image models for image actions
     if (json.includes('cyberrealisticpony') || json.includes('pony')) groups.add('pony')
     if (json.includes('juggernaut')) groups.add('juggernaut')
-    if (json.includes('epicrealism') || json.includes('hyperbeast') || json.includes('nsfw_sdxl') || json.includes('porn_craft') || json.includes('porncraft')) groups.add('extra_checkpoints')
+    if (json.includes('epicrealism') || json.includes('hyperbeast') || json.includes('porn_craft') || json.includes('porncraft')) groups.add('extra_checkpoints')
+    if (json.includes('nsfw_sdxl')) { groups.add('extra_checkpoints'); groups.add('z_image_turbo') }
     if (json.includes('flux') || json.includes('flux2')) groups.add('flux2')
   } else if (action === 'upscale' || action === 'upscale_video') {
     groups.add('upscale')
@@ -194,7 +195,8 @@ export function getRequiredGroups(input: Record<string, any>): string[] {
     // Fallback for unknown actions (e.g., custom raw workflows)
     if (json.includes('cyberrealisticpony') || json.includes('pony')) groups.add('pony')
     if (json.includes('juggernaut')) groups.add('juggernaut')
-    if (json.includes('epicrealism') || json.includes('hyperbeast') || json.includes('nsfw_sdxl') || json.includes('porn_craft') || json.includes('porncraft')) groups.add('extra_checkpoints')
+    if (json.includes('epicrealism') || json.includes('hyperbeast') || json.includes('porn_craft') || json.includes('porncraft')) groups.add('extra_checkpoints')
+    if (json.includes('nsfw_sdxl')) { groups.add('extra_checkpoints'); groups.add('z_image_turbo') }
     if (json.includes('flux') || json.includes('flux2')) groups.add('flux2')
     if (json.includes('wan2.2') || json.includes('wan_2.1') || json.includes('wan22')) groups.add('wan22')
     if (json.includes('ltxv') || json.includes('ltx2') || json.includes('ltx-video')) groups.add('ltx2')

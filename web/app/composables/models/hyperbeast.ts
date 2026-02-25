@@ -3,7 +3,7 @@
  * Uses CheckpointLoaderSimple (includes CLIP + VAE).
  * CivitAI model version 2712294.
  *
- * Recommended: 10 steps, Euler Ancestral / Normal.
+ * Recommended: 8 steps, DPM++ 2M SDE / SGM Uniform, CFG 1.5.
  */
 import type { ImageModelConfig } from './types'
 
@@ -17,18 +17,18 @@ export const hyperBeast: ImageModelConfig = {
     description: 'Fast SDXL, 10 steps',
     icon: 'i-lucide-zap',
     capabilities: ['t2i'],
-    defaultSteps: 10,
+    defaultSteps: 8,
   },
   params: {
-    steps: { min: 1, max: 30, default: 10 },
-    cfg: { min: 1, max: 15, default: 5.0, step: 0.5 },
+    steps: { min: 1, max: 30, default: 8 },
+    cfg: { min: 1, max: 2.0, default: 1.5, step: 0.1 },
     sampler: {
       options: SAMPLERS,
-      default: 'euler_ancestral',
+      default: 'dpmpp_2m_sde',
     },
     scheduler: {
       options: SCHEDULERS,
-      default: 'normal',
+      default: 'sgm_uniform',
     },
     sizes: [512, 768, 832, 1024, 1152, 1216, 1280, 1536],
     defaultWidth: 1024,

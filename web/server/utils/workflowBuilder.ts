@@ -332,7 +332,7 @@ export function buildEpicRealismWorkflow(opts: Text2ImageOptions) {
   })
 }
 
-/** Hyper Beast XXL (fast SDXL checkpoint, 10-step). */
+/** Hyper Beast XXL (Hyper SD-XL checkpoint, 8-step). */
 export function buildHyperBeastWorkflow(opts: Text2ImageOptions) {
   return injectParams(loadTemplate('sdxl_t2i'), {
     checkpoint: 'hyperBeastXXL.safetensors',
@@ -340,28 +340,30 @@ export function buildHyperBeastWorkflow(opts: Text2ImageOptions) {
     negative_prompt: opts.negativePrompt || DEFAULT_NEG_PROMPT,
     width: opts.width ?? 1024,
     height: opts.height ?? 1536,
-    steps: opts.steps ?? 10,
-    cfg: opts.cfg ?? 5.0,
+    steps: opts.steps ?? 8,
+    cfg: opts.cfg ?? 1.5,
     seed: seed(opts.seed),
-    sampler_name: opts.samplerName ?? 'euler_ancestral',
-    scheduler: opts.scheduler ?? 'normal',
+    sampler_name: opts.samplerName ?? 'dpmpp_2m_sde',
+    scheduler: opts.scheduler ?? 'sgm_uniform',
   })
 }
 
-/** NSFW SDXL (photorealistic SDXL checkpoint). */
+/** NSFW SDXL (Z-Image Turbo fine-tune, needs Qwen text encoder). */
 export function buildNsfwSdxlWorkflow(opts: Text2ImageOptions) {
-  return injectParams(loadTemplate('sdxl_t2i'), {
-    checkpoint: 'nsfwSdxl_v2602.safetensors',
+  const wf = injectParams(loadTemplate('z_image_turbo_t2i'), {
     prompt: opts.prompt,
     negative_prompt: opts.negativePrompt || DEFAULT_NEG_PROMPT,
     width: opts.width ?? 1024,
     height: opts.height ?? 1536,
-    steps: opts.steps ?? 30,
-    cfg: opts.cfg ?? 5.0,
+    steps: opts.steps ?? 28,
+    cfg: opts.cfg ?? 3.5,
     seed: seed(opts.seed),
-    sampler_name: opts.samplerName ?? 'dpmpp_2m_sde',
-    scheduler: opts.scheduler ?? 'karras',
+    sampler_name: opts.samplerName ?? 'dpmpp_2m',
+    scheduler: opts.scheduler ?? 'beta',
   })
+  // Override diffusion model to the NSFW SDXL checkpoint
+  if (wf['11']) wf['11'].inputs.unet_name = 'nsfwSdxl_v2602.safetensors'
+  return wf
 }
 
 /** Porn Craft (Illustrious SDXL checkpoint). */

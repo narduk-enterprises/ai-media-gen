@@ -316,7 +316,7 @@ CIVITAI_MODELS = [
     # ── Extra Checkpoints ──
     {"version_id": 94744, "filename": "epicrealism_naturalSinRC1.safetensors", "subdir": "checkpoints", "group": "extra_checkpoints"},
     {"version_id": 2712294, "filename": "hyperBeastXXL.safetensors", "subdir": "checkpoints", "group": "extra_checkpoints"},
-    {"version_id": 2668773, "filename": "nsfwSdxl_v2602.safetensors", "subdir": "checkpoints", "group": "extra_checkpoints"},
+    {"version_id": 2668773, "filename": "nsfwSdxl_v2602.safetensors", "subdir": "diffusion_models", "group": "extra_checkpoints"},
     {"version_id": 2663626, "filename": "pornCraftByStableYogi_v50FP32.safetensors", "subdir": "checkpoints", "group": "extra_checkpoints"},
 ]
 
