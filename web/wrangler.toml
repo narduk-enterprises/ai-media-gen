@@ -12,3 +12,6 @@ migrations_dir = "drizzle"
 [[r2_buckets]]
 binding = "MEDIA"
 bucket_name = "ai-media-gen-media"
+
+[triggers]
+crons = ["* * * * *"]

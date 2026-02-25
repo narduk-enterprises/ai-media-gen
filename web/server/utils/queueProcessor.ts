@@ -101,31 +101,42 @@ async function submitPhase(db: DB) {
       // Use model-aware routing: determine required groups and find a pod that has them
       const requiredGroups = getRequiredGroups(input)
       const podUrl = meta.apiUrl || meta.podUrl || await resolveApiUrl(undefined, undefined, requiredGroups)
+
+      // Construct callback URL so the pod can notify us on completion
+      let callbackUrl = ''
+      let callbackSecret = ''
+      try {
+        const config = useRuntimeConfig()
+        const appUrl = config.public?.appUrl || config.public?.siteUrl || ''
+        callbackUrl = appUrl ? `${appUrl}/api/generate/webhook` : ''
+        callbackSecret = config.webhookSecret || ''
+      } catch {}
+
       let response: { job_id: string; status?: string }
 
       switch (action) {
         case 'text2image':
-          response = await submitText2Image(input, podUrl)
+          response = await submitText2Image(input, podUrl, callbackUrl, callbackSecret)
           break
         case 'image2image':
-          response = await submitImage2Image(input, podUrl)
+          response = await submitImage2Image(input, podUrl, callbackUrl, callbackSecret)
           break
         case 'image2video':
-          response = await submitImage2Video(input, podUrl)
+          response = await submitImage2Video(input, podUrl, callbackUrl, callbackSecret)
           break
         case 'text2video':
-          response = await submitText2Video(input, podUrl)
+          response = await submitText2Video(input, podUrl, callbackUrl, callbackSecret)
           break
         case 'upscale':
         case 'upscale_video':
-          response = await submitUpscale(input, podUrl)
+          response = await submitUpscale(input, podUrl, callbackUrl, callbackSecret)
           break
         case 'multi_segment_video':
-          response = await submitMultiSegmentVideo(input, podUrl)
+          response = await submitMultiSegmentVideo(input, podUrl, callbackUrl, callbackSecret)
           break
         default: {
           const request = buildRequestFromMeta(meta)
-          response = await submitJob(request, podUrl)
+          response = await submitJob(request, podUrl, callbackUrl, callbackSecret)
           break
         }
       }
