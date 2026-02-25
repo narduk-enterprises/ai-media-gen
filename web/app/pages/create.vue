@@ -8,6 +8,31 @@ useSeoMeta({ title: 'Create' })
 const gen = useGeneration()
 const shared = useCreateShared()
 
+// ─── Machine Selection ──────────────────────────────────────────────────
+interface ActivePod { id: string; name: string; url: string; activeJobs: number }
+const activePods = ref<ActivePod[]>([])
+
+async function fetchPods() {
+  try {
+    const data = await $fetch<{ pods: ActivePod[] }>('/api/runpod/active-pods')
+    activePods.value = data.pods
+  } catch {}
+}
+
+const machineOptions = computed(() => {
+  const opts = [
+    { label: '🤖 Auto', value: 'auto' },
+    { label: '🔀 Any Machine', value: 'any' },
+  ]
+  for (const pod of activePods.value) {
+    const shortId = pod.id.slice(0, 8)
+    opts.push({ label: `${pod.name || shortId} (q${pod.activeJobs})`, value: pod.url })
+  }
+  return opts
+})
+
+onMounted(fetchPods)
+
 // ─── Tab Management ─────────────────────────────────────────────────────
 const mode = ref<string | number>('text2image')
 const route = useRoute()
@@ -142,12 +167,7 @@ const gridClass = computed(() => {
           <UButton v-if="gen.results.value.length > 0" variant="ghost" color="error" size="sm" icon="i-lucide-trash-2" @click="gen.clearResults()">Clear Results</UButton>
         </div>
         <div class="flex items-center gap-4">
-          <UTooltip text="Send to any available machine instead of preferring the image-only machine">
-            <label class="flex items-center gap-1.5 cursor-pointer select-none">
-              <USwitch v-model="shared.anyMachine.value" size="xs" />
-              <span class="text-xs text-slate-500"><UIcon name="i-lucide-server" class="w-3.5 h-3.5 inline-block align-text-bottom" /> Any Machine</span>
-            </label>
-          </UTooltip>
+          <USelect v-model="shared.targetMachine.value" :items="machineOptions" size="xs" class="w-44" />
           <UButton :loading="gen.generating.value" :disabled="!canGenerate" size="lg" :icon="isVideoMode ? 'i-lucide-film' : 'i-lucide-sparkles'" @click="handleGenerate(false)">
             {{ gen.generating.value ? 'Generating…' : (canGenerate ? (isVideoMode ? `Generate ${totalCount} Video${totalCount !== 1 ? 's' : ''}` : `Generate ${totalCount} Image${totalCount !== 1 ? 's' : ''}`) : 'Configure above') }}
           </UButton>

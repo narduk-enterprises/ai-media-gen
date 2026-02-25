@@ -73,7 +73,7 @@ async function generate(append = false) {
         loraStrength: loraStrength.value, model: modelId, seed: seed.value,
         cfg: cfg.value, sampler: sampler.value, scheduler: scheduler.value,
         customLoras: Object.keys(customLoras.value).length ? customLoras.value : undefined,
-        anyMachine: shared.anyMachine.value || undefined,
+        targetMachine: shared.targetMachine.value !== 'auto' ? shared.targetMachine.value : undefined,
       })
     } else {
       await gen.generate({
@@ -83,7 +83,7 @@ async function generate(append = false) {
         cfg: cfg.value, sampler: sampler.value, scheduler: scheduler.value,
         customLoras: Object.keys(customLoras.value).length ? customLoras.value : undefined,
         append: append || selectedModels.value.indexOf(modelId) > 0,
-        anyMachine: shared.anyMachine.value || undefined,
+        targetMachine: shared.targetMachine.value !== 'auto' ? shared.targetMachine.value : undefined,
       })
     }
   }

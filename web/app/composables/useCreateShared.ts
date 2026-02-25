@@ -25,11 +25,19 @@ export {
   VIDEO_MODEL_PARAMS,
 }
 
+/**
+ * targetMachine values:
+ *   - 'auto'       → default routing (prefers image-only pods for image jobs)
+ *   - 'any'        → skip image-only preference, pick least loaded pod
+ *   - 'https://...' → pin to a specific pod URL
+ */
+export type TargetMachine = 'auto' | 'any' | string
+
 export function useCreateShared() {
   // ─── Shared settings (useState for SSR → client hydration safety) ──
   const negativePrompt = useState('create-negativePrompt', () => DEFAULT_NEG)
   const showAdvanced = useState('create-showAdvanced', () => false)
-  const anyMachine = useState('create-anyMachine', () => false)
+  const targetMachine = useState<TargetMachine>('create-targetMachine', () => 'auto')
 
   // ─── Form persistence ─────────────────────────────────────────
   const FORM_KEY = 'ai-media-gen:create-form'
@@ -39,7 +47,7 @@ export function useCreateShared() {
     try {
       localStorage.setItem(FORM_KEY, JSON.stringify({
         negativePrompt: negativePrompt.value,
-        anyMachine: anyMachine.value,
+        targetMachine: targetMachine.value,
         ...extra,
       }))
     } catch {}
@@ -52,7 +60,9 @@ export function useCreateShared() {
       if (!raw) return {}
       const s = JSON.parse(raw)
       if (s.negativePrompt != null) negativePrompt.value = s.negativePrompt
-      if (s.anyMachine != null) anyMachine.value = s.anyMachine
+      if (s.targetMachine != null) targetMachine.value = s.targetMachine
+      // Backward compat: old anyMachine boolean
+      else if (s.anyMachine === true) targetMachine.value = 'any'
       return s
     } catch { return {} }
   }
@@ -60,14 +70,14 @@ export function useCreateShared() {
   function resetShared() {
     negativePrompt.value = DEFAULT_NEG
     showAdvanced.value = false
-    anyMachine.value = false
+    targetMachine.value = 'auto'
   }
 
   return {
     // Settings
     negativePrompt,
     showAdvanced,
-    anyMachine,
+    targetMachine,
     DEFAULT_NEG,
 
     // Models (re-exported from registry for backward compatibility)
