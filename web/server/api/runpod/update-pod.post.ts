@@ -32,8 +32,8 @@ export default defineEventHandler(async (event) => {
     // Re-generate the on-pod setup script from the repo copy
     '[ -f /workspace/_repo/pod/scripts/setup-machine.sh ] && cp /workspace/_repo/pod/scripts/setup-machine.sh /workspace/ || true',
     // Kick off setup in background (nohup so it survives)
-    'nohup bash /workspace/run-setup.sh </dev/null >/workspace/logs/setup.log 2>&1 &',
-    'echo "Setup started in background (PID $!)"',
+    // Use ; instead of && for the background command since & terminates the && chain
+    'nohup bash /workspace/run-setup.sh </dev/null >/workspace/logs/setup.log 2>&1 & echo "Setup started in background (PID $!)"',
   ].join(' && ')
 
   try {
