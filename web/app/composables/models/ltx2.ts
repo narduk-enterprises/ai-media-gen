@@ -20,9 +20,9 @@ export const LTX2_CAMERA_LORAS: CameraLoraDef[] = [
 // ─── Text Encoders ──────────────────────────────────────────────────────────
 
 export const LTX2_TEXT_ENCODERS: TextEncoderDef[] = [
-  { id: 'default', label: 'Default (FP4)', filename: '' },
+  { id: 'sikaworld', label: 'Sikaworld (Recommended)', filename: 'gemma-3-12b-it-abliterated-sikaworld-high-fidelity-edition.safetensors' },
   { id: 'heretic', label: 'Heretic (FP8)', filename: 'gemma_3_12B_it_heretic_fp8_e4m3fn.safetensors' },
-  { id: 'sikaworld', label: 'Sikaworld HiFi', filename: 'gemma-3-12b-it-abliterated-sikaworld-high-fidelity-edition.safetensors' },
+  { id: 'default', label: 'Default (FP4)', filename: '' },
 ]
 
 // ─── I2V Preset Keys (definitions live in workflow_loader.py) ───────────────
@@ -47,10 +47,10 @@ export const ltx2Video: VideoModelConfig = {
     defaultSteps: 20,
   },
   params: {
-    steps: { min: 1, max: 50, default: 20 },
-    cfg: { min: 1, max: 15, default: 3.5, step: 0.5 },
-    fps: { min: 12, max: 60, default: 24 },
-    lora: { min: 0, max: 2, default: 0.7, step: 0.05 },
+    steps: { min: 1, max: 50, default: 30, hint: '30-40 steps recommended for best quality' },
+    cfg: { min: 1, max: 15, default: 4.5, step: 0.5, hint: '4.0-5.0 recommended' },
+    fps: { min: 12, max: 60, default: 24, hint: 'Native speed is 24 FPS' },
+    lora: { min: 0, max: 2, default: 0.7, step: 0.05, hint: 'Recommended: 0.65-0.75' },
     imageStrength: { min: 0, max: 1, default: 1.0, step: 0.05 },
     resolutions: [
       { label: '1280 × 720 → 2560×1440', w: 1280, h: 720 },

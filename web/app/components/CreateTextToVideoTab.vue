@@ -195,7 +195,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
         <DurationPicker v-model="numFrames" :presets="durationPresets" />
 
         <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
-          <StepsSlider v-model="steps" :min="params.steps.min" :max="params.steps.max" />
+          <StepsSlider v-model="steps" :min="params.steps.min" :max="params.steps.max" :hint="params.steps.hint" />
           <ResolutionPicker v-model="resolutionIndex" :presets="params.resolutions" />
           <UFormField label="Seed" size="sm" :description="seed < 0 ? 'Random' : 'Fixed'">
             <div class="flex items-center gap-2">
@@ -203,6 +203,10 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
               <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-shuffle" square @click="seed = -1" title="Random seed" />
             </div>
           </UFormField>
+          
+          <SliderField v-if="params.cfg" v-model="cfg" label="CFG" :min="params.cfg.min" :max="params.cfg.max" :step="params.cfg.step" :description="params.cfg.hint" />
+          <SliderField v-if="params.fps" v-model="fps" label="FPS" :min="params.fps.min" :max="params.fps.max" :description="params.fps.hint" />
+          <SliderField v-if="params.lora" v-model="loraStrength" label="LoRA" :min="params.lora.min" :max="params.lora.max" :step="params.lora.step" :description="params.lora.hint" />
         </div>
       </div>
     </UCard>
@@ -255,14 +259,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
               @click="textEncoder = enc.filename"
             >{{ enc.label }}</UButton>
           </div>
-          <p class="text-[10px] text-slate-400">Abliterated encoders may produce more realistic or uncensored video results.</p>
-        </div>
-
-        <!-- Advanced LTX-2 controls -->
-        <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
-          <SliderField v-if="params.cfg" v-model="cfg" label="CFG" :min="params.cfg.min" :max="params.cfg.max" :step="params.cfg.step" />
-          <SliderField v-if="params.fps" v-model="fps" label="FPS" :min="params.fps.min" :max="params.fps.max" />
-          <SliderField v-if="params.lora" v-model="loraStrength" label="LoRA" :min="params.lora.min" :max="params.lora.max" :step="params.lora.step" />
+          <p class="text-[10px] text-slate-400">Abliterated encoders may produce more realistic or uncensored video results. <span class="font-semibold text-slate-500">For maximum prompt adherence, select Sikaworld.</span></p>
         </div>
       </div>
     </UCard>

@@ -48,8 +48,8 @@ export const wan22Video: VideoModelConfig = {
     defaultSteps: 4,
   },
   params: {
-    steps: { min: 1, max: 50, default: 4 },
-    cfg: { min: 1, max: 15, default: 3.5, step: 0.5 },
+    steps: { min: 1, max: 50, default: 4, hint: 'Wan 2.2 is optimized for exactly 4 steps' },
+    cfg: { min: 1, max: 15, default: 3.5, step: 0.5, hint: '3.5 is the recommended default' },
     resolutions: [
       { label: '640 × 640', w: 640, h: 640 },
       { label: '512 × 512', w: 512, h: 512 },

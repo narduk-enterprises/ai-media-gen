@@ -5,6 +5,7 @@ withDefaults(defineProps<{
   max?: number
   lowLabel?: string
   highLabel?: string
+  hint?: string
 }>(), {
   label: 'Quality (Steps)',
   min: 1,
@@ -27,5 +28,6 @@ const modelValue = defineModel<number>({ default: 4 })
       <span>{{ lowLabel }}</span>
       <span>{{ highLabel }}</span>
     </div>
+    <p v-if="hint" class="text-[10px] text-slate-500 mt-1">{{ hint }}</p>
   </section>
 </template>

@@ -14,6 +14,8 @@ export interface ParameterRange {
   max: number
   default: number
   step?: number
+  /** Optional hint text to display next to the parameter to guide the user to the best value */
+  hint?: string
 }
 
 export interface ResolutionPreset {
