@@ -3,6 +3,16 @@ export interface BatchItem {
   prompt: string
   negativePrompt?: string
   audioPrompt?: string
+  steps?: number
+  cfg?: number
+  frames?: number
+  width?: number
+  height?: number
+  cameraLora?: string
+  loraStrength?: number
+  fps?: number
+  textEncoder?: string
+  seed?: number
 }
 
 defineProps<{
@@ -29,10 +39,29 @@ function parseBatchJson(raw: string): BatchItem[] | null {
         } else if (typeof item === 'object' && item !== null) {
           const p = item.prompt ?? item.Positive ?? item.positive
           if (typeof p === 'string' && p.trim()) {
+            const parsedSteps = item.steps ? Number(item.steps) : undefined
+            const parsedCfg = item.cfg ? Number(item.cfg) : undefined
+            const parsedFrames = (item.frames ?? item.numFrames ?? item.num_frames) ? Number(item.frames ?? item.numFrames ?? item.num_frames) : undefined
+            const parsedWidth = item.width ? Number(item.width) : undefined
+            const parsedHeight = item.height ? Number(item.height) : undefined
+            const parsedFps = item.fps ? Number(item.fps) : undefined
+            const parsedLoraStrength = (item.loraStrength ?? item.lora_strength) ? Number(item.loraStrength ?? item.lora_strength) : undefined
+            const parsedSeed = item.seed ? Number(item.seed) : undefined
+
             result.push({
               prompt: p.trim(),
               negativePrompt: item.negativePrompt ?? item.negative_prompt ?? item.negative ?? undefined,
               audioPrompt: item.audioPrompt ?? item.audio_prompt ?? item.audio ?? undefined,
+              steps: !isNaN(parsedSteps as any) ? parsedSteps : undefined,
+              cfg: !isNaN(parsedCfg as any) ? parsedCfg : undefined,
+              frames: !isNaN(parsedFrames as any) ? parsedFrames : undefined,
+              width: !isNaN(parsedWidth as any) ? parsedWidth : undefined,
+              height: !isNaN(parsedHeight as any) ? parsedHeight : undefined,
+              fps: !isNaN(parsedFps as any) ? parsedFps : undefined,
+              loraStrength: !isNaN(parsedLoraStrength as any) ? parsedLoraStrength : undefined,
+              seed: !isNaN(parsedSeed as any) ? parsedSeed : undefined,
+              cameraLora: item.cameraLora ?? item.camera_lora,
+              textEncoder: item.textEncoder ?? item.text_encoder,
             })
           }
         }
@@ -213,9 +242,13 @@ defineExpose({ prompts })
           <span class="text-[10px] text-slate-400 font-mono w-6 shrink-0 text-right pt-0.5">{{ i + 1 }}</span>
           <div class="flex-1 min-w-0">
             <p class="text-xs text-slate-600 leading-relaxed line-clamp-2">{{ item.prompt }}</p>
-            <div v-if="richMode && (item.negativePrompt || item.audioPrompt)" class="flex flex-wrap gap-2 mt-0.5">
+            <div v-if="richMode && (item.negativePrompt || item.audioPrompt || item.steps || item.cfg || item.frames || item.cameraLora || item.width || item.seed)" class="flex flex-wrap gap-2 mt-0.5 items-center">
               <span v-if="item.negativePrompt" class="text-[10px] text-red-400 truncate max-w-[200px]">⛔ {{ item.negativePrompt }}</span>
               <span v-if="item.audioPrompt" class="text-[10px] text-amber-500 truncate max-w-[200px]">🔊 {{ item.audioPrompt }}</span>
+              <span v-if="item.steps || item.cfg || item.frames || item.cameraLora || item.width || item.seed" class="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded flex items-center gap-1">
+                <UIcon name="i-lucide-settings-2" class="w-3 h-3" />
+                Custom Params
+              </span>
             </div>
           </div>
           <button

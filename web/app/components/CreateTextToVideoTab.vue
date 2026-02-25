@@ -75,7 +75,10 @@ const allPrompts = computed(() => {
 })
 
 const totalCount = computed(() => {
-  if (batchMode.value) return batchItems.value.length * numFrames.value.length
+  if (batchMode.value) {
+    if (batchItems.value.length === 0) return 0
+    return batchItems.value.reduce((acc, item) => acc + (item.frames ? 1 : numFrames.value.length), 0)
+  }
   return numFrames.value.length * count.value
 })
 const canGenerate = computed(() => allPrompts.value.length > 0)
@@ -106,7 +109,15 @@ async function generate() {
 
 // ─── Estimated time ─────────────────────────────────────────────────────
 const estimatedTime = computed(() => {
-  const totalFrames = numFrames.value.reduce((a, b) => a + b, 0) * (batchMode.value ? allPrompts.value.length : count.value)
+  let totalFrames = 0
+  if (batchMode.value) {
+    totalFrames = batchItems.value.reduce((acc, item) => {
+      const itemFrames = item.frames ? item.frames : numFrames.value.reduce((a, b) => a + b, 0)
+      return acc + itemFrames
+    }, 0)
+  } else {
+    totalFrames = numFrames.value.reduce((a, b) => a + b, 0) * count.value
+  }
   // Rough estimates: Wan ~3s/frame, LTX-2 ~2s/frame at standard res
   const secsPerFrame = isLtx2.value ? 2 : 3
   const secs = totalFrames * secsPerFrame / (isLtx2.value ? 24 : 24)
@@ -175,7 +186,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
       <div v-else class="space-y-2">
         <div class="flex items-center justify-between">
           <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Batch Prompts</span>
-          <UBadge v-if="batchItems.length > 0" size="xs" variant="subtle" color="info">{{ batchItems.length }} prompt{{ batchItems.length !== 1 ? 's' : '' }} × {{ numFrames.length }} duration{{ numFrames.length !== 1 ? 's' : '' }} = {{ totalCount }} video{{ totalCount !== 1 ? 's' : '' }}</UBadge>
+          <UBadge v-if="batchItems.length > 0" size="xs" variant="subtle" color="info">{{ batchItems.length }} prompt{{ batchItems.length !== 1 ? 's' : '' }} · {{ totalCount }} video{{ totalCount !== 1 ? 's' : '' }}</UBadge>
         </div>
         <BatchJsonInput
           v-model:items="batchItems"

@@ -287,7 +287,7 @@ export function useGeneration() {
     prompt?: string
     prompts?: string[]
     /** Rich batch items with per-item negativePrompt/audioPrompt overrides */
-    batchItems?: { prompt: string; negativePrompt?: string; audioPrompt?: string }[]
+    batchItems?: { prompt: string; negativePrompt?: string; audioPrompt?: string; steps?: number; cfg?: number; width?: number; height?: number; cameraLora?: string; loraStrength?: number; fps?: number; textEncoder?: string; seed?: number; frames?: number; }[]
     negativePrompt?: string
     numFrames?: number | number[]
     steps?: number
@@ -305,7 +305,7 @@ export function useGeneration() {
     append?: boolean
   }) {
     // Build the list of items to generate — batchItems take priority
-    const itemsToGenerate: { prompt: string; negativePrompt?: string; audioPrompt?: string }[] =
+    const itemsToGenerate: { prompt: string; negativePrompt?: string; audioPrompt?: string; steps?: number; cfg?: number; width?: number; height?: number; cameraLora?: string; loraStrength?: number; fps?: number; textEncoder?: string; seed?: number; frames?: number; }[] =
       opts.batchItems?.length
         ? opts.batchItems
         : opts.prompts?.length
@@ -316,7 +316,7 @@ export function useGeneration() {
     if (itemsToGenerate.length === 0) return
 
     const durations = Array.isArray(opts.numFrames) ? opts.numFrames : [opts.numFrames ?? 81]
-    const totalJobs = itemsToGenerate.length * durations.length
+    const totalJobs = itemsToGenerate.reduce((acc, item) => acc + (item.frames ? 1 : durations.length), 0)
 
     submitting.value = true
     error.value = ''
@@ -327,7 +327,8 @@ export function useGeneration() {
     let submitted = 0
 
     for (const item of itemsToGenerate) {
-      for (const nf of durations) {
+      const itemDurations = item.frames ? [item.frames] : durations
+      for (const nf of itemDurations) {
         try {
           // Per-item overrides fall back to global opts
           const itemNeg = item.negativePrompt ?? opts.negativePrompt ?? ''
@@ -340,15 +341,15 @@ export function useGeneration() {
             method: 'POST',
             body: {
               prompt: item.prompt, negativePrompt: itemNeg,
-              numFrames: nf, steps: opts.steps ?? 20,
-              width: opts.width ?? 1280, height: opts.height ?? 720,
-              loraStrength: opts.loraStrength ?? 1.0, model: opts.model ?? 'ltx2',
-              seed: opts.seed ?? -1,
+              numFrames: nf, steps: item.steps ?? opts.steps ?? 20,
+              width: item.width ?? opts.width ?? 1280, height: item.height ?? opts.height ?? 720,
+              loraStrength: item.loraStrength ?? opts.loraStrength ?? 1.0, model: opts.model ?? 'ltx2',
+              seed: item.seed ?? opts.seed ?? -1,
               ...(itemAudio ? { audioPrompt: itemAudio } : {}),
-              ...(opts.cameraLora ? { cameraLora: opts.cameraLora } : {}),
-              ...(opts.textEncoder ? { textEncoder: opts.textEncoder } : {}),
-              ...(opts.cfg != null ? { cfg: opts.cfg } : {}),
-              ...(opts.fps != null ? { fps: opts.fps } : {}),
+              ...(item.cameraLora || opts.cameraLora ? { cameraLora: item.cameraLora ?? opts.cameraLora } : {}),
+              ...(item.textEncoder || opts.textEncoder ? { textEncoder: item.textEncoder ?? opts.textEncoder } : {}),
+              ...(item.cfg != null || opts.cfg != null ? { cfg: item.cfg ?? opts.cfg } : {}),
+              ...(item.fps != null || opts.fps != null ? { fps: item.fps ?? opts.fps } : {}),
               ...(batchGenId ? { generationId: batchGenId } : {}),
             },
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
