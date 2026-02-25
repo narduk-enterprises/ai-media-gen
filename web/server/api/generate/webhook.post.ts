@@ -11,6 +11,7 @@ import { eq } from 'drizzle-orm'
 import { mediaItems } from '../../database/schema'
 import { checkJobStatus } from '../../utils/podClient'
 import { completeMediaItem, updateGenerationStatus } from '../../utils/completeItem'
+import { requeueForRetry } from '../../utils/queueProcessor'
 import { useMediaBucket } from '../../utils/r2'
 
 interface WebhookPayload {
@@ -85,7 +86,17 @@ export default defineEventHandler(async (event) => {
 
     const result = await checkJobStatus(payload.job_id, podUrl)
     if (result) {
-      const outcome = await completeMediaItem(db, mediaBucket, item.id, result)
+      const { outcome, error } = await completeMediaItem(db, mediaBucket, item.id, result)
+
+      // If the job failed with a retryable error, re-queue on a different pod
+      if (outcome === 'failed' && error) {
+        const requeued = await requeueForRetry(db, item, error)
+        if (requeued) {
+          console.log(`[Webhook] ♻️ ${item.id.slice(0, 8)} failed → re-queued on different pod`)
+          return { ok: true, action: 'requeued' }
+        }
+      }
+
       console.log(`[Webhook] ✅ ${item.id.slice(0, 8)} → ${outcome}`)
       return { ok: true, action: outcome }
     }
@@ -101,6 +112,14 @@ export default defineEventHandler(async (event) => {
   // ── Handle failure ───────────────────────────────────────────
   if (payload.status === 'failed') {
     const error = payload.error || 'Pod generation failed'
+
+    // Try to re-queue on a different pod before giving up
+    const requeued = await requeueForRetry(db, item, error)
+    if (requeued) {
+      console.log(`[Webhook] ♻️ ${item.id.slice(0, 8)} failed → re-queued on different pod: ${error.slice(0, 100)}`)
+      return { ok: true, action: 'requeued' }
+    }
+
     await db.update(mediaItems)
       .set({ status: 'failed', error })
       .where(eq(mediaItems.id, item.id))

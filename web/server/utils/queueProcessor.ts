@@ -25,7 +25,7 @@ type DB = DrizzleD1Database<any>
 
 const MAX_CONCURRENT = 10
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000 // 24 hours — only catches truly lost jobs
-const MAX_RETRIES = 5
+export const MAX_RETRIES = 5
 
 /**
  * Main entry point — called by the cron task.
@@ -154,45 +154,14 @@ async function submitPhase(db: DB) {
       return true
     } catch (e: any) {
       const errMsg = e?.data?.error?.message || e?.data?.message || e?.message || ''
-      const isRetryable = isRetryableError(errMsg, e)
-      const meta = parseItemMeta(item)
-      const retryCount = meta._retryCount || 0
-      const failedPods: string[] = meta._failedPods || []
-      const podUrl = meta.apiUrl || meta.podUrl || ''
-
-      if (isRetryable && retryCount < MAX_RETRIES) {
-        // Track this pod as failed so we route elsewhere next time
-        if (podUrl && !failedPods.includes(podUrl)) failedPods.push(podUrl)
-
-        // Clear the pinned pod URL so it re-routes through resolveApiUrl
-        const retryMeta = {
-          ...meta,
-          apiUrl: undefined,
-          podUrl: undefined,
-          _retryCount: retryCount + 1,
-          _failedPods: failedPods,
-          _lastError: errMsg.slice(0, 200),
-        }
-
+      const requeued = await requeueForRetry(db, item, errMsg, e)
+      if (!requeued) {
+        console.error(`[Queue] ❌ Failed to submit ${item.id.slice(0, 8)}:`, e.message)
         await db.update(mediaItems)
-          .set({
-            status: 'queued',
-            runpodJobId: null,
-            submittedAt: null,
-            error: null,
-            metadata: JSON.stringify(retryMeta),
-          })
+          .set({ status: 'failed', error: `Pod submit failed: ${e.message}` })
           .where(eq(mediaItems.id, item.id))
-
-        console.log(`[Queue] ♻️ ${item.id.slice(0, 8)} retryable error → re-queued (retry ${retryCount + 1}/${MAX_RETRIES}, excluding ${failedPods.length} pod(s)): ${errMsg.slice(0, 100)}`)
-        return false
+        await updateGenerationStatus(db, item.generationId)
       }
-
-      console.error(`[Queue] ❌ Failed to submit ${item.id.slice(0, 8)}:`, e.message)
-      await db.update(mediaItems)
-        .set({ status: 'failed', error: `Pod submit failed: ${e.message}` })
-        .where(eq(mediaItems.id, item.id))
-      await updateGenerationStatus(db, item.generationId)
       return false
     }
   }))
@@ -228,10 +197,15 @@ async function pollPhase(db: DB, mediaBucket: R2Bucket | null) {
       const result = await checkJobStatus(item.runpodJobId!, podUrl)
       if (!result) return 'processing' as const
 
-      const outcome = await completeMediaItem(db, mediaBucket, item.id, result)
+      const { outcome, error } = await completeMediaItem(db, mediaBucket, item.id, result)
 
       if (outcome === 'completed') return 'completed' as const
-      if (outcome === 'failed') return 'failed' as const
+      if (outcome === 'failed') {
+        // Try to re-queue on a different pod if the error looks retryable
+        const requeued = await requeueForRetry(db, item, error || 'unknown error')
+        if (requeued) return 'requeued' as const
+        return 'failed' as const
+      }
       return 'processing' as const
     } catch (e: any) {
       console.warn(`[Queue] ⚠️ ${item.id.slice(0, 8)} check error:`, e.message)
@@ -310,14 +284,62 @@ async function cleanupPhase(db: DB) {
   return { staleMarked }
 }
 
+// ─── Shared retry helper ────────────────────────────────────
+
+/**
+ * Re-queue a media item for retry on a different pod.
+ * Tracks the failed pod URL so routing avoids it next round.
+ * Returns true if re-queued, false if max retries exhausted.
+ */
+export async function requeueForRetry(
+  db: DB,
+  item: { id: string; metadata?: string | null; generationId: string },
+  errMsg: string,
+  error?: any,
+): Promise<boolean> {
+  if (!isRetryableError(errMsg, error)) return false
+
+  const meta = parseItemMeta(item)
+  const retryCount = meta._retryCount || 0
+  const failedPods: string[] = meta._failedPods || []
+  const podUrl = meta.apiUrl || meta.podUrl || ''
+
+  if (retryCount >= MAX_RETRIES) return false
+
+  // Track this pod as failed so we route elsewhere next time
+  if (podUrl && !failedPods.includes(podUrl)) failedPods.push(podUrl)
+
+  // Clear the pinned pod URL so it re-routes through resolveApiUrl
+  const retryMeta = {
+    ...meta,
+    apiUrl: undefined,
+    podUrl: undefined,
+    _retryCount: retryCount + 1,
+    _failedPods: failedPods,
+    _lastError: errMsg.slice(0, 200),
+  }
+
+  await db.update(mediaItems)
+    .set({
+      status: 'queued',
+      runpodJobId: null,
+      submittedAt: null,
+      error: null,
+      metadata: JSON.stringify(retryMeta),
+    })
+    .where(eq(mediaItems.id, item.id))
+
+  console.log(`[Queue] ♻️ ${item.id.slice(0, 8)} retryable error → re-queued (retry ${retryCount + 1}/${MAX_RETRIES}, excluding ${failedPods.length} pod(s)): ${errMsg.slice(0, 100)}`)
+  return true
+}
+
 /**
  * Detect errors that may succeed on a different pod.
- * - ComfyUI 400: model not available (not synced on that pod)
- * - Connection refused / timeout (pod still starting)
- * - SafetensorError (corrupt model file on that pod)
+ * Covers both submission-time and execution-time failures.
  */
-function isRetryableError(msg: string, error?: any): boolean {
+export function isRetryableError(msg: string, error?: any): boolean {
   const statusCode = error?.statusCode || error?.status || 0
+  const lower = msg.toLowerCase()
 
   // ComfyUI 400 — model/checkpoint not found on this pod
   if (statusCode === 400 && (msg.includes('not in list') || msg.includes('value_not_in_list') || msg.includes('not in ['))) {
@@ -331,6 +353,21 @@ function isRetryableError(msg: string, error?: any): boolean {
 
   // Pod not reachable (still starting or down)
   if (msg.includes('ECONNREFUSED') || msg.includes('fetch failed') || msg.includes('ETIMEDOUT') || statusCode === 502 || statusCode === 503) {
+    return true
+  }
+
+  // ComfyUI execution-time failures (prompt/workflow errors)
+  if (lower.includes('error occurred') || lower.includes('prompt outputs failed') || lower.includes('generation failed')) {
+    return true
+  }
+
+  // Pod generation failed generically
+  if (lower.includes('pod generation failed') || lower.includes('comfyui error')) {
+    return true
+  }
+
+  // OOM / CUDA errors — may work on a different GPU
+  if (lower.includes('out of memory') || lower.includes('cuda error') || lower.includes('oom')) {
     return true
   }
 

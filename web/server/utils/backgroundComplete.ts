@@ -68,7 +68,7 @@ export async function recoverOrphanedItems(db: DB, mediaBucket: R2Bucket | null)
         stillProcessing++
         continue
       }
-      const outcome = await completeMediaItem(db, mediaBucket, item.id, result)
+      const { outcome } = await completeMediaItem(db, mediaBucket, item.id, result)
       if (outcome === 'completed' || outcome === 'already_resolved') recovered++
       else if (outcome === 'failed') failed++
       else stillProcessing++

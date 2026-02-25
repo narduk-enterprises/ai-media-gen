@@ -25,15 +25,22 @@ export interface RunPodResult {
  * - Uploads to R2 if bucket available, falls back to data URI
  * - Updates generation status after every resolution
  */
+export type CompleteOutcome = 'completed' | 'failed' | 'already_resolved' | 'still_running'
+
+export interface CompleteResult {
+  outcome: CompleteOutcome
+  error?: string
+}
+
 export async function completeMediaItem(
   db: DB,
   bucket: R2Bucket | null,
   itemId: string,
   result: RunPodResult,
-): Promise<'completed' | 'failed' | 'already_resolved' | 'still_running'> {
+): Promise<CompleteResult> {
   // Still running — nothing to do
   if (!result || result.status === 'IN_PROGRESS' || result.status === 'IN_QUEUE') {
-    return 'still_running'
+    return { outcome: 'still_running' }
   }
 
   // Race guard: re-check item is still processing before writing
@@ -41,7 +48,7 @@ export async function completeMediaItem(
     .from(mediaItems).where(eq(mediaItems.id, itemId)).limit(1)
 
   if (!fresh || (fresh.status !== 'processing' && fresh.status !== 'failed')) {
-    return 'already_resolved'
+    return { outcome: 'already_resolved' }
   }
 
   const generationId = fresh.generationId
@@ -68,7 +75,7 @@ export async function completeMediaItem(
 
     console.log(`[Complete] ✅ ${itemId.slice(0, 8)} complete`)
     await updateGenerationStatus(db, generationId)
-    return 'completed'
+    return { outcome: 'completed' }
   }
 
   if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(result.status)) {
@@ -79,10 +86,10 @@ export async function completeMediaItem(
 
     console.log(`[Complete] ❌ ${itemId.slice(0, 8)} ${result.status}: ${error}`)
     await updateGenerationStatus(db, generationId)
-    return 'failed'
+    return { outcome: 'failed', error }
   }
 
-  return 'still_running'
+  return { outcome: 'still_running' }
 }
 
 /**
