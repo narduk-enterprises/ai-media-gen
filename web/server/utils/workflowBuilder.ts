@@ -295,7 +295,7 @@ export function buildCyberrealisticWorkflow(
     steps: opts.steps ?? 30,
     cfg: opts.cfg ?? 5.0,
     seed: s,
-    sampler_name: opts.samplerName ?? 'dpmpp_2m_sde',
+    sampler_name: opts.samplerName ?? 'dpmpp_sde',
     scheduler: opts.scheduler ?? 'karras',
   })
   if (opts.loraName) {

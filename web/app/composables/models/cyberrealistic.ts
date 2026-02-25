@@ -22,7 +22,7 @@ export const cyberRealisticPony: ImageModelConfig = {
     cfg: { min: 1, max: 15, default: 5.0, step: 0.5 },
     sampler: {
       options: CR_SAMPLERS,
-      default: 'dpmpp_2m_sde',
+      default: 'dpmpp_sde',
     },
     scheduler: {
       options: CR_SCHEDULERS,

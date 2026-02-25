@@ -244,7 +244,7 @@ def build_juggernaut_workflow(prompt, negative_prompt="", width=1024,
 
 def build_cyberrealistic_workflow(prompt, negative_prompt="", width=1024,
                                    height=1536, steps=30, cfg=5.0, seed=None,
-                                   sampler_name="dpmpp_2m_sde",
+                                   sampler_name="dpmpp_sde",
                                    scheduler="karras",
                                    lora_name=None, lora_strength=0.7):
     """CyberRealistic Pony (SDXL checkpoint), with optional LoRA."""
