@@ -23,6 +23,7 @@ Available groups:
   ltx2_camera        — LTX-2 camera control LoRAs (~2GB)
   upscale            — RealESRGAN x2 + x4 (~0.2GB)
   shared             — Qwen2.5 captioning/remix models (~8GB)
+  video_prompt       — Qwen2.5-VL-7B AWQ for video-to-prompt (~5GB)
 
 Usage:
   python3 -u sync_models.py --groups juggernaut,upscale
@@ -125,9 +126,9 @@ def _clean_orphaned_tmps():
 # ── Profile → Group Mappings (legacy compat) ────────────────────────────────
 PROFILE_TO_GROUPS = {
     "image": ["juggernaut", "pony", "extra_checkpoints", "qwen", "flux2", "z_image", "z_image_turbo", "upscale"],
-    "video": ["wan22", "ltx2", "ltx2_camera", "upscale", "shared"],
+    "video": ["wan22", "ltx2", "ltx2_camera", "upscale", "shared", "video_prompt"],
     "full": ["juggernaut", "pony", "extra_checkpoints", "qwen", "flux2", "z_image", "z_image_turbo",
-             "wan22", "ltx2", "ltx2_camera", "upscale", "shared"],
+             "wan22", "ltx2", "ltx2_camera", "upscale", "shared", "video_prompt"],
 }
 
 ALL_GROUPS = list(PROFILE_TO_GROUPS["full"])
@@ -302,6 +303,13 @@ REPOS = [
         "group": "shared",
         "full": True,
         "target": "transformers/Qwen--Qwen2.5-VL-7B-Instruct",
+    },
+    # ── Video-to-Prompt (AWQ quantized for fast inference) ──
+    {
+        "repo": "Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
+        "group": "video_prompt",
+        "full": True,
+        "target": "transformers/Qwen--Qwen2.5-VL-7B-Instruct-AWQ",
     },
 ]
 

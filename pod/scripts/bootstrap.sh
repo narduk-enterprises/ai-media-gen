@@ -176,13 +176,20 @@ echo "▸ [4/5] Installing ComfyUI + custom nodes..."
       "https://github.com/BAIKEMARK/ComfyUI-Civitai-Toolkit.git ComfyUI-Civitai-Toolkit" \
       "https://github.com/Fannovel16/ComfyUI-Video-Matting.git ComfyUI-Video-Matting" \
       "https://github.com/ltdrdata/ComfyUI-Manager.git ComfyUI-Manager" \
-      "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git ComfyUI-VideoHelperSuite"
+      "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git ComfyUI-VideoHelperSuite" \
+      "https://github.com/if-ai/ComfyUI-IF_VideoPrompts.git ComfyUI-IF_VideoPrompts"
     do
         url="${pair%% *}"
         name="${pair##* }"
         if [ ! -d "$NODES/$name" ]; then
             git clone --depth 1 "$url" "$NODES/$name"
-            [ -f "$NODES/$name/requirements.txt" ] && pip install -q -r "$NODES/$name/requirements.txt" 2>&1 | tail -1 || true
+            # IF_VideoPrompts has its own installer that handles autoawq correctly
+            if [ -f "$NODES/$name/install.py" ]; then
+                cd "$NODES/$name" && python install.py 2>&1 | tail -5 || true
+                cd "$NODES"
+            elif [ -f "$NODES/$name/requirements.txt" ]; then
+                pip install -q -r "$NODES/$name/requirements.txt" 2>&1 | tail -1 || true
+            fi
         fi
         echo "  ✅ $name"
     done
