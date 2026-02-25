@@ -318,7 +318,6 @@ CIVITAI_MODELS = [
     {"version_id": 2712294, "filename": "hyperBeastXXL.safetensors", "subdir": "checkpoints", "group": "extra_checkpoints"},
     {"version_id": 2668773, "filename": "nsfwSdxl_v2602.safetensors", "subdir": "checkpoints", "group": "extra_checkpoints"},
     {"version_id": 2663626, "filename": "pornCraftByStableYogi_v50FP32.safetensors", "subdir": "checkpoints", "group": "extra_checkpoints"},
-    {"version_id": 2674760, "filename": "zit_v45_skin_texture.safetensors", "subdir": "loras", "group": "extra_checkpoints"},
 ]
 
 

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { resolveApiUrl } from '../../utils/ai'
+import { resolveApiUrl, getRequiredGroups } from '../../utils/ai'
 import { submitItemToComfyUI } from '../../utils/submitItem'
 import { generations, mediaItems } from '../../database/schema'
 
@@ -37,7 +37,10 @@ export default defineEventHandler(async (event) => {
   }
 
   const data = parsed.data
-  const apiUrl = await resolveApiUrl(data.endpoint, 'video')
+  // Compute required model groups for model-aware routing
+  const sampleInput = { action: 'text2image', model: data.imageModel, video_model: data.videoModel }
+  const requiredGroups = getRequiredGroups(sampleInput)
+  const apiUrl = await resolveApiUrl(data.endpoint, 'video', requiredGroups)
   const db = useDatabase()
   const now = new Date().toISOString()
 

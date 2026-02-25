@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { requireAuth } from '../../utils/auth'
-import { resolveApiUrl } from '../../utils/ai'
+import { resolveApiUrl, getRequiredGroups } from '../../utils/ai'
 import { submitItemToComfyUI } from '../../utils/submitItem'
 import { generations, mediaItems } from '../../database/schema'
 
@@ -37,7 +37,10 @@ export default defineEventHandler(async (event) => {
   }
 
   const { prompt, prompts, negativePrompt, count, steps, width, height, loraStrength, cfg, sampler, scheduler, customLoras, model, seed, attributes, sweepId, sweepLabel, endpoint, anyMachine } = parsed.data
-  const apiUrl = await resolveApiUrl(endpoint, 'image')
+  // Compute required model groups for model-aware routing
+  const sampleInput = { action: 'text2image', model }
+  const requiredGroups = getRequiredGroups(sampleInput)
+  const apiUrl = await resolveApiUrl(endpoint, 'image', requiredGroups)
 
   const settingsObj: Record<string, any> = {
     negativePrompt, steps, width, height, seed, model, loraStrength,
