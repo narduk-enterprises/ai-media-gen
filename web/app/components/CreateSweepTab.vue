@@ -66,7 +66,7 @@ const sweepLora = ref(false)
 const sweepSampler = ref(false)
 const sweepScheduler = ref(false)
 const sweepSizes = ref(false)
-const sweepSeeds = ref(false)
+const sweepSeeds = ref(true)
 
 const stepsInput = ref('4, 8, 12, 20, 30, 40')
 const cfgInput = ref('1-10:1')
@@ -77,8 +77,8 @@ const sizesInput = ref('512x512, 768x768, 1024x1024')
 
 // ─── Seed Controls ──────────────────────────────────────────────────────
 type SeedMode = 'fixed' | 'random' | 'manual' | 'sequential'
-const seedMode = ref<SeedMode>('fixed')
-const seedCount = ref(5)
+const seedMode = ref<SeedMode>('random')
+const seedCount = ref(6)
 const manualSeedsInput = ref('42, 123, 456, 789, 1234')
 const sequentialBase = ref(42)
 
