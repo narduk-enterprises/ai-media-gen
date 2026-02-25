@@ -17,7 +17,7 @@ const modeTabs: TabsItem[] = [
   { label: '🎬 Video', icon: 'i-lucide-clapperboard', value: 'ultimateVideo', slot: 'ultimateVideo' },
   { label: 'Text → Video', icon: 'i-lucide-film', value: 'text2video', slot: 'text2video' },
   { label: 'Image → Image', icon: 'i-lucide-image-plus', value: 'img2img', slot: 'img2img' },
-  { label: 'Multi-Video', icon: 'i-lucide-images', value: 'multiImgVideo', slot: 'multiImgVideo' },
+  { label: 'Image → Video', icon: 'i-lucide-film', value: 'img2video', slot: 'img2video' },
   { label: 'Custom', icon: 'i-lucide-code-2', value: 'custom', slot: 'custom' },
 ]
 
@@ -26,7 +26,7 @@ const t2iTab = ref<{ generate: (append?: boolean) => Promise<void>; canGenerate:
 const ultimateVideoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const t2vTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const i2iTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
-const multiImgVideoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
+const img2videoTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 const customTab = ref<{ generate: () => Promise<void>; canGenerate: boolean; totalCount: number; isVideo: boolean } | null>(null)
 
 const activeTab = computed(() => {
@@ -34,7 +34,7 @@ const activeTab = computed(() => {
   if (mode.value === 'ultimateVideo') return ultimateVideoTab.value
   if (mode.value === 'text2video') return t2vTab.value
   if (mode.value === 'img2img') return i2iTab.value
-  if (mode.value === 'multiImgVideo') return multiImgVideoTab.value
+  if (mode.value === 'img2video') return img2videoTab.value
   if (mode.value === 'custom') return customTab.value
   return null
 })
@@ -120,8 +120,8 @@ const gridClass = computed(() => {
       <template #img2img>
         <CreateImageToImageTab ref="i2iTab" />
       </template>
-      <template #multiImgVideo>
-        <CreateMultiImageVideoTab ref="multiImgVideoTab" />
+      <template #img2video>
+        <CreateImageToVideoPipelineTab ref="img2videoTab" />
       </template>
       <template #custom>
         <CreateCustomWorkflowTab ref="customTab" />
