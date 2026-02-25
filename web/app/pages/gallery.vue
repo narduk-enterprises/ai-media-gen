@@ -152,6 +152,24 @@ function goToReimagine(id: string) { navigateTo({ path: '/create', query: { tab:
 function goToSweep(sweepId: string) { navigateTo(`/sweep/${sweepId}`) }
 async function upscaleImage(id: string) { await gen.upscale(id) }
 
+function goToReuse(item: GalleryMediaItem) {
+  const settings = parsedSettings.value.get(item.id)
+  if (!settings && !item.prompt) return
+  // Store reuse data in sessionStorage for the create page to pick up
+  const reuse: Record<string, any> = {
+    prompt: item.prompt || '',
+    ...settings,
+  }
+  sessionStorage.setItem('ai-media-gen:reuse', JSON.stringify(reuse))
+  // Determine the correct tab based on the item type and settings
+  const model = settings?.model || settings?.Model || ''
+  const isI2V = !!settings?.mediaItemId || !!settings?.image
+  const tab = item.type === 'video'
+    ? (isI2V ? 'ultimateVideo' : 'text2video')
+    : 'text2image'
+  navigateTo({ path: '/create', query: { tab, reuse: '1' } })
+}
+
 </script>
 
 <template>
@@ -312,6 +330,7 @@ async function upscaleImage(id: string) { await gen.upscale(id) }
           <UButton variant="ghost" size="sm" icon="i-lucide-image-plus" class="text-white/60 hover:text-white" @click="goToReimagine(item.id)">Reimagine</UButton>
           <UButton variant="ghost" size="sm" icon="i-lucide-film" class="text-white/60 hover:text-white" @click="goToVideo(item.id)">Video</UButton>
         </template>
+        <UButton variant="ghost" size="sm" icon="i-lucide-repeat-2" class="text-white/60 hover:text-white" @click="currentItem && goToReuse(currentItem)">Reuse</UButton>
         <UButton v-if="currentItem?.sweepId" variant="ghost" size="sm" icon="i-lucide-test-tubes" class="text-amber-400/80 hover:text-amber-300" @click="goToSweep(currentItem.sweepId!)">View Sweep</UButton>
         <UButton variant="ghost" size="sm" icon="i-lucide-info" class="text-white/60 hover:text-white" @click="showInfo = !showInfo">Info</UButton>
       </template>

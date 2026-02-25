@@ -127,6 +127,44 @@ const estimatedTime = computed(() => {
 
 // ─── Persistence ────────────────────────────────────────────────────────
 onMounted(() => {
+  const route = useRoute()
+
+  // Check for reuse settings from gallery (takes priority)
+  if (route.query.reuse === '1') {
+    try {
+      const raw = sessionStorage.getItem('ai-media-gen:reuse')
+      if (raw) {
+        const r = JSON.parse(raw)
+        sessionStorage.removeItem('ai-media-gen:reuse') // consume once
+
+        if (r.prompt) prompt.value = r.prompt
+        if (r.negativePrompt || r.NegativePrompt) negativePrompt.value = r.negativePrompt || r.NegativePrompt
+        if (r.model || r.Model) {
+          const m = r.model || r.Model
+          if (VIDEO_MODELS.some((v: any) => v.id === m)) selectedModel.value = m
+        }
+        if (r.steps || r.Steps) steps.value = Number(r.steps || r.Steps)
+        if (r.numFrames || r.NumFrames) numFrames.value = [Number(r.numFrames || r.NumFrames)]
+        if (r.cfg || r.Cfg || r.CFG) cfg.value = Number(r.cfg || r.Cfg || r.CFG)
+        if (r.fps || r.Fps || r.FPS) fps.value = Number(r.fps || r.Fps || r.FPS)
+        if (r.loraStrength || r.LoraStrength) loraStrength.value = Number(r.loraStrength || r.LoraStrength)
+        if (r.audioPrompt || r.AudioPrompt) audioPrompt.value = r.audioPrompt || r.AudioPrompt
+        if (r.cameraLora || r.CameraLora) cameraLora.value = r.cameraLora || r.CameraLora
+        if (r.textEncoder || r.TextEncoder) textEncoder.value = r.textEncoder || r.TextEncoder
+        if (r.seed != null && r.seed !== '') seed.value = Number(r.seed)
+        // Try to match resolution
+        if ((r.width || r.Width) && (r.height || r.Height)) {
+          const w = Number(r.width || r.Width)
+          const h = Number(r.height || r.Height)
+          const p = shared.getVideoModelParams(selectedModel.value)
+          const idx = p.resolutions.findIndex((res: any) => res.w === w && res.h === h)
+          if (idx >= 0) resolutionIndex.value = idx
+        }
+        return // skip normal restore when reusing
+      }
+    } catch {}
+  }
+
   const s = shared.restoreForm()
   if (s.t2v_prompt != null) prompt.value = s.t2v_prompt
   if (s.t2v_model != null) selectedModel.value = s.t2v_model
