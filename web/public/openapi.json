@@ -406,6 +406,397 @@
           }
         }
       }
+    },
+    "/api/prompt-builder/templates": {
+      "get": {
+        "summary": "List prompt templates",
+        "operationId": "listTemplates",
+        "description": "Get all prompt templates. Optionally filter by category. Requires admin.",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter by template category."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of templates.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "templates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "name": { "type": "string" },
+                          "template": { "type": "string", "description": "Template with [slotName] placeholders." },
+                          "category": { "type": "string" },
+                          "isActive": { "type": "boolean" },
+                          "createdAt": { "type": "string", "format": "date-time" },
+                          "updatedAt": { "type": "string", "format": "date-time" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a prompt template",
+        "operationId": "createTemplate",
+        "description": "Create a new prompt template. Requires admin.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "description": "Human-readable template name." },
+                  "template": { "type": "string", "description": "Template string with [slotName] placeholders, e.g. 'A [adjective] [subject] in [setting]'." },
+                  "category": { "type": "string", "default": "general" }
+                },
+                "required": ["name", "template"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Template created." }
+        }
+      }
+    },
+    "/api/prompt-builder/templates/{id}": {
+      "put": {
+        "summary": "Update a prompt template",
+        "operationId": "updateTemplate",
+        "description": "Update template fields. Requires admin.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "template": { "type": "string" },
+                  "category": { "type": "string" },
+                  "isActive": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Template updated." }
+        }
+      },
+      "delete": {
+        "summary": "Delete a prompt template",
+        "operationId": "deleteTemplate",
+        "description": "Delete a template by ID. Requires admin.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Template deleted." }
+        }
+      }
+    },
+    "/api/prompt-builder/attributes": {
+      "get": {
+        "summary": "List prompt attributes",
+        "operationId": "listAttributes",
+        "description": "Get all prompt attributes, optionally filtered by category. Returns both flat list and grouped-by-category view. Requires admin.",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter by attribute category."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attributes list and grouped view.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "attributes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "category": { "type": "string" },
+                          "value": { "type": "string" },
+                          "weight": { "type": "number" },
+                          "isActive": { "type": "boolean" }
+                        }
+                      }
+                    },
+                    "grouped": {
+                      "type": "object",
+                      "description": "Attributes grouped by category name.",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "object" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create prompt attribute(s)",
+        "operationId": "createAttributes",
+        "description": "Create one or multiple attributes. For single: send { category, value, weight? }. For bulk: send { items: [{ category, value, weight? }] }. Requires admin.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "category": { "type": "string" },
+                      "value": { "type": "string" },
+                      "weight": { "type": "number", "default": 1.0 }
+                    },
+                    "required": ["category", "value"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "category": { "type": "string" },
+                            "value": { "type": "string" },
+                            "weight": { "type": "number", "default": 1.0 }
+                          },
+                          "required": ["category", "value"]
+                        }
+                      }
+                    },
+                    "required": ["items"]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Attribute(s) created." }
+        }
+      }
+    },
+    "/api/prompt-builder/attributes/{id}": {
+      "put": {
+        "summary": "Update a prompt attribute",
+        "operationId": "updateAttribute",
+        "description": "Update attribute weight or active status. Requires admin.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "value": { "type": "string" },
+                  "weight": { "type": "number" },
+                  "isActive": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Attribute updated." }
+        }
+      },
+      "delete": {
+        "summary": "Delete a prompt attribute",
+        "operationId": "deleteAttribute",
+        "description": "Delete an attribute by ID. Requires admin.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Attribute deleted." }
+        }
+      }
+    },
+    "/api/prompt-builder/generate": {
+      "post": {
+        "summary": "Generate a prompt",
+        "operationId": "generatePrompt",
+        "description": "Generate a prompt using templates + weighted random attribute selection + Workers AI refinement. Includes similarity-based deduplication against recent generations. Requires authentication.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "category": { "type": "string", "description": "Optional category to filter templates." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generated prompt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rawPrompt": { "type": "string", "description": "The template-filled prompt before LLM refinement." },
+                    "refinedPrompt": { "type": "string", "description": "The LLM-refined final prompt." },
+                    "templateName": { "type": "string" },
+                    "templateId": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/prompt-builder/history": {
+      "get": {
+        "summary": "View generation history",
+        "operationId": "listGenerationHistory",
+        "description": "Paginated list of previously generated prompts with template info. Requires admin.",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Generation history.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "rawPrompt": { "type": "string" },
+                          "refinedPrompt": { "type": "string", "nullable": true },
+                          "templateName": { "type": "string", "nullable": true },
+                          "createdAt": { "type": "string", "format": "date-time" }
+                        }
+                      }
+                    },
+                    "total": { "type": "integer" },
+                    "limit": { "type": "integer" },
+                    "offset": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/prompt-builder/import": {
+      "post": {
+        "summary": "Bulk import templates and attributes",
+        "operationId": "importPromptData",
+        "description": "Import templates and attributes from a JSON payload. Attributes support both plain string values (weight defaults to 1.0) and { value, weight } objects. Requires admin.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "templates": {
+                    "type": "array",
+                    "description": "Array of templates to create.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string" },
+                        "template": { "type": "string", "description": "Template with [slotName] placeholders." },
+                        "category": { "type": "string", "default": "general" }
+                      },
+                      "required": ["name", "template"]
+                    }
+                  },
+                  "attributes": {
+                    "type": "object",
+                    "description": "Object keyed by category. Values are arrays of strings or { value, weight } objects.",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          { "type": "string" },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "value": { "type": "string" },
+                              "weight": { "type": "number", "default": 1.0 }
+                            },
+                            "required": ["value"]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import results.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "templatesCreated": { "type": "integer" },
+                    "attributesCreated": { "type": "integer" },
+                    "errors": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
