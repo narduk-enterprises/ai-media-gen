@@ -303,8 +303,8 @@ const categoryColors: Record<string, string> = {
   mood: 'error',
 }
 
-function getCategoryColor(cat: string): string {
-  return categoryColors[cat] || 'neutral'
+function getCategoryColor(cat: string) {
+  return (categoryColors[cat] || 'neutral') as 'primary' | 'success' | 'warning' | 'info' | 'secondary' | 'error' | 'neutral'
 }
 </script>
 
@@ -406,9 +406,9 @@ function getCategoryColor(cat: string): string {
             New Template
           </h3>
           <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <UInput v-model="newTemplate.name" placeholder="Template name" class="sm:col-span-1" />
-            <UInput v-model="newTemplate.category" placeholder="Category" class="sm:col-span-1" />
-            <UInput v-model="newTemplate.template" placeholder="A [adjective] [subject] in [setting]" class="sm:col-span-2" />
+            <UInput v-model="newTemplate.name" placeholder="Template name" class="sm:col-span-1 w-full" />
+            <UInput v-model="newTemplate.category" placeholder="Category" class="sm:col-span-1 w-full" />
+            <UInput v-model="newTemplate.template" placeholder="A [adjective] [subject] in [setting]" class="sm:col-span-2 w-full" />
           </div>
           <div class="flex items-center justify-between mt-3">
             <p class="text-xs text-slate-400">Use [slotName] for attribute placeholders</p>
@@ -432,9 +432,9 @@ function getCategoryColor(cat: string): string {
           >
             <div v-if="editingTemplate?.id === tpl.id" class="space-y-3">
               <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <UInput v-model="editingTemplate.name" placeholder="Name" />
-                <UInput v-model="editingTemplate.category" placeholder="Category" />
-                <UInput v-model="editingTemplate.template" placeholder="Template" class="sm:col-span-2" />
+                <UInput v-model="editingTemplate.name" placeholder="Name" class="w-full" />
+                <UInput v-model="editingTemplate.category" placeholder="Category" class="w-full" />
+                <UInput v-model="editingTemplate.template" placeholder="Template" class="sm:col-span-2 w-full" />
               </div>
               <div class="flex gap-2 justify-end">
                 <UButton label="Cancel" variant="ghost" color="neutral" size="sm" @click="editingTemplate = null" />
@@ -489,11 +489,11 @@ function getCategoryColor(cat: string): string {
             Add Attribute
           </h3>
           <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <UInput v-model="newAttribute.category" placeholder="Category (e.g. adjective)" />
-            <UInput v-model="newAttribute.value" placeholder="Value (e.g. ethereal)" class="sm:col-span-2" />
+            <UInput v-model="newAttribute.category" placeholder="Category (e.g. adjective)" class="w-full" />
+            <UInput v-model="newAttribute.value" placeholder="Value (e.g. ethereal)" class="sm:col-span-2 w-full" />
             <div class="flex items-center gap-2">
               <label class="text-xs text-slate-500 shrink-0">Weight:</label>
-              <UInput v-model.number="newAttribute.weight" type="number" step="0.1" min="0.1" max="10" class="flex-1" />
+              <UInput v-model.number="newAttribute.weight" type="number" step="0.1" min="0.1" max="10" class="flex-1 w-full" />
             </div>
           </div>
           <div class="flex justify-end mt-3">
@@ -508,12 +508,12 @@ function getCategoryColor(cat: string): string {
             Bulk Add Attributes
           </h3>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <UInput v-model="bulkCategory" placeholder="Category for all" />
+            <UInput v-model="bulkCategory" placeholder="Category for all" class="w-full" />
             <UTextarea
               v-model="bulkValues"
               placeholder="One value per line..."
               :rows="4"
-              class="sm:col-span-2"
+              class="sm:col-span-2 w-full"
             />
           </div>
           <div class="flex justify-end mt-3">
@@ -600,7 +600,7 @@ function getCategoryColor(cat: string): string {
             v-model="importJson"
             placeholder='Paste JSON here... Click "Load Example" to see the schema.'
             :rows="12"
-            class="font-mono text-sm"
+            class="font-mono text-sm w-full"
           />
 
           <!-- Validation error -->
