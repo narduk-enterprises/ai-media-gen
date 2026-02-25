@@ -51,8 +51,8 @@ export default defineEventHandler(async (event) => {
       vram: g.memoryInGb,
       securePrice: g.securePrice,
       communityPrice: g.communityPrice,
-      lowestPrice: g.lowestPrice?.uninterruptablePrice || g.lowestPrice?.minimumBidPrice || null,
-      spotPrice: g.lowestPrice?.minimumBidPrice || null,
+      lowestPrice: g.lowestPrice?.uninterruptablePrice ? g.lowestPrice.uninterruptablePrice / 100 : (g.lowestPrice?.minimumBidPrice ? g.lowestPrice.minimumBidPrice / 100 : null),
+      spotPrice: g.lowestPrice?.minimumBidPrice ? g.lowestPrice.minimumBidPrice / 100 : null,
     }))
     .sort((a: any, b: any) => (a.lowestPrice || 999) - (b.lowestPrice || 999))
 
