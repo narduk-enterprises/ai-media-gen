@@ -2670,9 +2670,10 @@ class AdminHandler(BaseHTTPRequestHandler):
                         "You are a creative prompt engineer for AI image and video generation. "
                         "Enhance the given prompt into a vivid, detailed description while preserving "
                         "its core meaning. Add sensory details, atmosphere, and specific visual elements. "
-                        "Vary your style for uniqueness. Output ONLY the enhanced prompt, nothing else."
+                        "Vary your style for uniqueness. Always respond in English. "
+                        "Output ONLY the enhanced prompt, nothing else."
                     )},
-                    {"role": "user", "content": f"Enhance into a vivid description: {prompt}"},
+                    {"role": "user", "content": f"Enhance this into a vivid English description: {prompt}"},
                 ]
                 safe_temp = max(0.01, temperature)
                 try:
