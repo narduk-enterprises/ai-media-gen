@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AI Media Gen API",
-    "description": "API for AI Media Gen: Generate high-quality AI images and videos, check generation status, and manage pods.",
+    "description": "API for AI Media Gen: Generate high-quality AI images and videos, check generation status, and manage pods. To authenticate, use the `/api/auth/login` endpoint with your email and password. This will set a `session` cookie. Include this cookie in all subsequent requests.",
     "version": "1.0.0"
   },
   "servers": [
@@ -11,7 +11,82 @@
       "description": "Production Server"
     }
   ],
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "session"
+      }
+    }
+  },
+  "security": [
+    {
+      "cookieAuth": []
+    }
+  ],
   "paths": {
+    "/api/auth/login": {
+      "post": {
+        "summary": "Log in to the API",
+        "operationId": "login",
+        "description": "Authenticate using an email and password. Returns a session cookie which must be included in subsequent requests.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "description": "User email address."
+                  },
+                  "password": {
+                    "type": "string",
+                    "description": "User password."
+                  }
+                },
+                "required": ["email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully authenticated.",
+            "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "email": { "type": "string" },
+                        "name": { "type": "string", "nullable": true }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid email or password."
+          }
+        }
+      }
+    },
     "/api/generate/image": {
       "post": {
         "summary": "Generate an image",
@@ -216,6 +291,15 @@
               "enum": ["all", "image", "video"],
               "default": "all"
             }
+          },
+          {
+            "name": "allUsers",
+            "in": "query",
+            "description": "If true, fetches generations from all users (if permitted).",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
@@ -235,11 +319,16 @@
                           "type": { "type": "string" },
                           "status": { "type": "string", "enum": ["queued", "processing", "complete", "failed"] },
                           "url": { "type": "string", "nullable": true },
-                          "prompt": { "type": "string" }
+                          "prompt": { "type": "string" },
+                          "generationPrompt": { "type": "string" },
+                          "settings": { "type": ["string", "null"] },
+                          "createdAt": { "type": "string", "format": "date-time" }
                         }
                       }
                     },
-                    "total": { "type": "integer" }
+                    "total": { "type": "integer" },
+                    "limit": { "type": "integer" },
+                    "offset": { "type": "integer" }
                   }
                 }
               }
