@@ -21,13 +21,18 @@ export default defineEventHandler(async (event) => {
   const limit = Math.min(Number(query.limit) || 20, 100)
   const offset = Math.max(Number(query.offset) || 0, 0)
   const typeFilter = String(query.type || 'all')
+  const allUsers = query.allUsers === 'true'
 
-  // Base conditions: completed media with a URL, belonging to this user
+  // Base conditions: completed media with a URL
   const conditions = [
-    eq(generations.userId, user.id),
     eq(mediaItems.status, 'complete'),
     sql`${mediaItems.url} IS NOT NULL AND ${mediaItems.url} != ''`,
   ]
+  
+  // Filter by user unless allUsers is true
+  if (!allUsers) {
+    conditions.push(eq(generations.userId, user.id))
+  }
 
   // Optional type filter
   if (typeFilter === 'image' || typeFilter === 'video') {

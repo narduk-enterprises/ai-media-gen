@@ -6,7 +6,7 @@ export interface LightboxItem {
   url: string
   type: string
   prompt?: string
-  settings?: Record<string, any> | null
+  settings?: string | Record<string, any> | null
   createdAt?: string
 }
 

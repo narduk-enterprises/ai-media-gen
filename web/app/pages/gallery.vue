@@ -16,8 +16,9 @@ function formatDuration(submittedAt?: string | null, completedAt?: string | null
 }
 type TypeFilter = 'all' | 'image' | 'video'
 const typeFilter = useCookie<TypeFilter>('gallery-type', { default: () => 'all' })
+const allUsers = useCookie<boolean>('gallery-all-users', { default: () => true })
 
-const { mediaItems, total, pending, loadingMore, hasMore, error, refresh, loadMore, deleteItems } = useGallery(typeFilter as Ref<string>)
+const { mediaItems, total, pending, loadingMore, hasMore, error, refresh, loadMore, deleteItems } = useGallery(typeFilter as Ref<string>, allUsers)
 const gen = useGeneration()
 const actionLoading = gen.actionLoading
 const toast = useToast()
@@ -106,8 +107,8 @@ const searchQuery = ref('')
 const sortOrder = useCookie<'newest' | 'oldest'>('gallery-sort', { default: () => 'newest' })
 const largeGrid = useCookie<boolean>('gallery-grid', { default: () => true })
 
-// Re-fetch when type filter changes
-watch(typeFilter, () => refresh())
+// Re-fetch when filters change
+watch([typeFilter, allUsers], () => refresh())
 
 // ─── Parsed settings (JSON → object, cached) ─────────────────────────
 const parsedSettings = computed(() => {
@@ -189,6 +190,9 @@ function goToReuse(item: GalleryMediaItem) {
           <UButton size="xs" :variant="typeFilter === 'image' ? 'solid' : 'ghost'" color="neutral" icon="i-lucide-image" @click="typeFilter = 'image'" />
           <UButton size="xs" :variant="typeFilter === 'video' ? 'solid' : 'ghost'" color="neutral" icon="i-lucide-film" @click="typeFilter = 'video'" />
         </div>
+
+        <!-- All Users toggle -->
+        <UCheckbox v-model="allUsers" label="All Users" class="text-xs mr-2" />
 
         <!-- Size toggle -->
         <UButton size="xs" variant="ghost" color="neutral" :icon="largeGrid ? 'i-lucide-grid-2x2' : 'i-lucide-layout-grid'" @click="largeGrid = !largeGrid" :title="largeGrid ? 'Smaller' : 'Larger'" />
