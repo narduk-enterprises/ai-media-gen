@@ -100,6 +100,108 @@ def _get_comfy_health():
         return {"status": "stopped"}
 
 
+# ─── OOM / CUDA Error Auto-Recovery ─────────────────────────────────
+
+_oom_recovery_in_progress = False
+_last_oom_recovery = 0
+
+def _comfy_recover_oom(reason="unknown"):
+    """Clear ComfyUI queue, free VRAM, and restart ComfyUI if needed.
+
+    Called automatically when OOM or CUDA errors are detected.
+    Uses ComfyUI's /free endpoint to release cached models and /queue DELETE
+    to clear stuck jobs.
+    """
+    global _oom_recovery_in_progress, _last_oom_recovery
+    import urllib.request
+
+    # Prevent concurrent recovery and rate-limit to once per 60s
+    if _oom_recovery_in_progress:
+        print("[OOM Recovery] Already in progress, skipping")
+        return {"status": "already_recovering"}
+    if time.time() - _last_oom_recovery < 60:
+        print("[OOM Recovery] Recovered recently, skipping")
+        return {"status": "cooldown"}
+
+    _oom_recovery_in_progress = True
+    _last_oom_recovery = time.time()
+    steps = []
+
+    try:
+        # Step 1: Interrupt any running generation
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{COMFY_PORT}/interrupt",
+                method="POST"
+            )
+            urllib.request.urlopen(req, timeout=5)
+            steps.append("interrupted")
+            print("[OOM Recovery] ✅ Interrupted running generation")
+        except Exception as e:
+            steps.append(f"interrupt_failed: {e}")
+
+        # Step 2: Clear the queue
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{COMFY_PORT}/queue",
+                data=json.dumps({"clear": True}).encode(),
+                method="POST"
+            )
+            req.add_header("Content-Type", "application/json")
+            urllib.request.urlopen(req, timeout=5)
+            steps.append("queue_cleared")
+            print("[OOM Recovery] ✅ Cleared queue")
+        except Exception as e:
+            steps.append(f"queue_clear_failed: {e}")
+
+        # Step 3: Free all cached models from VRAM
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{COMFY_PORT}/free",
+                data=json.dumps({"unload_models": True, "free_memory": True}).encode(),
+                method="POST"
+            )
+            req.add_header("Content-Type", "application/json")
+            urllib.request.urlopen(req, timeout=10)
+            steps.append("vram_freed")
+            print("[OOM Recovery] ✅ Freed VRAM and unloaded models")
+        except Exception as e:
+            steps.append(f"vram_free_failed: {e}")
+
+        time.sleep(2)
+
+        # Step 4: Check if recovery worked by re-checking system_stats
+        try:
+            resp = urllib.request.urlopen(
+                f"http://127.0.0.1:{COMFY_PORT}/system_stats", timeout=3
+            )
+            data = json.loads(resp.read())
+            device = data.get("devices", [{}])[0]
+            vram_free = device.get("vram_free", 0) / 1073741824
+            steps.append(f"vram_after_recovery: {vram_free:.1f}GB")
+            print(f"[OOM Recovery] VRAM after recovery: {vram_free:.1f}GB free")
+        except Exception as e:
+            # ComfyUI crashed — restart it
+            steps.append(f"health_check_failed: {e}")
+            print(f"[OOM Recovery] ⚠️ ComfyUI unresponsive after recovery, restarting via supervisord...")
+            try:
+                subprocess.run(
+                    ["supervisorctl", "restart", "comfyui"],
+                    timeout=30, capture_output=True
+                )
+                steps.append("comfyui_restarted")
+                print("[OOM Recovery] ✅ ComfyUI restarted via supervisord")
+            except Exception as e2:
+                steps.append(f"restart_failed: {e2}")
+                print(f"[OOM Recovery] ❌ Failed to restart ComfyUI: {e2}")
+
+        result = {"status": "recovered", "reason": reason, "steps": steps}
+        print(f"[OOM Recovery] Complete: {json.dumps(result)}")
+        return result
+    finally:
+        _oom_recovery_in_progress = False
+
+
 def _get_disk_info():
     try:
         usage = shutil.disk_usage("/workspace")
@@ -2377,7 +2479,25 @@ class AdminHandler(BaseHTTPRequestHandler):
             comfy = _get_comfy_health()
             disk = _get_disk_info()
             groups = _check_synced_groups()
-            return self._json(200, {"comfy": comfy, "disk": disk, "synced_groups": groups, "admin_port": ADMIN_PORT, "comfy_port": COMFY_PORT})
+            response = {"comfy": comfy, "disk": disk, "synced_groups": groups, "admin_port": ADMIN_PORT, "comfy_port": COMFY_PORT}
+
+            # Auto-detect OOM: VRAM nearly depleted + no jobs running = CUDA corruption
+            if comfy.get("status") == "running":
+                vram_total = comfy.get("vram_total_gb", 0)
+                vram_free = comfy.get("vram_free_gb", 0)
+                queue_running = comfy.get("queue_running", 0)
+                queue_pending = comfy.get("queue_pending", 0)
+                # If VRAM is less than 5% free AND nothing is running, likely OOM corruption
+                if vram_total > 0 and vram_free / vram_total < 0.05 and queue_running == 0 and queue_pending == 0:
+                    print(f"[Health] ⚠️ OOM detected: {vram_free:.1f}GB/{vram_total:.1f}GB free, queue empty — auto-recovering")
+                    import threading
+                    threading.Thread(target=_comfy_recover_oom, args=("auto_health_check",), daemon=True).start()
+                    response["oom_recovery"] = "triggered"
+
+            return self._json(200, response)
+
+        if path == "/recover":
+            return self._json(405, {"error": "Use POST /recover"})
 
         if path == "/models":
             return self._json(200, _list_models())
@@ -2467,6 +2587,10 @@ class AdminHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?")[0]
+
+        if path == "/recover":
+            result = _comfy_recover_oom(reason="manual")
+            return self._json(200, result)
 
         if path == "/restart":
             result = _restart_comfy()
