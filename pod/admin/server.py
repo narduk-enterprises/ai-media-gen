@@ -3009,6 +3009,12 @@ class AdminHandler(BaseHTTPRequestHandler):
                 elapsed = round(time.time() - t0, 2)
                 return self._json(200, {"refined_prompt": text or prompt, "elapsed_seconds": elapsed})
             except Exception as e:
+                err_str = str(e).lower()
+                if "probability tensor" in err_str or "inf" in err_str or "nan" in err_str:
+                    # Some prompts are numerically unstable even at low temp — return raw prompt
+                    print(f"[RefinePrompt] ⚠️ Probability error, returning raw prompt: {e}")
+                    elapsed = round(time.time() - t0, 2)
+                    return self._json(200, {"refined_prompt": prompt, "elapsed_seconds": elapsed, "fallback": True})
                 print(f"[RefinePrompt] Error: {e}")
                 return self._json(500, {"error": str(e)})
 
