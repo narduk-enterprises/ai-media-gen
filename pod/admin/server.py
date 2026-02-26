@@ -1566,6 +1566,8 @@ def _get_remix_pipeline():
         print(f"[Remix] Loading Dolphin 2.9.4 Llama 3.1 8B from {model_source}...")
 
         tokenizer = AutoTokenizer.from_pretrained(model_source, cache_dir="/workspace/models/transformers")
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
         model = AutoModelForCausalLM.from_pretrained(
             model_source,
             cache_dir="/workspace/models/transformers",
@@ -1576,6 +1578,7 @@ def _get_remix_pipeline():
             "text-generation",
             model=model,
             tokenizer=tokenizer,
+            return_full_text=False,
         )
         print("[Remix] ✅ Dolphin model loaded")
         return _remix_pipeline
@@ -1643,13 +1646,8 @@ def _remix_prompts(prompt, count=1, temperature=0.9, instruction=None):
                 raise e
                 
         text = result[0]["generated_text"]
-        # The pipeline returns the full conversation; extract the assistant's reply
         if isinstance(text, list):
-            # Chat format: list of message dicts
-            text = text[-1]["content"] if text else ""
-        elif isinstance(text, str):
-            # Raw text — strip the input prefix if present
-            pass
+            text = text[-1].get("content", "") if text else ""
         text = text.strip().strip('"').strip("'")
         if text:
             prompts.append(text)
