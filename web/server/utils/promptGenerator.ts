@@ -435,7 +435,8 @@ export async function fillPromptCache(
 
 // ─── Auto-Refill ────────────────────────────────────────────
 
-const CACHE_TARGET = 100
+const CACHE_TARGET = 20
+const BATCH_SIZE = 5  // prompts per batch-refine call (~12s each ≈ 60s total)
 let isRefilling = false
 
 /**
@@ -452,7 +453,7 @@ async function autoRefillCache(db: any, ai: any): Promise<void> {
   const current = countResult[0]?.count ?? 0
   if (current >= CACHE_TARGET) return // already full
 
-  const deficit = CACHE_TARGET - current
+  const deficit = Math.min(CACHE_TARGET - current, BATCH_SIZE)
   console.log(`[PromptGen] Cache at ${current}/${CACHE_TARGET}, refilling ${deficit} prompts...`)
 
   isRefilling = true
