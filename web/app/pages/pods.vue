@@ -47,7 +47,8 @@ const MODEL_GROUPS = [
   { value: 'ltx2', label: 'LTX-2 19B', icon: '🎥', sizeGb: 25, category: 'Video' },
   { value: 'ltx2_camera', label: 'LTX-2 Camera LoRAs', icon: '📷', sizeGb: 2, category: 'Video' },
   { value: 'upscale', label: 'RealESRGAN Upscale', icon: '🔍', sizeGb: 1, category: 'Shared' },
-  { value: 'shared', label: 'AI Remix + Caption', icon: '💬', sizeGb: 8, category: 'Shared' },
+  { value: 'shared', label: 'AI Caption (VL)', icon: '💬', sizeGb: 5, category: 'Shared' },
+  { value: 'prompt_refine', label: 'Prompt Refinement', icon: '✍️', sizeGb: 16, category: 'Shared' },
   { value: 'video_prompt', label: 'Video-to-Prompt (AWQ)', icon: '📝', sizeGb: 5, category: 'Shared' },
 ]
 
@@ -73,7 +74,7 @@ const QUICK_DEPLOY_PRESETS: QuickDeployPreset[] = [
   { id: 'all_image', label: 'All Image Models', icon: '🎨', description: 'Every image checkpoint + upscale', modelGroups: ['juggernaut', 'pony', 'extra_checkpoints', 'qwen', 'flux2', 'z_image', 'z_image_turbo', 'upscale', 'shared'], minVram: 24, color: 'from-indigo-500 to-blue-600' },
   { id: 'full_stack', label: 'Full Stack', icon: '💎', description: 'All models — image + video', modelGroups: MODEL_GROUPS.map(g => g.value), minVram: 80, color: 'from-slate-700 to-slate-900', isVideo: true },
   { id: 'video_prompt', label: 'Video-to-Prompt', icon: '📝', description: 'Analyze videos → structured prompts', modelGroups: ['video_prompt', 'shared'], minVram: 12, color: 'from-fuchsia-500 to-pink-600' },
-  { id: 'prompt_refine', label: 'Prompt Refinement', icon: '✍️', description: 'LLM prompt enhancement (Qwen 3B)', modelGroups: ['shared'], minVram: 8, color: 'from-teal-500 to-cyan-600' },
+  { id: 'prompt_refine', label: 'Prompt Refinement', icon: '✍️', description: 'Dolphin 8B — prompt enhancement', modelGroups: ['prompt_refine'], minVram: 16, color: 'from-teal-500 to-cyan-600' },
 ]
 
 const showQuickDeploy = ref(false)
