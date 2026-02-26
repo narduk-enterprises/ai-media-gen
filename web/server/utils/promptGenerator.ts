@@ -138,6 +138,7 @@ export async function generatePrompt(
   userId?: string,
   maxRetries: number = 3,
   options?: GenerateOptions,
+  event?: any,
 ): Promise<GenerateResult> {
   const mediaType = options?.mediaType || 'any'
   const modelHint = options?.modelHint || null
@@ -188,7 +189,10 @@ export async function generatePrompt(
     })
 
     // Auto-refill: top up cache in the background
-    autoRefillCache(db, ai).catch(e => console.warn(`[PromptGen] Background refill failed: ${e.message}`))
+    const refillPromise = autoRefillCache(db, ai).catch(e => console.warn(`[PromptGen] Background refill failed: ${e.message}`))
+    if (event?.waitUntil) {
+      event.waitUntil(refillPromise)
+    }
 
     console.log(`[PromptGen] Served from cache (id=${entry.id}, type=${entry.mediaType || 'any'})`)
     return {

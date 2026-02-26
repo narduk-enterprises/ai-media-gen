@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
   const result = await generatePrompt(db, ai, user.id, 3, {
     mediaType: body?.mediaType || 'any',
     modelHint: body?.modelHint || null,
-  })
+  }, event)
 
   return result
 })

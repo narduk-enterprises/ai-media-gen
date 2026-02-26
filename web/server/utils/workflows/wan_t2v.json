@@ -3,7 +3,8 @@
     "inputs": {
       "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
       "type": "wan",
-      "device": "default"
+      "device": "default",
+      "weight_dtype": "fp8_e4m3fn"
     },
     "class_type": "CLIPLoader",
     "_meta": {"title": "Load CLIP"}
@@ -29,7 +30,7 @@
   "75": {
     "inputs": {
       "unet_name": "wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
-      "weight_dtype": "default"
+      "weight_dtype": "fp8_e4m3fn"
     },
     "class_type": "UNETLoader",
     "_meta": {"title": "Load T2V High Noise"}
@@ -37,7 +38,7 @@
   "76": {
     "inputs": {
       "unet_name": "wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors",
-      "weight_dtype": "default"
+      "weight_dtype": "fp8_e4m3fn"
     },
     "class_type": "UNETLoader",
     "_meta": {"title": "Load T2V Low Noise"}

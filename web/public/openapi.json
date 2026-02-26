@@ -463,7 +463,9 @@
                 "properties": {
                   "name": { "type": "string", "description": "Human-readable template name." },
                   "template": { "type": "string", "description": "Template string with [slotName] placeholders, e.g. 'A [adjective] [subject] in [setting]'." },
-                  "category": { "type": "string", "default": "general" }
+                  "category": { "type": "string", "default": "general" },
+                  "mediaType": { "type": "string", "default": "any" },
+                  "modelHint": { "type": "string", "nullable": true }
                 },
                 "required": ["name", "template"]
               }
@@ -493,6 +495,8 @@
                   "name": { "type": "string" },
                   "template": { "type": "string" },
                   "category": { "type": "string" },
+                  "mediaType": { "type": "string" },
+                  "modelHint": { "type": "string", "nullable": true },
                   "isActive": { "type": "boolean" }
                 }
               }
@@ -662,7 +666,9 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "category": { "type": "string", "description": "Optional category to filter templates." }
+                  "category": { "type": "string", "description": "Optional category to filter templates." },
+                  "mediaType": { "type": "string", "enum": ["image", "video", "any"], "default": "any", "description": "Filter templates by designated media type." },
+                  "modelHint": { "type": "string", "description": "Filter templates optimized for a specific model (e.g. wan22)." }
                 }
               }
             }
@@ -679,7 +685,9 @@
                     "rawPrompt": { "type": "string", "description": "The template-filled prompt before LLM refinement." },
                     "refinedPrompt": { "type": "string", "description": "The LLM-refined final prompt." },
                     "templateName": { "type": "string" },
-                    "templateId": { "type": "string" }
+                    "templateId": { "type": "string" },
+                    "mediaType": { "type": "string" },
+                    "modelHint": { "type": "string", "nullable": true }
                   }
                 }
               }
