@@ -267,6 +267,9 @@ _GROUP_KEY_FILES = {
         ("transformers/Qwen--Qwen2.5-3B-Instruct", "config.json"),
         ("transformers/Qwen--Qwen2.5-VL-7B-Instruct", "config.json"),
     ],
+    "prompt_refine": [
+        ("transformers/Qwen--Qwen2.5-3B-Instruct", "config.json"),
+    ],
 }
 
 MIN_MODEL_SIZE = 10_000_000  # 10MB — anything smaller is likely a stub

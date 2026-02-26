@@ -92,7 +92,7 @@ export async function refineWithLLM(
 ): Promise<RefineResult> {
   try {
     const { resolveApiUrl } = await import('./ai')
-    const podUrl = await resolveApiUrl(undefined, undefined, ['shared'])
+    const podUrl = await resolveApiUrl(undefined, undefined, ['prompt_refine'])
 
     const response = await $fetch<{ refined_prompt: string; elapsed_seconds: number }>(
       `${podUrl}/generate/refine-prompt`,
