@@ -3034,7 +3034,13 @@ class AdminHandler(BaseHTTPRequestHandler):
             if not callback_url:
                 return self._json(400, {"error": "'callback_url' required"})
 
+            # Reject if a batch is already running (prevents cron storms)
+            if hasattr(self.server, '_batch_refine_running') and self.server._batch_refine_running:
+                return self._json(429, {"error": "Batch already in progress", "status": "busy"})
+
             batch_id = str(uuid.uuid4())
+            self.server._batch_refine_running = True
+            server_ref = self.server
             print(f"[BatchRefine] Starting batch {batch_id[:8]}: {len(prompts)} prompts → {callback_url}")
 
             def _batch_refine_worker():
@@ -3044,6 +3050,7 @@ class AdminHandler(BaseHTTPRequestHandler):
                     _get_remix_model()  # Pre-load model
                 except Exception as e:
                     print(f"[BatchRefine] ❌ {batch_id[:8]} Failed to load model: {e}")
+                    server_ref._batch_refine_running = False
                     return
 
                 refined_count = 0
@@ -3124,6 +3131,7 @@ class AdminHandler(BaseHTTPRequestHandler):
                         print(f"[BatchRefine] {batch_id[:8]} [{i+1}/{len(prompts)}] ❌ {e}")
 
                 print(f"[BatchRefine] {batch_id[:8]} Complete: {refined_count} refined, {failed_count} failed")
+                server_ref._batch_refine_running = False
 
             threading.Thread(target=_batch_refine_worker, daemon=True).start()
             return self._json(202, {

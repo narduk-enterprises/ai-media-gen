@@ -437,15 +437,13 @@ export async function fillPromptCache(
 
 const CACHE_TARGET = 100
 const BATCH_SIZE = 5  // prompts per batch-refine call (~12s each ≈ 60s total)
-let isRefilling = false
 
 /**
  * Check cache count and top up to CACHE_TARGET if below.
- * Uses an in-memory lock to prevent concurrent refill storms.
+ * Uses DB-based timing guard instead of in-memory flag (serverless-safe).
+ * Skips if the newest cached prompt is <2 min old (batch likely in progress).
  */
 export async function autoRefillCache(db: any, ai: any): Promise<void> {
-  if (isRefilling) return // already refilling
-
   const countResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(promptCache)
@@ -453,13 +451,26 @@ export async function autoRefillCache(db: any, ai: any): Promise<void> {
   const current = countResult[0]?.count ?? 0
   if (current >= CACHE_TARGET) return // already full
 
+  // Serverless guard: if newest prompt was cached <2 min ago, a batch is likely running
+  if (current > 0) {
+    const newestResult = await db
+      .select({ newest: sql<string>`MAX(created_at)` })
+      .from(promptCache)
+    const newest = newestResult[0]?.newest
+    if (newest) {
+      const ageMs = Date.now() - new Date(newest).getTime()
+      if (ageMs < 120_000) { // 2 minutes
+        return // batch likely still in progress
+      }
+    }
+  }
+
   const deficit = Math.min(CACHE_TARGET - current, BATCH_SIZE)
   console.log(`[PromptGen] Cache at ${current}/${CACHE_TARGET}, refilling ${deficit} prompts...`)
 
-  isRefilling = true
   try {
     await fillPromptCache(db, ai, deficit)
-  } finally {
-    isRefilling = false
+  } catch (e: any) {
+    console.warn(`[PromptGen] fillPromptCache error: ${e.message}`)
   }
 }
