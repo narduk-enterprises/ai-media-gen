@@ -3035,11 +3035,17 @@ class AdminHandler(BaseHTTPRequestHandler):
                 return self._json(400, {"error": "'callback_url' required"})
 
             # Reject if a batch is already running (prevents cron storms)
-            if hasattr(self.server, '_batch_refine_running') and self.server._batch_refine_running:
-                return self._json(429, {"error": "Batch already in progress", "status": "busy"})
+            # Auto-expire after 5 min in case the thread crashed without clearing
+            if hasattr(self.server, '_batch_refine_started') and self.server._batch_refine_running:
+                elapsed = time.time() - self.server._batch_refine_started
+                if elapsed < 300:  # 5 minutes
+                    return self._json(429, {"error": "Batch already in progress", "status": "busy", "elapsed_s": int(elapsed)})
+                else:
+                    print(f"[BatchRefine] ⚠️ Auto-expiring stale batch lock ({int(elapsed)}s old)")
 
             batch_id = str(uuid.uuid4())
             self.server._batch_refine_running = True
+            self.server._batch_refine_started = time.time()
             server_ref = self.server
             print(f"[BatchRefine] Starting batch {batch_id[:8]}: {len(prompts)} prompts → {callback_url}")
 
