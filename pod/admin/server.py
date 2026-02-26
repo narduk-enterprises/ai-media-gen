@@ -1529,7 +1529,7 @@ def _comfy_queue_and_wait_text(workflow, poll_interval=3):
 _DOLPHIN_MODEL_ID = "cognitivecomputations/dolphin-2.9.4-llama3.1-8b"
 _DOLPHIN_LOCAL_PATH = "/workspace/models/transformers/cognitivecomputations--dolphin-2.9.4-llama3.1-8b"
 
-_remix_pipeline = None
+_remix_model = None   # (model, tokenizer) tuple
 _remix_lock = threading.Lock()
 
 _REMIX_SYSTEM = (
@@ -1551,14 +1551,15 @@ _REMIX_DIRECTED_SYSTEM = (
     "else. No explanations, no quotes, no prefixes."
 )
 
-def _get_remix_pipeline():
-    global _remix_pipeline
-    if _remix_pipeline is not None:
-        return _remix_pipeline
+def _get_remix_model():
+    """Load and cache the Dolphin model + tokenizer. Returns (model, tokenizer)."""
+    global _remix_model
+    if _remix_model is not None:
+        return _remix_model
     with _remix_lock:
-        if _remix_pipeline is not None:
-            return _remix_pipeline
-        from transformers import pipeline as hf_pipeline, AutoTokenizer, AutoModelForCausalLM
+        if _remix_model is not None:
+            return _remix_model
+        from transformers import AutoTokenizer, AutoModelForCausalLM
         import torch
 
         # Use local cache if available, otherwise download from HuggingFace
@@ -1574,33 +1575,60 @@ def _get_remix_pipeline():
             device_map="auto",
             torch_dtype=torch.bfloat16,
         )
-        _remix_pipeline = hf_pipeline(
-            "text-generation",
-            model=model,
-            tokenizer=tokenizer,
-            return_full_text=False,
-        )
+        model.eval()
+        _remix_model = (model, tokenizer)
         print("[Remix] ✅ Dolphin model loaded")
-        return _remix_pipeline
+        return _remix_model
 
 
-def _reload_remix_pipeline():
-    """Force-reload the remix pipeline after a CUDA error."""
-    global _remix_pipeline
+def _generate_chat(messages, max_new_tokens=256, temperature=0.9, top_p=0.95, top_k=None):
+    """Generate text from chat messages using Dolphin model with proper chat template."""
+    import torch
+    model, tokenizer = _get_remix_model()
+    safe_temp = max(0.01, temperature)
+
+    # Apply the ChatML template — this is the key fix
+    input_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
+    input_len = inputs["input_ids"].shape[1]
+
+    gen_kwargs = {
+        "max_new_tokens": max_new_tokens,
+        "temperature": safe_temp,
+        "do_sample": True,
+        "pad_token_id": tokenizer.eos_token_id,
+    }
+    if top_k is not None:
+        gen_kwargs["top_k"] = top_k
+    else:
+        gen_kwargs["top_p"] = top_p
+
+    with torch.no_grad():
+        output = model.generate(**inputs, **gen_kwargs)
+
+    # Decode only the NEW tokens (skip the input)
+    generated_ids = output[0][input_len:]
+    text = tokenizer.decode(generated_ids, skip_special_tokens=True)
+    return text.strip().strip('"').strip("'")
+
+
+def _reload_remix_model():
+    """Force-reload the remix model after a CUDA error."""
+    global _remix_model
     with _remix_lock:
         print("[Remix] 🔄 Reloading model after CUDA error...")
-        if _remix_pipeline is not None:
+        if _remix_model is not None:
             try:
-                del _remix_pipeline
+                del _remix_model
             except Exception:
                 pass
-            _remix_pipeline = None
+            _remix_model = None
         import torch
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
         # Re-initialize
-        return _get_remix_pipeline()
+        return _get_remix_model()
 
 def _remix_prompts(prompt, count=1, temperature=0.9, instruction=None):
     """Generate prompt variations using Dolphin 2.9.4 Llama 3.1 8B.
@@ -1608,7 +1636,6 @@ def _remix_prompts(prompt, count=1, temperature=0.9, instruction=None):
     If instruction is provided, uses directed remix (apply specific change).
     Otherwise uses subtle variation mode.
     """
-    pipe = _get_remix_pipeline()
     prompts = []
     for _ in range(count):
         if instruction:
@@ -1622,33 +1649,20 @@ def _remix_prompts(prompt, count=1, temperature=0.9, instruction=None):
             {"role": "user", "content": user_msg},
         ]
         
-        # Ensure temperature > 0 if do_sample is True
-        safe_temp = max(0.01, temperature)
-        
         try:
-            result = pipe(
-                messages,
-                max_new_tokens=300,
-                temperature=safe_temp,
-                do_sample=True,
-                top_p=0.95,
-            )
+            text = _generate_chat(messages, max_new_tokens=300, temperature=temperature, top_p=0.95)
         except Exception as e:
             err_str = str(e).lower()
             if "cuda" in err_str or "device-side assert" in err_str:
                 print(f"[Remix] CUDA error, reloading model: {e}")
-                pipe = _reload_remix_pipeline()
-                result = pipe(messages, max_new_tokens=300, temperature=safe_temp, do_sample=True, top_k=50)
+                _reload_remix_model()
+                text = _generate_chat(messages, max_new_tokens=300, temperature=temperature, top_k=50)
             elif "probability tensor" in err_str or "inf" in err_str or "nan" in err_str:
-                print(f"[Remix] Warning: encountered NaN logits, retrying without top_p filter: {e}")
-                result = pipe(messages, max_new_tokens=300, temperature=safe_temp, do_sample=True, top_k=50)
+                print(f"[Remix] Warning: encountered NaN logits, retrying: {e}")
+                text = _generate_chat(messages, max_new_tokens=300, temperature=temperature, top_k=50)
             else:
                 raise e
                 
-        text = result[0]["generated_text"]
-        if isinstance(text, list):
-            text = text[-1].get("content", "") if text else ""
-        text = text.strip().strip('"').strip("'")
         if text:
             prompts.append(text)
     return prompts
@@ -2818,7 +2832,6 @@ class AdminHandler(BaseHTTPRequestHandler):
 
             try:
                 t0 = time.time()
-                pipe = _get_remix_pipeline()
                 messages = [
                     {"role": "system", "content": (
                         "You are a creative prompt engineer for AI image and video generation. "
@@ -2829,30 +2842,18 @@ class AdminHandler(BaseHTTPRequestHandler):
                     )},
                     {"role": "user", "content": f"Enhance this into a vivid English description: {prompt}"},
                 ]
-                safe_temp = max(0.01, temperature)
                 try:
-                    result = pipe(
-                        messages,
-                        max_new_tokens=256,
-                        temperature=safe_temp,
-                        do_sample=True,
-                        top_p=0.95,
-                    )
+                    text = _generate_chat(messages, max_new_tokens=256, temperature=temperature, top_p=0.95)
                 except Exception as e:
                     err_str = str(e).lower()
                     if "cuda" in err_str or "device-side assert" in err_str:
-                        # CUDA error — reload model and retry
                         print(f"[RefinePrompt] CUDA error, reloading model: {e}")
-                        pipe = _reload_remix_pipeline()
-                        result = pipe(messages, max_new_tokens=256, temperature=safe_temp, do_sample=True, top_k=50)
+                        _reload_remix_model()
+                        text = _generate_chat(messages, max_new_tokens=256, temperature=temperature, top_k=50)
                     elif "probability tensor" in err_str or "inf" in err_str or "nan" in err_str:
-                        result = pipe(messages, max_new_tokens=256, temperature=safe_temp, do_sample=True, top_k=50)
+                        text = _generate_chat(messages, max_new_tokens=256, temperature=temperature, top_k=50)
                     else:
                         raise e
-                text = result[0]["generated_text"]
-                if isinstance(text, list):
-                    text = text[-1]["content"] if text else ""
-                text = text.strip().strip('"').strip("'")
                 elapsed = round(time.time() - t0, 2)
                 return self._json(200, {"refined_prompt": text or prompt, "elapsed_seconds": elapsed})
             except Exception as e:
@@ -2882,7 +2883,7 @@ class AdminHandler(BaseHTTPRequestHandler):
                 """Run in background thread — no time limits on the pod."""
                 import urllib.request as urlreq
                 try:
-                    pipe = _get_remix_pipeline()
+                    _get_remix_model()  # Pre-load model
                 except Exception as e:
                     print(f"[BatchRefine] ❌ {batch_id[:8]} Failed to load model: {e}")
                     return
@@ -2906,16 +2907,10 @@ class AdminHandler(BaseHTTPRequestHandler):
                             )},
                             {"role": "user", "content": f"Enhance this into a vivid English description: {raw_prompt}"},
                         ]
-                        safe_temp = max(0.01, temperature)
                         try:
-                            result = pipe(messages, max_new_tokens=256, temperature=safe_temp, do_sample=True, top_p=0.95)
+                            text = _generate_chat(messages, max_new_tokens=256, temperature=temperature, top_p=0.95)
                         except Exception:
-                            result = pipe(messages, max_new_tokens=256, temperature=safe_temp, do_sample=True, top_k=50)
-
-                        text = result[0]["generated_text"]
-                        if isinstance(text, list):
-                            text = text[-1]["content"] if text else ""
-                        text = text.strip().strip('"').strip("'")
+                            text = _generate_chat(messages, max_new_tokens=256, temperature=temperature, top_k=50)
 
                         # Send refined result back via callback
                         payload = {
