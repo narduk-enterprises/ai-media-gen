@@ -2170,11 +2170,13 @@ def _run_single_generation(job_id, action, data):
             else:
                 # Clamp resolution/frames for WAN 2.2 based on GPU VRAM
                 w, h, frames = _clamp_wan22_params(w, h, frames)
+                wan_fps = fps if fps and fps != 24 else 16  # WAN 2.2 native = 16fps
                 wf = wfl.build_text2video_workflow(
                     prompt=data.get("prompt", ""),
                     negative_prompt=data.get("negative_prompt", ""),
                     width=w, height=h, frames=frames, steps=steps,
                     seed=seed, lora_strength=data.get("lora_strength", 1.0),
+                    fps=wan_fps,
                 )
                 output_prefix = "wan_t2v"
 

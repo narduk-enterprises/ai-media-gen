@@ -401,14 +401,14 @@ def build_flux2_turbo_i2i_workflow(image_filename, prompt="", width=1024,
 # =============================================================================
 
 def build_text2video_workflow(prompt, negative_prompt="", width=832, height=480,
-                              frames=81, steps=4, seed=None, lora_strength=1.0):
+                              frames=81, steps=4, seed=None, lora_strength=1.0, fps=16):
     """Wan 2.2 T2V — auto-selects quality or fast mode based on steps."""
     # If steps > 4, use quality workflow (base model without distilled LoRAs)
     if steps > 4:
         return build_text2video_quality_workflow(
             prompt=prompt, negative_prompt=negative_prompt,
             width=width, height=height, frames=frames,
-            steps=steps, seed=seed,
+            steps=steps, seed=seed, fps=fps,
         )
     seed = _seed(seed)
     return _inject(_load_template("wan_t2v"), {
@@ -416,7 +416,7 @@ def build_text2video_workflow(prompt, negative_prompt="", width=832, height=480,
         "negative_prompt": negative_prompt or DEFAULT_NEG_PROMPT,
         "width": width, "height": height,
         "frames": frames, "steps": steps, "half_steps": steps // 2,
-        "seed": seed, "lora_strength": lora_strength,
+        "seed": seed, "lora_strength": lora_strength, "fps": fps,
     })
 
 
@@ -424,7 +424,7 @@ def build_text2video_quality_workflow(prompt, negative_prompt="", width=832,
                                        height=480, frames=81, steps=25,
                                        cfg=4.0, seed=None,
                                        sampler_name="dpmpp_2m_sde",
-                                       scheduler="karras"):
+                                       scheduler="karras", fps=16):
     """Wan 2.2 T2V quality mode — base model, no distilled LoRAs, more steps."""
     seed = _seed(seed)
     return _inject(_load_template("wan_t2v_quality"), {
@@ -433,7 +433,7 @@ def build_text2video_quality_workflow(prompt, negative_prompt="", width=832,
         "width": width, "height": height,
         "frames": frames, "steps": steps, "half_steps": steps // 2,
         "cfg": cfg, "sampler_name": sampler_name, "scheduler": scheduler,
-        "seed": seed,
+        "seed": seed, "fps": fps,
     })
 
 

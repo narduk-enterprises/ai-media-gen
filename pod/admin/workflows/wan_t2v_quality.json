@@ -101,7 +101,7 @@
     "_meta": {"title": "VAE Decode"}
   },
   "88": {
-    "inputs": {"fps": 24, "images": ["87", 0]},
+    "inputs": {"fps": "{{fps}}", "images": ["87", 0]},
     "class_type": "CreateVideo",
     "_meta": {"title": "Create Video"}
   },
