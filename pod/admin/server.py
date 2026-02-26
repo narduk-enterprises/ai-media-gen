@@ -288,8 +288,8 @@ def _check_vram_before_generation(min_free_gb=4.0):
 # accommodate activation tensors which scale with width × height × frames.
 _WAN22_VRAM_LIMITS = {
     24: {"max_res": (832, 480), "max_frames": 81},   # 24GB (RTX 3090/4090)
-    48: {"max_res": (1280, 720), "max_frames": 121},  # 48GB (A40/L40S)
-    80: {"max_res": (1280, 720), "max_frames": 241},  # 80GB (A100/H100)
+    40: {"max_res": (1280, 720), "max_frames": 193},  # 40-48GB (RTX 6000 Ada ~47.5GB, A40/L40S)
+    72: {"max_res": (1280, 720), "max_frames": 321},  # 72-80GB (A100/H100)
 }
 
 
