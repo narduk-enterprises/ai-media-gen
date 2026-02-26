@@ -52,9 +52,13 @@ export default defineEventHandler(async (event) => {
     const db = useDatabase()
     const similarityHash = computeSimilarityHash(payload.refined_prompt)
 
+    // Only store template_id if it looks like a valid UUID (from real templates)
+    // Non-UUID values like "manual-fill" would violate the FK constraint
+    const isValidUUID = payload.template_id && /^[0-9a-f]{8}-/.test(payload.template_id)
+
     await db.insert(promptCache).values({
       id: crypto.randomUUID(),
-      templateId: payload.template_id || null,
+      templateId: isValidUUID ? payload.template_id! : null,
       templateName: payload.template_name || null,
       rawPrompt: payload.raw_prompt,
       refinedPrompt: payload.refined_prompt,
