@@ -399,7 +399,7 @@ export async function fillPromptCache(
       raw_prompt: rawPrompt,
       template_id: template.id,
       template_name: template.name,
-      media_type: template.mediaType || 'any',
+      media_type: mediaType || template.mediaType || 'any',
       model_hint: template.modelHint || null,
     })
   }
