@@ -277,13 +277,44 @@ function loadSchemaExample() {
   importJson.value = JSON_SCHEMA_EXAMPLE
 }
 
+// ─── Cache Stats ────────────────────────────────────────────
+const cacheStats = ref<{ total: number; target: number; fillPercent: number; byType: Record<string, number>; newest: string | null; oldest: string | null } | null>(null)
+const loadingCacheStats = ref(false)
+let cacheStatsInterval: ReturnType<typeof setInterval> | null = null
+
+async function fetchCacheStats() {
+  loadingCacheStats.value = true
+  try {
+    cacheStats.value = await $fetch<any>('/api/prompt-builder/cache-stats')
+  } catch { /* ignore */ }
+  loadingCacheStats.value = false
+}
+
+function formatAge(dateStr: string | null) {
+  if (!dateStr) return 'N/A'
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
 // ─── Init ───────────────────────────────────────────────────
 onMounted(() => {
   if (isAdmin.value) {
     fetchTemplates()
     fetchAttributes()
     fetchHistory()
+    fetchCacheStats()
+    // Auto-refresh cache stats every 15s
+    cacheStatsInterval = setInterval(fetchCacheStats, 15_000)
   }
+})
+
+onUnmounted(() => {
+  if (cacheStatsInterval) clearInterval(cacheStatsInterval)
 })
 
 // Fetch when tab changes
@@ -442,6 +473,68 @@ async function deleteAll() {
         <UIcon name="i-lucide-alert-circle" class="w-4 h-4" />
         {{ generateError }}
         <UButton variant="ghost" color="error" size="xs" icon="i-lucide-x" @click="generateError = ''" class="ml-auto" />
+      </div>
+
+      <!-- Cache Stats Card -->
+      <div v-if="cacheStats" class="mb-6 p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <UIcon name="i-lucide-database" class="w-4 h-4 text-violet-500" />
+            Prompt Cache
+            <UBadge
+              :color="cacheStats.fillPercent >= 80 ? 'success' : cacheStats.fillPercent >= 40 ? 'warning' : 'error'"
+              variant="subtle"
+              size="xs"
+            >
+              {{ cacheStats.fillPercent }}% full
+            </UBadge>
+          </h3>
+          <div class="flex items-center gap-3 text-xs text-slate-400">
+            <span v-if="cacheStats.newest">Latest: {{ formatAge(cacheStats.newest) }}</span>
+            <UButton
+              icon="i-lucide-refresh-cw"
+              variant="ghost"
+              color="neutral"
+              size="xs"
+              :loading="loadingCacheStats"
+              @click="fetchCacheStats"
+            />
+          </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div class="w-full bg-slate-100 rounded-full h-2.5 mb-3">
+          <div
+            class="h-2.5 rounded-full transition-all duration-500"
+            :class="cacheStats.fillPercent >= 80 ? 'bg-emerald-500' : cacheStats.fillPercent >= 40 ? 'bg-amber-500' : 'bg-red-400'"
+            :style="{ width: Math.min(cacheStats.fillPercent, 100) + '%' }"
+          />
+        </div>
+
+        <!-- Stats row -->
+        <div class="flex items-center gap-4 text-sm">
+          <span class="font-semibold text-slate-800">{{ cacheStats.total }} / {{ cacheStats.target }}</span>
+          <span class="text-slate-300">|</span>
+          <div class="flex items-center gap-2">
+            <UBadge v-if="cacheStats.byType.image" color="primary" variant="subtle" size="xs">
+              <UIcon name="i-lucide-image" class="w-3 h-3 mr-1" />
+              {{ cacheStats.byType.image }} image
+            </UBadge>
+            <UBadge v-if="cacheStats.byType.video" color="success" variant="subtle" size="xs">
+              <UIcon name="i-lucide-video" class="w-3 h-3 mr-1" />
+              {{ cacheStats.byType.video }} video
+            </UBadge>
+            <UBadge v-if="cacheStats.byType.any" color="neutral" variant="subtle" size="xs">
+              {{ cacheStats.byType.any }} any
+            </UBadge>
+          </div>
+          <span v-if="cacheStats.fillPercent < 100" class="text-xs text-slate-400 ml-auto">
+            ~{{ Math.ceil((cacheStats.target - cacheStats.total) / 5) }} min to full
+          </span>
+          <span v-else class="text-xs text-emerald-500 ml-auto font-medium">
+            ✓ Cache full
+          </span>
+        </div>
       </div>
 
       <!-- Tabs -->
