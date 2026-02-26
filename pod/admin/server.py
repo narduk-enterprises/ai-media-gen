@@ -3048,8 +3048,25 @@ class AdminHandler(BaseHTTPRequestHandler):
                         ]
                         try:
                             text = _generate_chat(messages, max_new_tokens=256, temperature=temperature, top_p=0.95)
-                        except Exception:
-                            text = _generate_chat(messages, max_new_tokens=256, temperature=temperature, top_k=50)
+                        except Exception as inner_e:
+                            err_str = str(inner_e).lower()
+                            if "cuda" in err_str or "device-side assert" in err_str:
+                                print(f"[BatchRefine] {batch_id[:8]} [{i+1}/{len(prompts)}] CUDA error, reloading model...")
+                                _reload_remix_model()
+                                try:
+                                    text = _generate_chat(messages, max_new_tokens=256, temperature=temperature, top_k=50)
+                                except Exception:
+                                    text = ""
+                            elif "probability tensor" in err_str or "inf" in err_str or "nan" in err_str:
+                                try:
+                                    text = _generate_chat(messages, max_new_tokens=256, temperature=temperature, top_k=50)
+                                except Exception:
+                                    text = ""
+                            else:
+                                text = ""
+
+                        if i > 0 and i % 10 == 0:
+                            print(f"[BatchRefine] {batch_id[:8]} [{i}/{len(prompts)}] refined={refined_count} failed={failed_count}")
 
                         # Send refined result back via callback
                         payload = {
