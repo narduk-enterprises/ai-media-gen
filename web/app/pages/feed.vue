@@ -50,23 +50,37 @@ async function loadMore() {
   }
 }
 
-// Auto-refresh: poll every 30s — check for newly completed videos
+// ─── Pending new videos (non-disruptive) ─────────────────────
+const pendingVideos = ref<FeedVideo[]>([])
+const showNewBanner = ref(false)
+
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 async function refreshVideos() {
   try {
-    // Only fetch the first page to see if new videos appeared
     const result = await $fetch<{ videos: FeedVideo[] }>('/api/feed/videos', {
       params: { limit: PAGE_SIZE, offset: 0 },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
     const existingIds = new Set(videos.value.map(v => v.id))
-    const newVideos = result.videos.filter(v => !existingIds.has(v.id))
+    const pendingIds = new Set(pendingVideos.value.map(v => v.id))
+    const newVideos = result.videos.filter(v => !existingIds.has(v.id) && !pendingIds.has(v.id))
     if (newVideos.length > 0) {
-      videos.value = [...newVideos, ...videos.value]
-      console.log(`[Feed] +${newVideos.length} new videos`)
+      // Don't inject — queue them and show the banner
+      pendingVideos.value = [...newVideos, ...pendingVideos.value]
+      showNewBanner.value = true
+      console.log(`[Feed] +${newVideos.length} new videos queued (${pendingVideos.value.length} pending)`)
     }
   } catch {}
+}
+
+function loadPendingVideos() {
+  if (pendingVideos.value.length === 0) return
+  videos.value = [...pendingVideos.value, ...videos.value]
+  pendingVideos.value = []
+  showNewBanner.value = false
+  // Scroll to top
+  nextTick(() => scrollToSlide(0))
 }
 
 if (import.meta.client) {
@@ -86,7 +100,49 @@ watch(currentIndex, (idx) => {
   if (idx >= videos.value.length - 3) {
     loadMore()
   }
+  // Dismiss swipe hint after first scroll
+  if (idx > 0) showSwipeHint.value = false
 })
+
+// ─── Video error tracking ────────────────────────────────────
+const erroredVideos = reactive(new Set<number>())
+
+function onVideoError(index: number) {
+  erroredVideos.add(index)
+}
+
+function retryVideo(index: number) {
+  erroredVideos.delete(index)
+  const el = videoElements.get(index)
+  if (el) {
+    el.load()
+    el.play().catch(() => {})
+  }
+}
+
+// ─── Swipe-up hint (first-time) ──────────────────────────────
+const showSwipeHint = ref(true)
+let swipeHintTimer: ReturnType<typeof setTimeout> | null = null
+
+onMounted(() => {
+  swipeHintTimer = setTimeout(() => { showSwipeHint.value = false }, 4000)
+})
+
+// ─── Double-tap to copy prompt ───────────────────────────────
+let lastTapTime = 0
+const showCopiedIndicator = ref(false)
+
+function handleDoubleTap(video: FeedVideo) {
+  const now = Date.now()
+  if (now - lastTapTime < 350) {
+    // Double-tap detected — copy prompt
+    navigator.clipboard?.writeText(video.prompt).then(() => {
+      showCopiedIndicator.value = true
+      setTimeout(() => { showCopiedIndicator.value = false }, 1200)
+    }).catch(() => {})
+  }
+  lastTapTime = now
+}
 
 // ─── Element refs ────────────────────────────────────────────
 const containerRef = ref<HTMLElement | null>(null)
@@ -140,6 +196,7 @@ onBeforeUnmount(() => {
   observer?.disconnect()
   if (progressRaf) cancelAnimationFrame(progressRaf)
   if (pollTimer) clearInterval(pollTimer)
+  if (swipeHintTimer) clearTimeout(swipeHintTimer)
   window.removeEventListener('keydown', onKeyDown)
 })
 
@@ -151,11 +208,7 @@ function onVideoMounted(el: any, index: number) {
   }
 }
 
-// Videos loop automatically via the `loop` attribute on <video>.
-// User swipes up to go to the next video.
-
 // ─── Tap vs swipe detection ──────────────────────────────────
-// On mobile, we need to distinguish taps (pause/play) from swipes (scroll)
 let touchStartY = 0
 let touchStartX = 0
 let touchStartTime = 0
@@ -167,7 +220,7 @@ function onTouchStart(e: TouchEvent) {
   touchStartTime = Date.now()
 }
 
-function onTouchEnd(e: TouchEvent, index: number) {
+function onTouchEnd(e: TouchEvent, index: number, video: FeedVideo) {
   const touch = e.changedTouches[0]!
   const deltaY = Math.abs(touch.clientY - touchStartY)
   const deltaX = Math.abs(touch.clientX - touchStartX)
@@ -175,6 +228,7 @@ function onTouchEnd(e: TouchEvent, index: number) {
 
   // It's a tap if: short time, small movement
   if (elapsed < 300 && deltaY < 15 && deltaX < 15) {
+    handleDoubleTap(video)
     togglePlayPause(index)
   }
 }
@@ -197,9 +251,10 @@ function togglePlayPause(index: number) {
 }
 
 // ─── Desktop click handler (no touch events) ─────────────────
-function onVideoClick(index: number) {
+function onVideoClick(index: number, video: FeedVideo) {
   // Only handle on desktop — mobile uses touch events
   if ('ontouchstart' in window) return
+  handleDoubleTap(video)
   togglePlayPause(index)
 }
 
@@ -227,7 +282,6 @@ onMounted(() => {
 
 // ─── Keyboard navigation (desktop) ──────────────────────────
 function onKeyDown(e: KeyboardEvent) {
-  // Ignore if user is typing in an input/textarea
   const tag = (e.target as HTMLElement)?.tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
 
@@ -267,13 +321,22 @@ function scrollToSlide(index: number) {
   slides[index]?.scrollIntoView({ behavior: 'smooth' })
 }
 
-// ─── Share ───────────────────────────────────────────────────
-function shareVideo(video: FeedVideo) {
+// ─── Share (with desktop fallback) ───────────────────────────
+const showShareToast = ref(false)
+
+function shareVideo(video: FeedVideo, e: Event) {
+  e.stopPropagation()
   if (navigator.share) {
     navigator.share({
       title: 'AI Generated Video',
       text: video.prompt,
       url: video.url,
+    }).catch(() => {})
+  } else {
+    // Desktop fallback: copy URL to clipboard
+    navigator.clipboard?.writeText(video.url).then(() => {
+      showShareToast.value = true
+      setTimeout(() => { showShareToast.value = false }, 2000)
     }).catch(() => {})
   }
 }
@@ -327,7 +390,7 @@ function formatTime(dateStr: string): string {
         v-for="(video, index) in videos" :key="video.id || index"
         class="feed-slide"
         @touchstart.passive="onTouchStart"
-        @touchend="onTouchEnd($event, index)"
+        @touchend="onTouchEnd($event, index, video)"
       >
         <video
           :ref="(el) => onVideoMounted(el, index)"
@@ -339,8 +402,26 @@ function formatTime(dateStr: string): string {
           webkit-playsinline
           preload="metadata"
           class="feed-video"
-          @click="onVideoClick(index)"
+          @click="onVideoClick(index, video)"
+          @error="onVideoError(index)"
         />
+
+        <!-- Video error state -->
+        <div v-if="erroredVideos.has(index)" class="feed-error-overlay">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+            <line x1="9" y1="9" x2="15" y2="15" />
+          </svg>
+          <p class="text-white/70 text-sm mt-3">Failed to load video</p>
+          <button class="feed-retry-btn" @click.stop="retryVideo(index)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+            Retry
+          </button>
+        </div>
 
         <!-- Pause/Play indicator (flash on tap) -->
         <Transition name="pop">
@@ -355,6 +436,16 @@ function formatTime(dateStr: string): string {
               <rect x="5" y="3" width="4" height="18" rx="1" />
               <rect x="15" y="3" width="4" height="18" rx="1" />
             </svg>
+          </div>
+        </Transition>
+
+        <!-- "Prompt copied" indicator -->
+        <Transition name="pop">
+          <div v-if="showCopiedIndicator && currentIndex === index" class="feed-copied-indicator">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            Prompt copied
           </div>
         </Transition>
 
@@ -387,6 +478,18 @@ function formatTime(dateStr: string): string {
           </button>
         </div>
 
+        <!-- Swipe-up hint (first video only) -->
+        <Transition name="fade-up">
+          <div v-if="showSwipeHint && index === 0 && currentIndex === 0" class="feed-swipe-hint">
+            <div class="swipe-hint-inner">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="swipe-arrow">
+                <polyline points="18 15 12 9 6 15" />
+              </svg>
+              <span>Swipe up for more</span>
+            </div>
+          </div>
+        </Transition>
+
         <!-- Bottom overlay -->
         <div class="feed-bottom">
           <div class="feed-gradient-overlay">
@@ -416,7 +519,7 @@ function formatTime(dateStr: string): string {
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
           </a>
-          <button class="feed-btn" @click.stop="shareVideo(video)">
+          <button class="feed-btn" @click.stop="shareVideo(video, $event)">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="18" cy="5" r="3" />
               <circle cx="6" cy="12" r="3" />
@@ -428,6 +531,31 @@ function formatTime(dateStr: string): string {
         </div>
       </div>
     </div>
+
+    <!-- ─── New videos banner (floating pill) ─────────────────── -->
+    <Transition name="slide-down">
+      <button
+        v-if="showNewBanner && pendingVideos.length > 0"
+        class="feed-new-pill"
+        @click="loadPendingVideos"
+      >
+        <span class="new-pill-dot" />
+        {{ pendingVideos.length }} new video{{ pendingVideos.length > 1 ? 's' : '' }}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="18 15 12 9 6 15" />
+        </svg>
+      </button>
+    </Transition>
+
+    <!-- ─── "URL copied" toast ────────────────────────────────── -->
+    <Transition name="slide-down">
+      <div v-if="showShareToast" class="feed-share-toast">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        Video URL copied
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -438,12 +566,9 @@ function formatTime(dateStr: string): string {
   inset: 0;
   background: #000;
   z-index: 9999;
-  /* Prevent iOS bounce / overscroll */
   overscroll-behavior: none;
-  /* Disable text selection */
   user-select: none;
   -webkit-user-select: none;
-  /* Prevent double-tap zoom */
   touch-action: manipulation;
 }
 
@@ -484,8 +609,39 @@ function formatTime(dateStr: string): string {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  /* Prevent iOS from taking over native video player */
   -webkit-appearance: none;
+}
+
+/* ─── Video error overlay ─────────────────────────────────── */
+.feed-error-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 15;
+}
+
+.feed-retry-btn {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.feed-retry-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* ─── Pause/play flash indicator ──────────────────────────── */
@@ -507,6 +663,27 @@ function formatTime(dateStr: string): string {
   -webkit-backdrop-filter: blur(8px);
 }
 
+/* ─── "Prompt copied" indicator ───────────────────────────── */
+.feed-copied-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 16;
+}
+
 /* ─── Progress bar ────────────────────────────────────────── */
 .feed-progress {
   position: absolute;
@@ -521,7 +698,6 @@ function formatTime(dateStr: string): string {
 .feed-progress-bar {
   height: 100%;
   background: #fff;
-  /* No transition so it tracks smoothly with rAF */
 }
 
 /* ─── Top bar ─────────────────────────────────────────────── */
@@ -536,6 +712,35 @@ function formatTime(dateStr: string): string {
   justify-content: space-between;
   padding: 12px 12px 12px 12px;
   padding-top: max(12px, env(safe-area-inset-top, 12px));
+}
+
+/* ─── Swipe-up hint ───────────────────────────────────────── */
+.feed-swipe-hint {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  pointer-events: none;
+}
+
+.swipe-hint-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.swipe-arrow {
+  animation: swipe-bounce 1.2s ease-in-out infinite;
+}
+
+@keyframes swipe-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
 }
 
 /* ─── Bottom overlay ──────────────────────────────────────── */
@@ -595,6 +800,74 @@ function formatTime(dateStr: string): string {
   transition: transform 0.1s;
 }
 
+/* ─── New videos floating pill ────────────────────────────── */
+.feed-new-pill {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top, 16px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 9999px;
+  background: rgba(99, 102, 241, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  box-shadow: 0 4px 24px rgba(99, 102, 241, 0.4);
+  animation: pill-pulse 2s ease-in-out infinite;
+}
+
+.feed-new-pill:active {
+  transform: translateX(-50%) scale(0.95);
+  transition: transform 0.1s;
+}
+
+.new-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #a5f3fc;
+  animation: dot-ping 1.5s ease-in-out infinite;
+}
+
+@keyframes pill-pulse {
+  0%, 100% { box-shadow: 0 4px 24px rgba(99, 102, 241, 0.4); }
+  50% { box-shadow: 0 4px 32px rgba(99, 102, 241, 0.6); }
+}
+
+@keyframes dot-ping {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.5); }
+}
+
+/* ─── Share toast ─────────────────────────────────────────── */
+.feed-share-toast {
+  position: fixed;
+  bottom: max(32px, env(safe-area-inset-bottom, 32px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+}
+
 /* ─── Transitions ─────────────────────────────────────────── */
 .pop-enter-active {
   animation: pop-in 0.2s ease-out;
@@ -611,5 +884,31 @@ function formatTime(dateStr: string): string {
 @keyframes pop-out {
   0% { opacity: 1; transform: scale(1); }
   100% { opacity: 0; transform: scale(0.5); }
+}
+
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.3s ease;
+}
+.slide-down-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-16px);
+}
+.slide-down-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-16px);
+}
+
+.fade-up-enter-active,
+.fade-up-leave-active {
+  transition: all 0.5s ease;
+}
+.fade-up-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(12px);
+}
+.fade-up-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px);
 }
 </style>
