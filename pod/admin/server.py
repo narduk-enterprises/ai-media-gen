@@ -105,12 +105,54 @@ def _get_comfy_health():
 _oom_recovery_in_progress = False
 _last_oom_recovery = 0
 
+
+def _is_cuda_oom_error(error_str):
+    """Check if an error string indicates a CUDA OOM or unrecoverable GPU error."""
+    err = error_str.lower()
+    return any(x in err for x in [
+        "cuda", "out of memory", "device-side assert", "cublas",
+        "cudnn", "gpu memory", "oom", "alloc",
+    ])
+
+
+def _force_kill_comfyui():
+    """Force-kill ComfyUI process (SIGKILL) to clear CUDA corruption."""
+    print("[OOM Recovery] 🔪 Force-killing ComfyUI process...")
+    try:
+        subprocess.run(
+            ["pkill", "-9", "-f", f"python3 main.py.*--port {COMFY_PORT}"],
+            capture_output=True, timeout=5
+        )
+    except Exception:
+        pass
+    time.sleep(3)  # Wait for GPU state to fully reset
+
+
+def _restart_comfyui_via_manage():
+    """Restart ComfyUI using manage.sh (the correct restart mechanism on pods)."""
+    print("[OOM Recovery] 🔄 Restarting ComfyUI via manage.sh...")
+    try:
+        result = subprocess.run(
+            ["bash", MANAGE_SCRIPT, "restart-comfy"],
+            timeout=180, capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            print("[OOM Recovery] ✅ ComfyUI restarted via manage.sh")
+            return True
+        else:
+            print(f"[OOM Recovery] ⚠️ manage.sh returned {result.returncode}: {result.stderr[-200:]}")
+            return False
+    except Exception as e:
+        print(f"[OOM Recovery] ❌ manage.sh restart failed: {e}")
+        return False
+
+
 def _comfy_recover_oom(reason="unknown"):
     """Clear ComfyUI queue, free VRAM, and restart ComfyUI if needed.
 
     Called automatically when OOM or CUDA errors are detected.
     Uses ComfyUI's /free endpoint to release cached models and /queue DELETE
-    to clear stuck jobs.
+    to clear stuck jobs. If that fails, force-kills ComfyUI and restarts.
     """
     global _oom_recovery_in_progress, _last_oom_recovery
     import urllib.request
@@ -155,6 +197,7 @@ def _comfy_recover_oom(reason="unknown"):
             steps.append(f"queue_clear_failed: {e}")
 
         # Step 3: Free all cached models from VRAM
+        vram_free_ok = False
         try:
             req = urllib.request.Request(
                 f"http://127.0.0.1:{COMFY_PORT}/free",
@@ -164,6 +207,7 @@ def _comfy_recover_oom(reason="unknown"):
             req.add_header("Content-Type", "application/json")
             urllib.request.urlopen(req, timeout=10)
             steps.append("vram_freed")
+            vram_free_ok = True
             print("[OOM Recovery] ✅ Freed VRAM and unloaded models")
         except Exception as e:
             steps.append(f"vram_free_failed: {e}")
@@ -171,6 +215,7 @@ def _comfy_recover_oom(reason="unknown"):
         time.sleep(2)
 
         # Step 4: Check if recovery worked by re-checking system_stats
+        recovery_worked = False
         try:
             resp = urllib.request.urlopen(
                 f"http://127.0.0.1:{COMFY_PORT}/system_stats", timeout=3
@@ -178,28 +223,103 @@ def _comfy_recover_oom(reason="unknown"):
             data = json.loads(resp.read())
             device = data.get("devices", [{}])[0]
             vram_free = device.get("vram_free", 0) / 1073741824
-            steps.append(f"vram_after_recovery: {vram_free:.1f}GB")
+            vram_total = device.get("vram_total", 0) / 1073741824
+            steps.append(f"vram_after_recovery: {vram_free:.1f}GB/{vram_total:.1f}GB")
             print(f"[OOM Recovery] VRAM after recovery: {vram_free:.1f}GB free")
+            # Consider recovery successful if >10% VRAM is free
+            if vram_total > 0 and vram_free / vram_total > 0.10:
+                recovery_worked = True
+            else:
+                steps.append("vram_still_low")
+                print(f"[OOM Recovery] ⚠️ VRAM still critically low after /free")
         except Exception as e:
-            # ComfyUI crashed — restart it
             steps.append(f"health_check_failed: {e}")
-            print(f"[OOM Recovery] ⚠️ ComfyUI unresponsive after recovery, restarting via supervisord...")
-            try:
-                subprocess.run(
-                    ["supervisorctl", "restart", "comfyui"],
-                    timeout=30, capture_output=True
-                )
-                steps.append("comfyui_restarted")
-                print("[OOM Recovery] ✅ ComfyUI restarted via supervisord")
-            except Exception as e2:
-                steps.append(f"restart_failed: {e2}")
-                print(f"[OOM Recovery] ❌ Failed to restart ComfyUI: {e2}")
+            print(f"[OOM Recovery] ⚠️ ComfyUI unresponsive after /free")
+
+        # Step 5: If soft recovery failed, do hard restart
+        if not recovery_worked:
+            print("[OOM Recovery] 💀 Soft recovery failed — force-restarting ComfyUI")
+            _force_kill_comfyui()
+            if _restart_comfyui_via_manage():
+                steps.append("comfyui_hard_restarted")
+            else:
+                steps.append("hard_restart_failed")
+                print("[OOM Recovery] ❌ Hard restart also failed")
 
         result = {"status": "recovered", "reason": reason, "steps": steps}
         print(f"[OOM Recovery] Complete: {json.dumps(result)}")
         return result
     finally:
         _oom_recovery_in_progress = False
+
+
+# ─── VRAM Pre-Check Guard ────────────────────────────────────────────
+
+def _check_vram_before_generation(min_free_gb=4.0):
+    """Check VRAM is sufficient before starting generation.
+    If VRAM is low, tries to free memory first. Returns True if OK to proceed."""
+    health = _get_comfy_health()
+    if health.get("status") != "running":
+        print("[VRAM Guard] ⚠️ ComfyUI not running")
+        return False
+    vram_free = health.get("vram_free_gb", 0)
+    vram_total = health.get("vram_total_gb", 0)
+    if vram_free >= min_free_gb:
+        return True
+
+    print(f"[VRAM Guard] ⚠️ Only {vram_free:.1f}GB free (need {min_free_gb}GB), attempting recovery...")
+    _comfy_recover_oom(reason="pre_generation_vram_guard")
+    time.sleep(5)
+
+    # Re-check after recovery
+    health = _get_comfy_health()
+    vram_free = health.get("vram_free_gb", 0)
+    if vram_free >= min_free_gb:
+        print(f"[VRAM Guard] ✅ VRAM recovered to {vram_free:.1f}GB free")
+        return True
+    print(f"[VRAM Guard] ❌ VRAM still only {vram_free:.1f}GB after recovery")
+    return False
+
+
+# ─── WAN 2.2 Resolution/Frame Clamping ──────────────────────────────
+
+# VRAM-based maximum pixel budget for WAN 2.2 video generation.
+# The 14B fp8 model uses ~14GB just for weights. Remaining VRAM must
+# accommodate activation tensors which scale with width × height × frames.
+_WAN22_VRAM_LIMITS = {
+    24: {"max_res": (832, 480), "max_frames": 81},   # 24GB (RTX 3090/4090)
+    48: {"max_res": (1280, 720), "max_frames": 121},  # 48GB (A40/L40S)
+    80: {"max_res": (1280, 720), "max_frames": 241},  # 80GB (A100/H100)
+}
+
+
+def _clamp_wan22_params(width, height, frames, vram_total_gb=None):
+    """Clamp WAN 2.2 generation params to fit available VRAM.
+    Returns (width, height, frames) — all multiples of 16."""
+    if vram_total_gb is None:
+        health = _get_comfy_health()
+        vram_total_gb = health.get("vram_total_gb", 24)
+
+    # Find the right tier
+    tier = 24
+    for gb in sorted(_WAN22_VRAM_LIMITS.keys()):
+        if vram_total_gb >= gb:
+            tier = gb
+    limits = _WAN22_VRAM_LIMITS[tier]
+    max_w, max_h = limits["max_res"]
+
+    orig = (width, height, frames)
+    width = min(width, max_w)
+    height = min(height, max_h)
+    frames = min(frames, limits["max_frames"])
+    # Ensure multiples of 16 for width/height
+    width = (width // 16) * 16
+    height = (height // 16) * 16
+
+    if (width, height, frames) != orig:
+        print(f"[VRAM Guard] 📐 Clamped WAN 2.2 params: {orig} → ({width}, {height}, {frames}) for {vram_total_gb:.0f}GB GPU")
+
+    return width, height, frames
 
 
 def _get_disk_info():
@@ -1261,7 +1381,7 @@ def _extract_last_frame(video_path, output_path):
     return output_path
 
 
-def _run_multi_segment(job_id, request_data):
+def _run_multi_segment(job_id, request_data):  # noqa: C901
     """Run multi-segment generation in a background thread.
 
     Supports three character_mode values:
@@ -1299,6 +1419,12 @@ def _run_multi_segment(job_id, request_data):
     hero_img_data = None  # Cached hero image bytes for shared_hero mode
 
     try:
+        # ── VRAM Guard: Clamp params for WAN 2.2 based on GPU tier ──
+        if model == "wan22":
+            health = _get_comfy_health()
+            vram_total = health.get("vram_total_gb", 24)
+            width, height, _ = _clamp_wan22_params(width, height, 81, vram_total)
+
         # ── Step 0: Generate or load hero image for shared_hero mode ──
         if character_mode == "shared_hero":
             if hero_image_b64 and len(hero_image_b64) > 100:
@@ -1436,6 +1562,10 @@ def _run_multi_segment(job_id, request_data):
 
     except Exception as e:
         _log(f"❌ Failed: {e}")
+        # Auto-trigger OOM recovery if this looks like a CUDA/OOM error
+        if _is_cuda_oom_error(str(e)):
+            _log("🔄 CUDA/OOM error detected — triggering auto-recovery")
+            threading.Thread(target=_comfy_recover_oom, args=("multi_segment_oom",), daemon=True).start()
         with _jobs_lock:
             _jobs[job_id]["status"] = "failed"
             _jobs[job_id]["error"] = str(e)
@@ -1693,11 +1823,14 @@ def _run_single_generation(job_id, action, data):
             steps = data.get("steps", 20)
 
             if model == "wan22":
+                w = data.get("width", 768)
+                h = data.get("height", 768)
+                w, h, frames = _clamp_wan22_params(w, h, frames)
                 workflow = wfl.build_image2video_workflow(
                     image_filename=uploaded_name,
                     prompt=data.get("prompt", ""),
                     negative_prompt=data.get("negative_prompt", "blurry, low quality, watermark"),
-                    width=data.get("width", 768), height=data.get("height", 768),
+                    width=w, height=h,
                     frames=frames, steps=steps, seed=seed,
                 )
                 output_prefix = "wan_i2v"
@@ -2022,6 +2155,8 @@ def _run_single_generation(job_id, action, data):
                 )
                 output_prefix = "LTX-2"
             else:
+                # Clamp resolution/frames for WAN 2.2 based on GPU VRAM
+                w, h, frames = _clamp_wan22_params(w, h, frames)
                 wf = wfl.build_text2video_workflow(
                     prompt=data.get("prompt", ""),
                     negative_prompt=data.get("negative_prompt", ""),
@@ -2179,6 +2314,10 @@ def _run_single_generation(job_id, action, data):
 
     except Exception as e:
         _log(f"❌ Failed: {e}")
+        # Auto-trigger OOM recovery if this looks like a CUDA/OOM error
+        if _is_cuda_oom_error(str(e)):
+            _log("🔄 CUDA/OOM error detected — triggering auto-recovery")
+            threading.Thread(target=_comfy_recover_oom, args=("single_gen_oom",), daemon=True).start()
         with _jobs_lock:
             _jobs[job_id]["status"] = "failed"
             _jobs[job_id]["error"] = str(e)
