@@ -467,19 +467,9 @@ export async function autoRefillCache(db: any, ai: any): Promise<void> {
 
   if (total >= CACHE_TARGET) return // already full
 
-  // Serverless guard: if newest prompt was cached <90s ago, a batch is likely running
-  if (total > 0) {
-    const newestResult = await db
-      .select({ newest: sql<string>`MAX(created_at)` })
-      .from(promptCache)
-    const newest = newestResult[0]?.newest
-    if (newest) {
-      const ageMs = Date.now() - new Date(newest).getTime()
-      if (ageMs < 90_000) { // 90 seconds
-        return // batch likely still in progress
-      }
-    }
-  }
+  // No timing guard — the pod's 429 ("batch already in progress")
+  // naturally prevents overlapping batches. This way the cron fires
+  // every minute and always tries, keeping the GPU busy 100%.
 
   // Pick the media type with fewer cached prompts
   const imageCount = counts['image'] || 0
