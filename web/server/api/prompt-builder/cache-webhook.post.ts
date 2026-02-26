@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
     const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody))
     const expected = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')
     if (signature !== expected) {
-      console.warn('[CacheWebhook] ❌ Invalid signature')
+      console.warn(`[CacheWebhook] ❌ Invalid signature: got=${signature.slice(0, 8)}... expected=${expected.slice(0, 8)}... bodyLen=${rawBody.length}`)
       throw createError({ statusCode: 401, message: 'Invalid webhook signature' })
     }
   }
