@@ -344,14 +344,26 @@ export async function fillPromptCache(
   db: any,
   ai: any,
   count: number = 10,
+  mediaType?: 'image' | 'video',
 ): Promise<number> {
+  // Build template query with optional media type filter
+  const conditions = [eq(promptTemplates.isActive, true)]
+  if (mediaType) {
+    conditions.push(
+      or(
+        eq(promptTemplates.mediaType, mediaType),
+        eq(promptTemplates.mediaType, 'any'),
+      )! as any,
+    )
+  }
+
   const templates = await db
     .select()
     .from(promptTemplates)
-    .where(eq(promptTemplates.isActive, true))
+    .where(and(...conditions))
 
   if (templates.length === 0) {
-    throw new Error('No active templates found. Create at least one template first.')
+    throw new Error(`No active ${mediaType || ''} templates found.`)
   }
 
   const allAttrs = await db
@@ -428,23 +440,35 @@ export async function fillPromptCache(
 // ─── Auto-Refill ────────────────────────────────────────────
 
 const CACHE_TARGET = 100
+const CACHE_PER_TYPE = 50 // aim for 50 image + 50 video = 100 total
 const BATCH_SIZE = 5  // prompts per batch-refine call (~12s each ≈ 60s total)
 
 /**
  * Check cache count and top up to CACHE_TARGET if below.
+ * Fills whichever media type (image/video) has fewer cached prompts.
  * Uses DB-based timing guard instead of in-memory flag (serverless-safe).
- * Skips if the newest cached prompt is <2 min old (batch likely in progress).
  */
 export async function autoRefillCache(db: any, ai: any): Promise<void> {
+  // Count by media type
   const countResult = await db
-    .select({ count: sql<number>`count(*)` })
+    .select({
+      mediaType: promptCache.mediaType,
+      count: sql<number>`count(*)`,
+    })
     .from(promptCache)
+    .groupBy(promptCache.mediaType)
 
-  const current = countResult[0]?.count ?? 0
-  if (current >= CACHE_TARGET) return // already full
+  const counts: Record<string, number> = {}
+  let total = 0
+  for (const row of countResult) {
+    counts[row.mediaType || 'unknown'] = row.count
+    total += row.count
+  }
+
+  if (total >= CACHE_TARGET) return // already full
 
   // Serverless guard: if newest prompt was cached <2 min ago, a batch is likely running
-  if (current > 0) {
+  if (total > 0) {
     const newestResult = await db
       .select({ newest: sql<string>`MAX(created_at)` })
       .from(promptCache)
@@ -457,11 +481,31 @@ export async function autoRefillCache(db: any, ai: any): Promise<void> {
     }
   }
 
-  const deficit = Math.min(CACHE_TARGET - current, BATCH_SIZE)
-  console.log(`[PromptGen] Cache at ${current}/${CACHE_TARGET}, refilling ${deficit} prompts...`)
+  // Pick the media type with fewer cached prompts
+  const imageCount = counts['image'] || 0
+  const videoCount = counts['video'] || 0
+  const targetType: 'image' | 'video' = imageCount <= videoCount ? 'image' : 'video'
+
+  const deficit = Math.min(CACHE_PER_TYPE - (targetType === 'image' ? imageCount : videoCount), BATCH_SIZE)
+  if (deficit <= 0) {
+    // This type is full, try the other
+    const otherType = targetType === 'image' ? 'video' : 'image'
+    const otherCount = otherType === 'image' ? imageCount : videoCount
+    const otherDeficit = Math.min(CACHE_PER_TYPE - otherCount, BATCH_SIZE)
+    if (otherDeficit <= 0) return // both types full
+    console.log(`[PromptGen] Cache: ${imageCount} image, ${videoCount} video — filling ${otherDeficit} ${otherType} prompts`)
+    try {
+      await fillPromptCache(db, ai, otherDeficit, otherType)
+    } catch (e: any) {
+      console.warn(`[PromptGen] fillPromptCache error: ${e.message}`)
+    }
+    return
+  }
+
+  console.log(`[PromptGen] Cache: ${imageCount} image, ${videoCount} video — filling ${deficit} ${targetType} prompts`)
 
   try {
-    await fillPromptCache(db, ai, deficit)
+    await fillPromptCache(db, ai, deficit, targetType)
   } catch (e: any) {
     console.warn(`[PromptGen] fillPromptCache error: ${e.message}`)
   }
