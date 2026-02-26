@@ -35,6 +35,17 @@ export default defineTask({
       const result = await processQueue(db, mediaBucket)
       console.log(`[Cron] submitted: ${result.submitted}, completed: ${result.completed}, failed: ${result.failed}, processing: ${result.stillProcessing}, queued: ${result.queuedRemaining}`)
 
+      // ── Prompt cache warming ──────────────────────────────────
+      try {
+        const { autoRefillCache } = await import('../../utils/promptGenerator')
+        await autoRefillCache(db, null)
+      } catch (e: any) {
+        // Non-fatal — don't let cache warming break the cron
+        if (!e.message?.includes('already full') && !e.message?.includes('already refilling')) {
+          console.warn(`[Cron] Cache warm failed: ${e.message}`)
+        }
+      }
+
       return { result }
     } catch (e: any) {
       console.error('[Cron] Queue processing error:', e.message)

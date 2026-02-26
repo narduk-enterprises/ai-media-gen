@@ -435,7 +435,7 @@ export async function fillPromptCache(
 
 // ─── Auto-Refill ────────────────────────────────────────────
 
-const CACHE_TARGET = 20
+const CACHE_TARGET = 100
 const BATCH_SIZE = 5  // prompts per batch-refine call (~12s each ≈ 60s total)
 let isRefilling = false
 
@@ -443,7 +443,7 @@ let isRefilling = false
  * Check cache count and top up to CACHE_TARGET if below.
  * Uses an in-memory lock to prevent concurrent refill storms.
  */
-async function autoRefillCache(db: any, ai: any): Promise<void> {
+export async function autoRefillCache(db: any, ai: any): Promise<void> {
   if (isRefilling) return // already refilling
 
   const countResult = await db
