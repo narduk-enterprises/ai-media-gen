@@ -48,21 +48,26 @@ export default defineEventHandler(async (event) => {
   }
 
   // ── Store in cache ──────────────────────────────────────────
-  const db = useDatabase()
-  const similarityHash = computeSimilarityHash(payload.refined_prompt)
+  try {
+    const db = useDatabase()
+    const similarityHash = computeSimilarityHash(payload.refined_prompt)
 
-  await db.insert(promptCache).values({
-    id: crypto.randomUUID(),
-    templateId: payload.template_id || null,
-    templateName: payload.template_name || null,
-    rawPrompt: payload.raw_prompt,
-    refinedPrompt: payload.refined_prompt,
-    similarityHash,
-    mediaType: payload.media_type || 'any',
-    modelHint: payload.model_hint || null,
-    createdAt: new Date().toISOString(),
-  })
+    await db.insert(promptCache).values({
+      id: crypto.randomUUID(),
+      templateId: payload.template_id || null,
+      templateName: payload.template_name || null,
+      rawPrompt: payload.raw_prompt,
+      refinedPrompt: payload.refined_prompt,
+      similarityHash,
+      mediaType: payload.media_type || 'any',
+      modelHint: payload.model_hint || null,
+      createdAt: new Date().toISOString(),
+    })
 
-  console.log(`[CacheWebhook] ✅ Cached prompt ${payload.index + 1}/${payload.total} (batch ${payload.batch_id?.slice(0, 8)})`)
-  return { ok: true, action: 'cached' }
+    console.log(`[CacheWebhook] ✅ Cached prompt ${payload.index + 1}/${payload.total} (batch ${payload.batch_id?.slice(0, 8)})`)
+    return { ok: true, action: 'cached' }
+  } catch (e: any) {
+    console.error(`[CacheWebhook] ❌ Insert failed:`, e?.message || e)
+    throw createError({ statusCode: 500, message: `Insert failed: ${e?.message || String(e)}` })
+  }
 })
