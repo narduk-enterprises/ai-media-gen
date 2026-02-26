@@ -1715,7 +1715,7 @@ def _generate_chat(messages, max_new_tokens=256, temperature=0.9, top_p=0.95, to
     """Generate text from chat messages using Dolphin model with proper chat template."""
     import torch
     model, tokenizer = _get_remix_model()
-    safe_temp = max(0.01, temperature)
+    safe_temp = max(0.01, min(temperature, 1.5))  # Clamp to safe range
 
     # Apply the ChatML template — this is the key fix
     input_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -1733,8 +1733,21 @@ def _generate_chat(messages, max_new_tokens=256, temperature=0.9, top_p=0.95, to
     else:
         gen_kwargs["top_p"] = top_p
 
-    with torch.no_grad():
-        output = model.generate(**inputs, **gen_kwargs)
+    try:
+        with torch.no_grad():
+            output = model.generate(**inputs, **gen_kwargs)
+    except RuntimeError as e:
+        err_str = str(e).lower()
+        if "probability tensor" in err_str or "inf" in err_str or "nan" in err_str:
+            # Retry with safer parameters — lower temp + top_k instead of top_p
+            print(f"[_generate_chat] Probability error, retrying with temp=0.5 top_k=50")
+            gen_kwargs["temperature"] = 0.5
+            gen_kwargs.pop("top_p", None)
+            gen_kwargs["top_k"] = 50
+            with torch.no_grad():
+                output = model.generate(**inputs, **gen_kwargs)
+        else:
+            raise
 
     # Decode only the NEW tokens (skip the input)
     generated_ids = output[0][input_len:]
