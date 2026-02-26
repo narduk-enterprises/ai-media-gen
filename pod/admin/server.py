@@ -264,11 +264,10 @@ _GROUP_KEY_FILES = {
     "extra_checkpoints": [("checkpoints", "epicrealism_naturalSinRC1.safetensors")],
     "upscale": [("upscale_models", "RealESRGAN_x4.pth")],
     "shared": [
-        ("transformers/Qwen--Qwen2.5-3B-Instruct", "config.json"),
         ("transformers/Qwen--Qwen2.5-VL-7B-Instruct", "config.json"),
     ],
     "prompt_refine": [
-        ("transformers/Qwen--Qwen2.5-3B-Instruct", "config.json"),
+        ("transformers/cognitivecomputations--dolphin-2.9.4-llama3.1-8b", "config.json"),
     ],
 }
 
@@ -1525,7 +1524,10 @@ def _comfy_queue_and_wait_text(workflow, poll_interval=3):
         time.sleep(poll_interval)
 
 
-# ── Prompt Remix (Qwen2.5-3B-Instruct) ──────────────────────────────────────
+# ── Prompt Remix (Dolphin 2.9.4 Llama 3.1 8B — unfiltered) ───────────────────
+
+_DOLPHIN_MODEL_ID = "cognitivecomputations/dolphin-2.9.4-llama3.1-8b"
+_DOLPHIN_LOCAL_PATH = "/workspace/models/transformers/cognitivecomputations--dolphin-2.9.4-llama3.1-8b"
 
 _remix_pipeline = None
 _remix_lock = threading.Lock()
@@ -1556,21 +1558,49 @@ def _get_remix_pipeline():
     with _remix_lock:
         if _remix_pipeline is not None:
             return _remix_pipeline
-        from transformers import pipeline as hf_pipeline
+        from transformers import pipeline as hf_pipeline, AutoTokenizer, AutoModelForCausalLM
         import torch
-        model_path = "/workspace/models/transformers/Qwen--Qwen2.5-3B-Instruct"
-        print(f"[Remix] Loading Qwen2.5-3B-Instruct from {model_path}...")
-        _remix_pipeline = hf_pipeline(
-            "text-generation",
-            model=model_path,
+
+        # Use local cache if available, otherwise download from HuggingFace
+        model_source = _DOLPHIN_LOCAL_PATH if os.path.exists(os.path.join(_DOLPHIN_LOCAL_PATH, "config.json")) else _DOLPHIN_MODEL_ID
+        print(f"[Remix] Loading Dolphin 2.9.4 Llama 3.1 8B from {model_source}...")
+
+        tokenizer = AutoTokenizer.from_pretrained(model_source, cache_dir="/workspace/models/transformers")
+        model = AutoModelForCausalLM.from_pretrained(
+            model_source,
+            cache_dir="/workspace/models/transformers",
             device_map="auto",
             torch_dtype=torch.bfloat16,
         )
-        print("[Remix] ✅ Model loaded")
+        _remix_pipeline = hf_pipeline(
+            "text-generation",
+            model=model,
+            tokenizer=tokenizer,
+        )
+        print("[Remix] ✅ Dolphin model loaded")
         return _remix_pipeline
 
+
+def _reload_remix_pipeline():
+    """Force-reload the remix pipeline after a CUDA error."""
+    global _remix_pipeline
+    with _remix_lock:
+        print("[Remix] 🔄 Reloading model after CUDA error...")
+        if _remix_pipeline is not None:
+            try:
+                del _remix_pipeline
+            except Exception:
+                pass
+            _remix_pipeline = None
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        # Re-initialize
+        return _get_remix_pipeline()
+
 def _remix_prompts(prompt, count=1, temperature=0.9, instruction=None):
-    """Generate prompt variations using Qwen2.5-3B-Instruct.
+    """Generate prompt variations using Dolphin 2.9.4 Llama 3.1 8B.
     
     If instruction is provided, uses directed remix (apply specific change).
     Otherwise uses subtle variation mode.
@@ -1601,15 +1631,14 @@ def _remix_prompts(prompt, count=1, temperature=0.9, instruction=None):
                 top_p=0.95,
             )
         except Exception as e:
-            if "probability tensor" in str(e).lower() or "inf" in str(e).lower() or "nan" in str(e).lower():
+            err_str = str(e).lower()
+            if "cuda" in err_str or "device-side assert" in err_str:
+                print(f"[Remix] CUDA error, reloading model: {e}")
+                pipe = _reload_remix_pipeline()
+                result = pipe(messages, max_new_tokens=300, temperature=safe_temp, do_sample=True, top_k=50)
+            elif "probability tensor" in err_str or "inf" in err_str or "nan" in err_str:
                 print(f"[Remix] Warning: encountered NaN logits, retrying without top_p filter: {e}")
-                result = pipe(
-                    messages,
-                    max_new_tokens=300,
-                    temperature=safe_temp,
-                    do_sample=True,
-                    top_k=50,
-                )
+                result = pipe(messages, max_new_tokens=300, temperature=safe_temp, do_sample=True, top_k=50)
             else:
                 raise e
                 
@@ -2812,7 +2841,13 @@ class AdminHandler(BaseHTTPRequestHandler):
                         top_p=0.95,
                     )
                 except Exception as e:
-                    if "probability tensor" in str(e).lower() or "inf" in str(e).lower() or "nan" in str(e).lower():
+                    err_str = str(e).lower()
+                    if "cuda" in err_str or "device-side assert" in err_str:
+                        # CUDA error — reload model and retry
+                        print(f"[RefinePrompt] CUDA error, reloading model: {e}")
+                        pipe = _reload_remix_pipeline()
+                        result = pipe(messages, max_new_tokens=256, temperature=safe_temp, do_sample=True, top_k=50)
+                    elif "probability tensor" in err_str or "inf" in err_str or "nan" in err_str:
                         result = pipe(messages, max_new_tokens=256, temperature=safe_temp, do_sample=True, top_k=50)
                     else:
                         raise e
