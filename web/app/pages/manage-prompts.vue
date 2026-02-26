@@ -306,6 +306,52 @@ const categoryColors: Record<string, string> = {
 function getCategoryColor(cat: string) {
   return (categoryColors[cat] || 'neutral') as 'primary' | 'success' | 'warning' | 'info' | 'secondary' | 'error' | 'neutral'
 }
+
+// ─── Export ──────────────────────────────────────────────────
+const exporting = ref(false)
+
+async function exportAll() {
+  exporting.value = true
+  try {
+    const data = await $fetch<any>('/api/prompt-builder/export')
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `prompt-templates-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e: any) {
+    console.error('[Export] Error:', e)
+  }
+  exporting.value = false
+}
+
+// ─── Delete All ─────────────────────────────────────────────
+const deleteAllOpen = ref(false)
+const deleting = ref(false)
+const deleteResult = ref<any | null>(null)
+
+async function deleteAll() {
+  deleting.value = true
+  deleteResult.value = null
+  try {
+    const result = await $fetch<any>('/api/prompt-builder/delete-all', {
+      method: 'POST',
+      headers: csrfHeaders,
+      body: { confirm: true },
+    })
+    deleteResult.value = result
+    deleteAllOpen.value = false
+    // Refresh everything
+    fetchTemplates()
+    fetchAttributes()
+    fetchHistory()
+  } catch (e: any) {
+    console.error('[DeleteAll] Error:', e)
+  }
+  deleting.value = false
+}
 </script>
 
 <template>
@@ -330,14 +376,31 @@ function getCategoryColor(cat: string) {
           <p class="text-slate-500 mt-1">Manage templates, attributes, and view generation history</p>
         </div>
 
-        <!-- Generate Test Button -->
-        <UButton
-          icon="i-lucide-sparkles"
-          label="Generate Test Prompt"
-          color="primary"
-          :loading="generating"
-          @click="testGenerate"
-        />
+        <!-- Action Buttons -->
+        <div class="flex gap-2">
+          <UButton
+            icon="i-lucide-download"
+            label="Export All"
+            variant="outline"
+            color="neutral"
+            :loading="exporting"
+            @click="exportAll"
+          />
+          <UButton
+            icon="i-lucide-trash-2"
+            label="Delete All"
+            variant="outline"
+            color="error"
+            @click="() => { deleteAllOpen = true }"
+          />
+          <UButton
+            icon="i-lucide-sparkles"
+            label="Generate Test Prompt"
+            color="primary"
+            :loading="generating"
+            @click="testGenerate"
+          />
+        </div>
       </div>
 
       <!-- Generated result banner -->
@@ -674,6 +737,45 @@ function getCategoryColor(cat: string) {
         </template>
       </div>
     </template>
+    <!-- Delete All Confirmation Modal -->
+    <UModal v-model:open="deleteAllOpen">
+      <template #content>
+        <div class="p-6 space-y-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+              <UIcon name="i-lucide-trash-2" class="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold text-slate-800">Delete All Prompt Data?</h3>
+              <p class="text-sm text-slate-500">This will permanently delete:</p>
+            </div>
+          </div>
+          <ul class="text-sm text-slate-600 space-y-1 list-disc list-inside ml-2">
+            <li>All prompt templates ({{ templates.length }})</li>
+            <li>All prompt attributes ({{ attributes.length }})</li>
+            <li>All cached prompts</li>
+            <li>All generation history</li>
+          </ul>
+          <p class="text-sm text-amber-600 font-medium">💡 Tip: Export your data first so you can re-import after cleanup!</p>
+          <div class="flex gap-2 justify-end pt-2">
+            <UButton label="Cancel" variant="ghost" color="neutral" @click="() => { deleteAllOpen = false }" />
+            <UButton label="Delete Everything" color="error" icon="i-lucide-trash-2" :loading="deleting" @click="deleteAll" />
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- Delete result banner -->
+    <Transition name="slide-down">
+      <div v-if="deleteResult" class="fixed bottom-4 right-4 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm shadow-lg z-50">
+        <div class="flex items-center gap-2 mb-1">
+          <UIcon name="i-lucide-check-circle" class="w-4 h-4" />
+          <span class="font-medium">Deleted All Data</span>
+          <UButton icon="i-lucide-x" variant="ghost" color="error" size="xs" class="ml-auto" @click="deleteResult = null" />
+        </div>
+        <p class="text-xs">{{ deleteResult.deleted.templates }} templates, {{ deleteResult.deleted.attributes }} attributes, {{ deleteResult.deleted.cache }} cache, {{ deleteResult.deleted.log }} history</p>
+      </div>
+    </Transition>
   </div>
 </template>
 
