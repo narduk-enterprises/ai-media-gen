@@ -69,6 +69,16 @@ export default defineEventHandler(async (event) => {
     })
 
     console.log(`[CacheWebhook] ✅ Cached prompt ${payload.index + 1}/${payload.total} (batch ${payload.batch_id?.slice(0, 8)})`)
+
+    // Chain next batch immediately when this batch finishes — zero GPU idle time
+    if (payload.index === payload.total - 1) {
+      try {
+        const { autoRefillCache } = await import('../../utils/promptGenerator')
+        console.log(`[CacheWebhook] 🔗 Batch complete — chaining next batch`)
+        autoRefillCache(db, null).catch(() => {}) // fire-and-forget
+      } catch {}
+    }
+
     return { ok: true, action: 'cached' }
   } catch (e: any) {
     console.error(`[CacheWebhook] ❌ Insert failed:`, e?.message || e)
