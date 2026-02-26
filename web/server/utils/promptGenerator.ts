@@ -75,14 +75,20 @@ async function isDuplicate(db: any, hash: string): Promise<boolean> {
 
 // ─── LLM Refinement ─────────────────────────────────────────
 
+export interface RefineResult {
+  text: string
+  wasRefined: boolean
+}
+
 /**
  * Refine a raw prompt using the GPU pod's Qwen 2.5 3B model.
  * Calls /generate/refine-prompt on the pod for unrestricted creative enhancement.
+ * Returns { text, wasRefined } so callers know if LLM actually enhanced it.
  */
 export async function refineWithLLM(
   rawPrompt: string,
   _ai?: any, // kept for backward compat but no longer used
-): Promise<string> {
+): Promise<RefineResult> {
   try {
     const { resolveApiUrl } = await import('./ai')
     const podUrl = await resolveApiUrl(undefined, undefined, ['shared'])
@@ -98,10 +104,14 @@ export async function refineWithLLM(
     )
 
     const refined = response?.refined_prompt?.trim()
-    return refined || rawPrompt
+    if (refined && refined !== rawPrompt) {
+      return { text: refined, wasRefined: true }
+    }
+    // Pod returned same text or empty — treat as unrefined
+    return { text: rawPrompt, wasRefined: false }
   } catch (e: any) {
     console.warn(`[PromptGen] Pod LLM refinement failed: ${e.message}`)
-    return rawPrompt
+    return { text: rawPrompt, wasRefined: false }
   }
 }
 
@@ -116,6 +126,7 @@ export interface GenerateResult {
   similarityHash: string
   mediaType?: string
   modelHint?: string | null
+  wasRefined?: boolean
 }
 
 export interface GenerateOptions {
@@ -204,7 +215,14 @@ export async function generatePrompt(
       similarityHash: entry.similarityHash,
       mediaType: entry.mediaType || 'any',
       modelHint: entry.modelHint,
+      wasRefined: true, // cached prompts are always refined
     }
+  }
+
+  // ── Cache was empty — kick off background refill ──────────
+  const refillPromise = autoRefillCache(db, ai).catch(e => console.warn(`[PromptGen] Background refill failed: ${e.message}`))
+  if (event?.waitUntil) {
+    event.waitUntil(refillPromise)
   }
 
   // ── Fallback: live generation ─────────────────────────────
@@ -269,9 +287,12 @@ export async function generatePrompt(
   let refinedPrompt = ''
   let similarityHash = ''
 
+  let wasRefined = false
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     rawPrompt = fillTemplate(template.template, attrsByCategory)
-    refinedPrompt = await refineWithLLM(rawPrompt, ai)
+    const refineResult = await refineWithLLM(rawPrompt, ai)
+    refinedPrompt = refineResult.text
+    wasRefined = refineResult.wasRefined
     similarityHash = computeSimilarityHash(refinedPrompt)
 
     const duplicate = await isDuplicate(db, similarityHash)
@@ -281,6 +302,10 @@ export async function generatePrompt(
       // Last attempt — use it anyway
       console.warn(`[PromptGen] Could not avoid similarity after ${maxRetries} attempts, using last result`)
     }
+  }
+
+  if (!wasRefined) {
+    console.warn(`[PromptGen] ⚠️ Serving UNREFINED prompt (pod unavailable) — raw template output`)
   }
 
   // 6. Store in generation log
@@ -304,6 +329,7 @@ export async function generatePrompt(
     similarityHash,
     mediaType: template.mediaType || 'any',
     modelHint: template.modelHint,
+    wasRefined,
   }
 }
 
@@ -345,18 +371,31 @@ export async function fillPromptCache(
   }
 
   let added = 0
+  let skipped = 0
   for (let i = 0; i < count; i++) {
     const template = templates[Math.floor(Math.random() * templates.length)]!
     const rawPrompt = fillTemplate(template.template, attrsByCategory)
-    const refinedPrompt = await refineWithLLM(rawPrompt, ai)
-    const similarityHash = computeSimilarityHash(refinedPrompt)
+    const refineResult = await refineWithLLM(rawPrompt, ai)
+
+    // Only cache actually-refined prompts — skip if pod was unavailable
+    if (!refineResult.wasRefined) {
+      skipped++
+      if (skipped === 1) {
+        console.warn(`[PromptGen] Pod unavailable — stopping cache fill (would store unrefined prompts)`)
+      }
+      // If first prompt fails refinement, pod is likely down — stop trying
+      if (skipped >= 2) break
+      continue
+    }
+
+    const similarityHash = computeSimilarityHash(refineResult.text)
 
     await db.insert(promptCache).values({
       id: crypto.randomUUID(),
       templateId: template.id,
       templateName: template.name,
       rawPrompt,
-      refinedPrompt,
+      refinedPrompt: refineResult.text,
       similarityHash,
       mediaType: template.mediaType || 'any',
       modelHint: template.modelHint || null,
@@ -365,7 +404,11 @@ export async function fillPromptCache(
     added++
   }
 
-  console.log(`[PromptGen] Filled cache with ${added} prompts`)
+  if (skipped > 0) {
+    console.warn(`[PromptGen] Cache fill: ${added} added, ${skipped} skipped (unrefined)`)
+  } else {
+    console.log(`[PromptGen] Filled cache with ${added} prompts`)
+  }
   return added
 }
 

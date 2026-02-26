@@ -220,7 +220,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
     <div v-if="!showLibrary">
       <!-- Single prompt mode -->
       <div v-if="!batchMode">
-        <PromptInput v-model="prompt" placeholder="Describe the video you want to generate..." :disabled="gen.generating.value" />
+        <PromptInput v-model="prompt" media-type="video" placeholder="Describe the video you want to generate..." :disabled="gen.generating.value" />
         <CountSelector v-model="count" label="Videos per duration" :options="[1, 2, 4]" class="mt-3" />
       </div>
 

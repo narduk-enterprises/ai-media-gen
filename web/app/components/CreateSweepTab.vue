@@ -374,7 +374,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: false, sweepResults, 
     </div>
 
     <!-- Prompt -->
-    <PromptInput v-model="prompt" placeholder="Enter a prompt to test across parameter variations..." :disabled="gen.generating.value" />
+    <PromptInput v-model="prompt" media-type="image" placeholder="Enter a prompt to test across parameter variations..." :disabled="gen.generating.value" />
     <UInput v-model="negativePrompt" size="xs" placeholder="Negative prompt (optional)" icon="i-lucide-minus" class="w-full" />
 
     <!-- Model Selector -->

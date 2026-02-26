@@ -133,7 +133,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: false })
 
     <!-- Single prompt -->
     <div v-if="!batchMode">
-      <PromptInput v-model="prompt" :disabled="gen.generating.value" />
+      <PromptInput v-model="prompt" media-type="image" :disabled="gen.generating.value" />
       <CountSelector v-model="count" label="Images" :options="[1, 2, 4, 8]" class="mt-4" />
     </div>
 

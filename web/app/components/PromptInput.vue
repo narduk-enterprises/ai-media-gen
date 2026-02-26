@@ -3,6 +3,7 @@ defineProps<{
   label?: string
   placeholder?: string
   disabled?: boolean
+  mediaType?: 'image' | 'video' | 'any'
 }>()
 
 const emit = defineEmits<{
@@ -15,6 +16,7 @@ const { remixPrompt, remixLoading } = useRemix()
 const remixing = ref(false)
 const remixError = ref('')
 const generatingPrompt = ref(false)
+const promptUnrefined = ref(false)
 
 // Directed remix state
 const directRemixOpen = ref(false)
@@ -94,12 +96,17 @@ function handlePaste(e: ClipboardEvent) {
 async function handleGeneratePrompt() {
   generatingPrompt.value = true
   remixError.value = ''
+  promptUnrefined.value = false
   try {
     const result = await $fetch<any>('/api/prompt-builder/generate', {
       method: 'POST',
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: { mediaType: $props.mediaType || 'any' },
     })
     modelValue.value = result.refinedPrompt || result.rawPrompt || ''
+    if (result.wasRefined === false) {
+      promptUnrefined.value = true
+    }
   } catch (e: any) {
     remixError.value = e?.data?.message || e?.message || 'Generate failed'
   } finally {
@@ -179,6 +186,7 @@ defineExpose({ remixing })
         </template>
       </UPopover>
       <slot name="actions" />
+      <span v-if="promptUnrefined" class="text-xs text-amber-500">⚠ Prompt not AI-enhanced (GPU pod offline)</span>
       <span v-if="remixError" class="text-xs text-red-500">{{ remixError }}</span>
     </template>
   </UFormField>

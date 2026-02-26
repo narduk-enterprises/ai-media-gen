@@ -102,7 +102,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: false })
     </section>
 
     <!-- Prompt -->
-    <PromptInput v-model="prompt" label="New Prompt" placeholder="Describe the style or changes you want..." />
+    <PromptInput v-model="prompt" media-type="image" label="New Prompt" placeholder="Describe the style or changes you want..." />
 
     <!-- Model + Settings -->
     <ModelSelector :models="IMAGE_MODELS" :selected="selectedModel" @update:selected="selectedModel = $event as string" />

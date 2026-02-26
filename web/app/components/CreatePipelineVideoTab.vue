@@ -116,7 +116,7 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
     </div>
 
     <!-- Image Prompt -->
-    <PromptInput v-model="prompt" placeholder="Describe the scene — this creates the image AND drives the video..." :disabled="gen.generating.value" />
+    <PromptInput v-model="prompt" media-type="video" placeholder="Describe the scene — this creates the image AND drives the video..." :disabled="gen.generating.value" />
 
     <!-- Video Prompt (optional override) -->
     <div class="space-y-2">
