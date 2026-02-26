@@ -339,11 +339,14 @@ export async function generatePrompt(
   }
 }
 
-// ─── Cache Fill ─────────────────────────────────────────────
-
 /**
- * Pre-generate prompts and store them in the cache table.
- * Generates a balanced mix of media types.
+ * Fire-and-forget cache fill: generates raw prompts locally (instant),
+ * sends them all to the pod's /generate/batch-refine endpoint, and returns
+ * immediately. The pod refines them in a background thread (no time limits,
+ * model loads once) and webhooks each result back to /api/prompt-builder/cache-webhook.
+ *
+ * Returns the number of prompts sent to the pod (not the number cached — that
+ * happens asynchronously via the webhook).
  */
 export async function fillPromptCache(
   db: any,
@@ -376,46 +379,58 @@ export async function fillPromptCache(
     attrsByCategory[attr.category]!.push({ value: attr.value, weight: attr.weight ?? 1.0 })
   }
 
-  let added = 0
-  let skipped = 0
+  // ── Generate raw prompts locally (instant — no LLM needed) ──
+  const prompts: Array<{
+    raw_prompt: string
+    template_id: string
+    template_name: string
+    media_type: string
+    model_hint: string | null
+  }> = []
+
   for (let i = 0; i < count; i++) {
     const template = templates[Math.floor(Math.random() * templates.length)]!
     const rawPrompt = fillTemplate(template.template, attrsByCategory)
-    const refineResult = await refineWithLLM(rawPrompt, ai)
-
-    // Only cache actually-refined prompts — skip if pod was unavailable
-    if (!refineResult.wasRefined) {
-      skipped++
-      if (skipped === 1) {
-        console.warn(`[PromptGen] Pod unavailable — stopping cache fill (would store unrefined prompts)`)
-      }
-      // If first prompt fails refinement, pod is likely down — stop trying
-      if (skipped >= 2) break
-      continue
-    }
-
-    const similarityHash = computeSimilarityHash(refineResult.text)
-
-    await db.insert(promptCache).values({
-      id: crypto.randomUUID(),
-      templateId: template.id,
-      templateName: template.name,
-      rawPrompt,
-      refinedPrompt: refineResult.text,
-      similarityHash,
-      mediaType: template.mediaType || 'any',
-      modelHint: template.modelHint || null,
-      createdAt: new Date().toISOString(),
+    prompts.push({
+      raw_prompt: rawPrompt,
+      template_id: template.id,
+      template_name: template.name,
+      media_type: template.mediaType || 'any',
+      model_hint: template.modelHint || null,
     })
-    added++
   }
 
-  if (skipped > 0) {
-    console.warn(`[PromptGen] Cache fill: ${added} added, ${skipped} skipped (unrefined)`)
-  } else {
-    console.log(`[PromptGen] Filled cache with ${added} prompts`)
+  // ── Send batch to pod — fire and forget ─────────────────────
+  try {
+    const { resolveApiUrl } = await import('./ai')
+    const podUrl = await resolveApiUrl(undefined, undefined, ['prompt_refine'])
+
+    const config = useRuntimeConfig() as any
+    const siteUrl = config.public?.siteUrl || config.siteUrl || 'https://ai-media-gen.narduk.workers.dev'
+    const callbackUrl = `${siteUrl}/api/prompt-builder/cache-webhook`
+    const callbackSecret = config.webhookSecret || ''
+
+    const response = await $fetch<{ batch_id: string; status: string; count: number }>(
+      `${podUrl}/generate/batch-refine`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          prompts,
+          callback_url: callbackUrl,
+          callback_secret: callbackSecret,
+          temperature: 0.9,
+        },
+        timeout: 10_000, // Just needs to accept the batch, doesn't wait for refinement
+      },
+    )
+
+    console.log(`[PromptGen] 🚀 Batch ${response.batch_id?.slice(0, 8)} sent: ${count} prompts → pod will refine and webhook results back`)
+    return count
+  } catch (e: any) {
+    console.warn(`[PromptGen] ❌ Batch refine failed: ${e.message}`)
+    return 0
   }
-  return added
 }
 
 // ─── Auto-Refill ────────────────────────────────────────────

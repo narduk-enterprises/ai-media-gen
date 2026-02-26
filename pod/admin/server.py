@@ -2826,6 +2826,110 @@ class AdminHandler(BaseHTTPRequestHandler):
                 print(f"[RefinePrompt] Error: {e}")
                 return self._json(500, {"error": str(e)})
 
+        # ── Batch Refine: fire-and-forget with webhook callback ──
+        if path == "/generate/batch-refine":
+            data = _read_post_body()
+            if not data:
+                return self._json(400, {"error": "Empty or invalid request body"})
+
+            prompts = data.get("prompts", [])
+            callback_url = data.get("callback_url", "")
+            callback_secret = data.get("callback_secret", "")
+            temperature = data.get("temperature", 0.9)
+
+            if not prompts or not isinstance(prompts, list):
+                return self._json(400, {"error": "'prompts' array required"})
+            if not callback_url:
+                return self._json(400, {"error": "'callback_url' required"})
+
+            batch_id = str(uuid.uuid4())
+            print(f"[BatchRefine] Starting batch {batch_id[:8]}: {len(prompts)} prompts → {callback_url}")
+
+            def _batch_refine_worker():
+                """Run in background thread — no time limits on the pod."""
+                import urllib.request as urlreq
+                try:
+                    pipe = _get_remix_pipeline()
+                except Exception as e:
+                    print(f"[BatchRefine] ❌ {batch_id[:8]} Failed to load model: {e}")
+                    return
+
+                refined_count = 0
+                failed_count = 0
+                for i, item in enumerate(prompts):
+                    raw_prompt = item.get("raw_prompt", "") if isinstance(item, dict) else str(item)
+                    meta = item if isinstance(item, dict) else {}
+                    if not raw_prompt:
+                        continue
+
+                    try:
+                        messages = [
+                            {"role": "system", "content": (
+                                "You are a creative prompt engineer for AI image and video generation. "
+                                "Enhance the given prompt into a vivid, detailed description while preserving "
+                                "its core meaning. Add sensory details, atmosphere, and specific visual elements. "
+                                "Vary your style for uniqueness. Always respond in English. "
+                                "Output ONLY the enhanced prompt, nothing else."
+                            )},
+                            {"role": "user", "content": f"Enhance this into a vivid English description: {raw_prompt}"},
+                        ]
+                        safe_temp = max(0.01, temperature)
+                        try:
+                            result = pipe(messages, max_new_tokens=256, temperature=safe_temp, do_sample=True, top_p=0.95)
+                        except Exception:
+                            result = pipe(messages, max_new_tokens=256, temperature=safe_temp, do_sample=True, top_k=50)
+
+                        text = result[0]["generated_text"]
+                        if isinstance(text, list):
+                            text = text[-1]["content"] if text else ""
+                        text = text.strip().strip('"').strip("'")
+
+                        # Send refined result back via callback
+                        payload = {
+                            "batch_id": batch_id,
+                            "index": i,
+                            "total": len(prompts),
+                            "raw_prompt": raw_prompt,
+                            "refined_prompt": text or raw_prompt,
+                            "was_refined": bool(text and text != raw_prompt),
+                            # Pass through metadata from the Worker
+                            "template_id": meta.get("template_id"),
+                            "template_name": meta.get("template_name"),
+                            "media_type": meta.get("media_type", "any"),
+                            "model_hint": meta.get("model_hint"),
+                        }
+                        body = json.dumps(payload).encode("utf-8")
+
+                        sig = ""
+                        if callback_secret:
+                            sig = hmac.new(callback_secret.encode(), body, hashlib.sha256).hexdigest()
+
+                        req = urlreq.Request(
+                            callback_url, data=body,
+                            headers={
+                                "Content-Type": "application/json",
+                                "X-Webhook-Signature": sig,
+                                "User-Agent": "ai-media-gen-pod/1.0",
+                            },
+                            method="POST",
+                        )
+                        resp = urlreq.urlopen(req, timeout=10)
+                        refined_count += 1
+                        print(f"[BatchRefine] {batch_id[:8]} [{i+1}/{len(prompts)}] ✅ refined → callback HTTP {resp.status}")
+                    except Exception as e:
+                        failed_count += 1
+                        print(f"[BatchRefine] {batch_id[:8]} [{i+1}/{len(prompts)}] ❌ {e}")
+
+                print(f"[BatchRefine] {batch_id[:8]} Complete: {refined_count} refined, {failed_count} failed")
+
+            threading.Thread(target=_batch_refine_worker, daemon=True).start()
+            return self._json(202, {
+                "batch_id": batch_id,
+                "status": "accepted",
+                "count": len(prompts),
+                "message": f"Refining {len(prompts)} prompts in background, results will be sent to callback_url",
+            })
+
         if path == "/generate/image2video":
             data = _read_post_body()
             if not data:
