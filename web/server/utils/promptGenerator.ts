@@ -441,7 +441,7 @@ export async function fillPromptCache(
 
 const CACHE_TARGET = 1000
 const CACHE_PER_TYPE = 500 // aim for 500 image + 500 video = 1000 total
-const BATCH_SIZE = 10  // prompts per batch-refine call
+const BATCH_SIZE = 20  // prompts per batch-refine call
 
 /**
  * Check cache count and top up to CACHE_TARGET if below.
