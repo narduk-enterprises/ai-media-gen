@@ -220,8 +220,11 @@ export async function generatePrompt(
 
   // Cache refill is handled by the cron — don't trigger here to avoid storms
 
-  // ── Fallback: live generation ─────────────────────────────
-  console.log(`[PromptGen] Cache empty for type=${mediaType}, generating live...`)
+  // ── Fallback: instant raw template (no pod call) ──────────
+  // The cache is the primary refined prompt source. When empty, return a raw
+  // template fill instantly. Don't call the pod here — it's busy batch-filling
+  // the cache, and waiting 15s for a 429/timeout wastes user time.
+  console.log(`[PromptGen] Cache empty for type=${mediaType}, serving raw template`)
 
   // 1. Fetch templates filtered by media type + model hint
   const templateConditions = [eq(promptTemplates.isActive, true)]
@@ -277,41 +280,19 @@ export async function generatePrompt(
     attrsByCategory[attr.category]!.push({ value: attr.value, weight: attr.weight ?? 1.0 })
   }
 
-  // 3 & 4 & 5. Fill, refine, check — with retry on similarity
-  let rawPrompt = ''
-  let refinedPrompt = ''
-  let similarityHash = ''
+  // 3. Fill template (instant — no LLM, no pod call)
+  const rawPrompt = fillTemplate(template.template, attrsByCategory)
+  const similarityHash = computeSimilarityHash(rawPrompt)
 
-  let refineError: string | undefined
-  let wasRefined = false
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    rawPrompt = fillTemplate(template.template, attrsByCategory)
-    const refineResult = await refineWithLLM(rawPrompt, ai)
-    refinedPrompt = refineResult.text
-    wasRefined = refineResult.wasRefined
-    refineError = refineResult.refineError
-    similarityHash = computeSimilarityHash(refinedPrompt)
+  console.warn(`[PromptGen] ⚠️ Serving UNREFINED prompt (cache empty) — raw template output`)
 
-    const duplicate = await isDuplicate(db, similarityHash)
-    if (!duplicate) break
-
-    if (attempt === maxRetries - 1) {
-      // Last attempt — use it anyway
-      console.warn(`[PromptGen] Could not avoid similarity after ${maxRetries} attempts, using last result`)
-    }
-  }
-
-  if (!wasRefined) {
-    console.warn(`[PromptGen] ⚠️ Serving UNREFINED prompt (pod unavailable) — raw template output`)
-  }
-
-  // 6. Store in generation log
+  // 4. Store in generation log
   const id = crypto.randomUUID()
   await db.insert(promptGenerationLog).values({
     id,
     templateId: template.id,
     rawPrompt,
-    refinedPrompt,
+    refinedPrompt: rawPrompt, // same since not refined
     similarityHash,
     userId: userId || null,
     createdAt: new Date().toISOString(),
@@ -322,12 +303,12 @@ export async function generatePrompt(
     templateId: template.id,
     templateName: template.name,
     rawPrompt,
-    refinedPrompt,
+    refinedPrompt: rawPrompt,
     similarityHash,
-    mediaType: template.mediaType || 'any',
+    mediaType: mediaType !== 'any' ? mediaType : (template.mediaType || 'any'),
     modelHint: template.modelHint,
-    wasRefined,
-    refineError,
+    wasRefined: false,
+    refineError: 'Cache empty — serving raw template',
   }
 }
 
