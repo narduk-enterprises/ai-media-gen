@@ -100,7 +100,7 @@ export async function refineWithLLM(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: { prompt: rawPrompt, temperature: 0.9 },
-        timeout: 60_000,
+        timeout: 15_000, // Short timeout — if pod is busy, fall back to raw prompt fast
       },
     )
 
@@ -202,11 +202,7 @@ export async function generatePrompt(
       createdAt: new Date().toISOString(),
     })
 
-    // Auto-refill: top up cache in the background
-    const refillPromise = autoRefillCache(db, ai).catch(e => console.warn(`[PromptGen] Background refill failed: ${e.message}`))
-    if (event?.waitUntil) {
-      event.waitUntil(refillPromise)
-    }
+    // Cache refill is handled by the cron — don't trigger here to avoid storms
 
     console.log(`[PromptGen] Served from cache (id=${entry.id}, type=${entry.mediaType || 'any'})`)
     return {
@@ -222,11 +218,7 @@ export async function generatePrompt(
     }
   }
 
-  // ── Cache was empty — kick off background refill ──────────
-  const refillPromise = autoRefillCache(db, ai).catch(e => console.warn(`[PromptGen] Background refill failed: ${e.message}`))
-  if (event?.waitUntil) {
-    event.waitUntil(refillPromise)
-  }
+  // Cache refill is handled by the cron — don't trigger here to avoid storms
 
   // ── Fallback: live generation ─────────────────────────────
   console.log(`[PromptGen] Cache empty for type=${mediaType}, generating live...`)
