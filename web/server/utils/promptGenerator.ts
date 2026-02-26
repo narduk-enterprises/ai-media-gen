@@ -78,6 +78,7 @@ async function isDuplicate(db: any, hash: string): Promise<boolean> {
 export interface RefineResult {
   text: string
   wasRefined: boolean
+  refineError?: string
 }
 
 /**
@@ -108,10 +109,11 @@ export async function refineWithLLM(
       return { text: refined, wasRefined: true }
     }
     // Pod returned same text or empty — treat as unrefined
-    return { text: rawPrompt, wasRefined: false }
+    return { text: rawPrompt, wasRefined: false, refineError: 'Pod returned same or empty text' }
   } catch (e: any) {
-    console.warn(`[PromptGen] Pod LLM refinement failed: ${e.message}`)
-    return { text: rawPrompt, wasRefined: false }
+    const errMsg = e?.message || e?.statusMessage || String(e)
+    console.warn(`[PromptGen] Pod LLM refinement failed: ${errMsg}`)
+    return { text: rawPrompt, wasRefined: false, refineError: errMsg }
   }
 }
 
@@ -127,6 +129,7 @@ export interface GenerateResult {
   mediaType?: string
   modelHint?: string | null
   wasRefined?: boolean
+  refineError?: string
 }
 
 export interface GenerateOptions {
@@ -287,12 +290,14 @@ export async function generatePrompt(
   let refinedPrompt = ''
   let similarityHash = ''
 
+  let refineError: string | undefined
   let wasRefined = false
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     rawPrompt = fillTemplate(template.template, attrsByCategory)
     const refineResult = await refineWithLLM(rawPrompt, ai)
     refinedPrompt = refineResult.text
     wasRefined = refineResult.wasRefined
+    refineError = refineResult.refineError
     similarityHash = computeSimilarityHash(refinedPrompt)
 
     const duplicate = await isDuplicate(db, similarityHash)
@@ -330,6 +335,7 @@ export async function generatePrompt(
     mediaType: template.mediaType || 'any',
     modelHint: template.modelHint,
     wasRefined,
+    refineError,
   }
 }
 
