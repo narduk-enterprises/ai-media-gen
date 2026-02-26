@@ -20,7 +20,7 @@ export default defineEventHandler(async () => {
   ])
 
   const total = totalResult[0]?.count ?? 0
-  const target = 100  // matches CACHE_TARGET
+  const target = 1000  // matches CACHE_TARGET
   const byType: Record<string, number> = {}
   for (const row of byTypeResult) {
     byType[row.mediaType || 'unknown'] = row.count

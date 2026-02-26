@@ -439,9 +439,9 @@ export async function fillPromptCache(
 
 // ─── Auto-Refill ────────────────────────────────────────────
 
-const CACHE_TARGET = 100
-const CACHE_PER_TYPE = 50 // aim for 50 image + 50 video = 100 total
-const BATCH_SIZE = 5  // prompts per batch-refine call (~12s each ≈ 60s total)
+const CACHE_TARGET = 1000
+const CACHE_PER_TYPE = 500 // aim for 500 image + 500 video = 1000 total
+const BATCH_SIZE = 10  // prompts per batch-refine call
 
 /**
  * Check cache count and top up to CACHE_TARGET if below.
@@ -467,7 +467,7 @@ export async function autoRefillCache(db: any, ai: any): Promise<void> {
 
   if (total >= CACHE_TARGET) return // already full
 
-  // Serverless guard: if newest prompt was cached <2 min ago, a batch is likely running
+  // Serverless guard: if newest prompt was cached <90s ago, a batch is likely running
   if (total > 0) {
     const newestResult = await db
       .select({ newest: sql<string>`MAX(created_at)` })
@@ -475,7 +475,7 @@ export async function autoRefillCache(db: any, ai: any): Promise<void> {
     const newest = newestResult[0]?.newest
     if (newest) {
       const ageMs = Date.now() - new Date(newest).getTime()
-      if (ageMs < 120_000) { // 2 minutes
+      if (ageMs < 90_000) { // 90 seconds
         return // batch likely still in progress
       }
     }
