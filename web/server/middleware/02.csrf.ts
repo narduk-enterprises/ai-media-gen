@@ -16,9 +16,9 @@ export default defineEventHandler((event) => {
   // Only protect state-changing methods
   if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return
 
-  // Webhook endpoint uses HMAC auth — exempt from CSRF
+  // Webhook endpoints use HMAC auth — exempt from CSRF
   const path = getRequestURL(event).pathname
-  if (path === '/api/generate/webhook') return
+  if (path === '/api/generate/webhook' || path === '/api/prompt-builder/cache-webhook') return
 
   const xRequestedWith = getHeader(event, 'x-requested-with')
 
