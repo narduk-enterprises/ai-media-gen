@@ -22,7 +22,8 @@ Available groups:
   ltx2               — LTX-2 19B + upscaler + distill LoRA (~25GB)
   ltx2_camera        — LTX-2 camera control LoRAs (~2GB)
   upscale            — RealESRGAN x2 + x4 (~0.2GB)
-  shared             — Qwen2.5 captioning/remix models (~8GB)
+  shared             — Qwen2.5-VL captioning models (~5GB)
+  prompt_refine      — Dolphin 2.9.4 Llama 3.1 8B for prompt refinement (~16GB)
   video_prompt       — Qwen2.5-VL-7B AWQ for video-to-prompt (~5GB)
   wan22_t2v          — Wan 2.2 T2V only (no I2V) (~22GB)
 
@@ -129,7 +130,7 @@ PROFILE_TO_GROUPS = {
     "image": ["juggernaut", "pony", "extra_checkpoints", "qwen", "flux2", "z_image", "z_image_turbo", "upscale"],
     "video": ["wan22", "ltx2", "ltx2_camera", "upscale", "shared", "video_prompt"],
     "full": ["juggernaut", "pony", "extra_checkpoints", "qwen", "flux2", "z_image", "z_image_turbo",
-             "wan22", "ltx2", "ltx2_camera", "upscale", "shared", "video_prompt"],
+             "wan22", "ltx2", "ltx2_camera", "upscale", "shared", "prompt_refine", "video_prompt"],
 }
 
 ALL_GROUPS = list(PROFILE_TO_GROUPS["full"]) + ["wan22_t2v"]
@@ -311,18 +312,19 @@ REPOS = [
             "RealESRGAN_x4.pth": "upscale_models",
         },
     },
-    # ── Shared (captioning/remixing) ──
-    {
-        "repo": "Qwen/Qwen2.5-3B-Instruct",
-        "group": "shared",
-        "full": True,
-        "target": "transformers/Qwen--Qwen2.5-3B-Instruct",
-    },
+    # ── Shared (captioning) ──
     {
         "repo": "Qwen/Qwen2.5-VL-7B-Instruct",
         "group": "shared",
         "full": True,
         "target": "transformers/Qwen--Qwen2.5-VL-7B-Instruct",
+    },
+    # ── Prompt Refine (unfiltered LLM for prompt enhancement) ──
+    {
+        "repo": "cognitivecomputations/dolphin-2.9.4-llama3.1-8b",
+        "group": "prompt_refine",
+        "full": True,
+        "target": "transformers/cognitivecomputations--dolphin-2.9.4-llama3.1-8b",
     },
     # ── Video-to-Prompt (AWQ quantized for fast inference) ──
     {
