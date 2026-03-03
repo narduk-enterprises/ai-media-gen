@@ -38,9 +38,15 @@ export const FIDELITY_PRESETS = [
   { label: 'Exact', value: 1.0 },
 ] as const
 
-export const DEFAULT_NEGATIVE_PROMPT = 'worst quality, blurry, distorted, deformed, disfigured, bad anatomy, watermark, text, logo'
+export const DEFAULT_NEGATIVE_PROMPT = [
+  'worst quality', 'blurry', 'distorted', 'deformed', 'disfigured',
+  'bad anatomy', 'watermark', 'text', 'logo'
+].join(', ')
 
-export const LTX2_NEGATIVE_PROMPT = 'blurry, low quality, still frame, watermark, overlay, titles, subtitles, text, logo'
+export const LTX2_NEGATIVE_PROMPT = [
+  'blurry', 'low quality', 'still frame', 'watermark',
+  'overlay', 'titles', 'subtitles', 'text', 'logo'
+].join(', ')
 
 // ─── I2V Workflow Presets (matched with workflow_loader.py) ──
 

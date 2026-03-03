@@ -1,14 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap');
-
 @import 'tailwindcss';
 @import '@nuxt/ui';
 
-/* ═══════════════════════════════════════════════════════════════════════
-   AI MEDIA GEN — Dark Creative Studio Theme
-   ═══════════════════════════════════════════════════════════════════════ */
-
 @theme {
-  /* ─── Brand Palette ─── */
+  /* AI Media Gen Brand Colors */
   --color-brand-50: #f5f3ff;
   --color-brand-100: #ede9fe;
   --color-brand-200: #ddd6fe;
@@ -20,113 +14,85 @@
   --color-brand-800: #5b21b6;
   --color-brand-900: #4c1d95;
 
-  /* ─── Accent Colors ─── */
   --color-accent-cyan: #06b6d4;
   --color-accent-pink: #ec4899;
   --color-accent-emerald: #10b981;
 
-  /* ─── Dark Surface System ─── */
-  --color-surface-base: #0a0a12;
-  --color-surface-1: #111120;
-  --color-surface-2: #1a1a2e;
-  --color-surface-3: #252540;
-  --color-surface-4: #2f2f50;
-
-  /* ─── Typography ─── */
+  /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-display: 'Outfit', system-ui, sans-serif;
 }
 
-/* ─── Base ─── */
 body {
   font-family: var(--font-sans);
-  background-color: var(--color-surface-base);
-  color: #e2e2f0;
+  background-color: #f8fafc;
+  color: #1e293b;
 }
 
-h1, h2, h3, h4, .font-display {
+h1,
+h2,
+h3,
+h4,
+.font-display {
   font-family: var(--font-display);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   GLASSMORPHISM — Dark Mode
+   GLASSMORPHISM (Light)
    ═══════════════════════════════════════════════════════════════════════ */
 
 .glass {
-  background: rgba(17, 17, 32, 0.85);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(24px) saturate(1.2);
   -webkit-backdrop-filter: blur(24px) saturate(1.2);
-  border-bottom: 1px solid rgba(139, 92, 246, 0.08);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
 }
 
 .glass-card {
-  background: rgba(26, 26, 46, 0.8);
+  background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(20px) saturate(1.1);
   -webkit-backdrop-filter: blur(20px) saturate(1.1);
-  border: 1px solid rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 1rem;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.03),
-    0 4px 24px rgba(0, 0, 0, 0.4);
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 4px 24px rgba(0, 0, 0, 0.03);
 }
 
 .glass-card:hover {
   border-color: rgba(139, 92, 246, 0.2);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 8px 32px rgba(0, 0, 0, 0.5),
-    0 0 20px rgba(139, 92, 246, 0.05);
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 8px 32px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(139, 92, 246, 0.05);
 }
-
-/* ═══════════════════════════════════════════════════════════════════════
-   SURFACE UTILITIES
-   ═══════════════════════════════════════════════════════════════════════ */
-
-.surface { background-color: var(--color-surface-1); }
-.surface-elevated { background-color: var(--color-surface-2); }
-.surface-interactive {
-  background-color: var(--color-surface-2);
-  transition: background-color 200ms ease, border-color 200ms ease;
-}
-.surface-interactive:hover {
-  background-color: var(--color-surface-3);
-}
-
-.text-muted { color: #7a7a9a; }
-.text-dimmed { color: #55556e; }
-
-.border-subtle { border-color: rgba(255, 255, 255, 0.06); }
-.border-glow { border-color: rgba(139, 92, 246, 0.2); }
 
 /* ═══════════════════════════════════════════════════════════════════════
    GLOW EFFECTS
    ═══════════════════════════════════════════════════════════════════════ */
 
-.glow-violet {
-  box-shadow: 0 0 20px rgba(139, 92, 246, 0.15), 0 0 60px rgba(139, 92, 246, 0.05);
-}
-
 .glow-brand {
   box-shadow:
-    0 0 15px rgba(139, 92, 246, 0.2),
-    0 0 45px rgba(6, 182, 212, 0.1);
-}
-
-.glow-ring {
-  box-shadow:
-    0 0 0 1px rgba(139, 92, 246, 0.3),
-    0 0 15px rgba(139, 92, 246, 0.1);
+    0 0 20px rgba(139, 92, 246, 0.2),
+    0 0 60px rgba(6, 182, 212, 0.08);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    ANIMATIONS
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* ─── Gradient shift (brand logo) ─── */
 @keyframes gradient-shift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .animate-gradient {
@@ -134,58 +100,91 @@ h1, h2, h3, h4, .font-display {
   animation: gradient-shift 8s ease infinite;
 }
 
-/* ─── Shimmer loading ─── */
 @keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .shimmer {
-  background: linear-gradient(
-    90deg,
-    rgba(139, 92, 246, 0.04) 25%,
-    rgba(139, 92, 246, 0.1) 50%,
-    rgba(139, 92, 246, 0.04) 75%
-  );
+  background: linear-gradient(90deg,
+      rgba(139, 92, 246, 0.06) 25%,
+      rgba(139, 92, 246, 0.12) 50%,
+      rgba(139, 92, 246, 0.06) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
-/* ─── Image / card reveal ─── */
 @keyframes fade-scale-in {
-  from { opacity: 0; transform: scale(0.95) translateY(8px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .animate-reveal {
   animation: fade-scale-in 0.4s ease-out forwards;
 }
 
-/* ─── Ambient pulse glow ─── */
 @keyframes pulse-glow {
-  0%, 100% { opacity: 1; box-shadow: 0 0 8px currentColor; }
-  50%      { opacity: 0.6; box-shadow: 0 0 24px currentColor; }
+
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 8px currentColor;
+  }
+
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 24px currentColor;
+  }
 }
 
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
-/* ─── Ambient floating orbs (landing page) ─── */
+/* Ambient floating orbs (landing page) */
 @keyframes float-orb {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33%      { transform: translate(30px, -20px) scale(1.05); }
-  66%      { transform: translate(-20px, 15px) scale(0.95); }
+
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  33% {
+    transform: translate(30px, -20px) scale(1.05);
+  }
+
+  66% {
+    transform: translate(-20px, 15px) scale(0.95);
+  }
 }
 
 .animate-float-orb {
   animation: float-orb 12s ease-in-out infinite;
 }
 
-/* ─── Entrance stagger ─── */
+/* Entrance stagger */
 @keyframes slide-up-fade {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-enter {
@@ -193,12 +192,23 @@ h1, h2, h3, h4, .font-display {
   opacity: 0;
 }
 
-.animate-enter-delay-1 { animation-delay: 100ms; }
-.animate-enter-delay-2 { animation-delay: 200ms; }
-.animate-enter-delay-3 { animation-delay: 300ms; }
-.animate-enter-delay-4 { animation-delay: 400ms; }
+.animate-enter-delay-1 {
+  animation-delay: 100ms;
+}
 
-/* ─── Page transitions ─── */
+.animate-enter-delay-2 {
+  animation-delay: 200ms;
+}
+
+.animate-enter-delay-3 {
+  animation-delay: 300ms;
+}
+
+.animate-enter-delay-4 {
+  animation-delay: 400ms;
+}
+
+/* Page transitions */
 .page-enter-active,
 .page-leave-active {
   transition: all 0.25s ease;
@@ -214,7 +224,7 @@ h1, h2, h3, h4, .font-display {
   transform: translateY(-6px);
 }
 
-/* ─── Slide-down (mobile nav) ─── */
+/* Slide-down (mobile nav) */
 .slide-down-enter-active,
 .slide-down-leave-active {
   transition: all 0.2s ease;
@@ -231,6 +241,7 @@ h1, h2, h3, h4, .font-display {
    ═══════════════════════════════════════════════════════════════════════ */
 
 @media (prefers-reduced-motion: reduce) {
+
   .animate-gradient,
   .shimmer,
   .animate-reveal,

@@ -126,10 +126,10 @@ const gridClass = computed(() => {
     <!-- Header -->
     <div class="flex items-start justify-between mb-6">
       <div>
-        <h1 class="font-display text-3xl font-bold mb-1">
-          <span class="text-transparent bg-clip-text bg-linear-to-r from-violet-400 to-cyan-400">Create</span>
+        <h1 class="font-display text-3xl font-bold text-slate-800 mb-1">
+          <span class="text-transparent bg-clip-text bg-linear-to-r from-violet-600 to-cyan-600">Create</span>
         </h1>
-        <p class="text-sm text-white/40">Generate images and videos with AI models.</p>
+        <p class="text-sm text-slate-500">Generate images and videos with AI models.</p>
       </div>
       <UButton variant="outline" color="neutral" size="xs" icon="i-lucide-rotate-ccw" @click="resetForm">Start Over</UButton>
     </div>
@@ -166,7 +166,7 @@ const gridClass = computed(() => {
     </UTabs>
 
     <!-- ═══ Generate Button (sticky) ═══ -->
-    <div v-if="mode !== 'video2prompt'" class="fixed bottom-0 left-0 right-0 bg-[var(--color-surface-1)]/95 backdrop-blur-xl border-t border-white/6 py-3 px-4 z-10">
+    <div v-if="mode !== 'video2prompt'" class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 py-3 px-4 z-10">
       <div class="max-w-6xl mx-auto flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <UButton variant="outline" color="neutral" size="sm" icon="i-lucide-rotate-ccw" @click="resetForm">Start Over</UButton>
