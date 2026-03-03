@@ -1,0 +1,332 @@
+
+> web@1.0.0 typecheck /Users/narduk/new-code/ai-media-gen/apps/web
+> nuxt typecheck
+
+
+[@nuxt/robots]  WARN  You have disallowed robots accessing /api/**, this may prevent your site from being indexed correctly.
+
+ℹ Nuxt Icon server bundle mode is set to remote
+app/components/CreateAutoVideoTab.vue(71,182): error TS4104: The type 'readonly [{ readonly label: "🎬 Cinematic"; readonly prompt: "Cinematic motion, smooth camera movements, dramatic lighting, film grain"; }, { readonly label: "🎵 Music Video"; readonly prompt: "Dynamic cuts, vibrant colors, rhythmic camera movement, music video energy"; }, { ...; }, { ...; }, { ...; }, { ...; }]' is 'readonly' and cannot be assigned to the mutable type 'PromptPreset[]'.
+app/components/CreateAutoVideoTab.vue(72,168): error TS4104: The type 'readonly [{ readonly label: "🎵 Upbeat"; readonly prompt: "upbeat electronic music, positive energy, rhythmic beats"; }, { readonly label: "🎻 Orchestral"; readonly prompt: "cinematic orchestral score, strings, dramatic crescendo"; }, { ...; }, { ...; }, { ...; }, { ...; }]' is 'readonly' and cannot be assigned to the mutable type 'PromptPreset[]'.
+app/components/PromptInput.vue(104,26): error TS2304: Cannot find name '$props'.
+app/pages/create.vue(2,31): error TS2307: Cannot find module '@nuxt/ui' or its corresponding type declarations.
+app/pages/feed.vue(396,18): error TS7006: Parameter 'el' implicitly has an 'any' type.
+app/pages/job/[id].vue(34,41): error TS2339: Property 'metadata' does not exist on type '{ error: string | null; id: string; type: string; url: string | null; generationId: string; prompt: string; createdAt: string; submittedAt: string | null; qualityScore: number | null; parentId: string | null; status: string; runpodJobId: string | null; dismissedAt: string | null; }'.
+app/pages/job/[id].vue(35,51): error TS2339: Property 'settings' does not exist on type '{ id: string; prompt: string; createdAt: string; status: string; imageCount: number; }'.
+app/pages/job/[id].vue(272,93): error TS2339: Property 'copyError' does not exist on type '{ pending: boolean; data: { item: { error: string | null; id: string; type: string; url: string | null; generationId: string; prompt: string; createdAt: string; submittedAt: string | null; qualityScore: number | null; parentId: string | null; status: string; runpodJobId: string | null; dismissedAt: string | null; };...'.
+app/pages/job/[id].vue(371,31): error TS2339: Property 'metadata' does not exist on type '{ error: string | null; id: string; type: string; url: string | null; generationId: string; prompt: string; createdAt: string; submittedAt: string | null; qualityScore: number | null; parentId: string | null; status: string; runpodJobId: string | null; dismissedAt: string | null; }'.
+app/pages/job/[id].vue(376,159): error TS2339: Property 'metadata' does not exist on type '{ error: string | null; id: string; type: string; url: string | null; generationId: string; prompt: string; createdAt: string; submittedAt: string | null; qualityScore: number | null; parentId: string | null; status: string; runpodJobId: string | null; dismissedAt: string | null; }'.
+app/pages/manage-prompts.vue(787,90): error TS2322: Type '() => boolean' is not assignable to type '((event: MouseEvent) => void | Promise<void>) | ((event: MouseEvent) => void | Promise<void>)[] | undefined'.
+  Type '() => boolean' is not assignable to type '(event: MouseEvent) => void | Promise<void>'.
+    Type 'boolean' is not assignable to type 'void | Promise<void>'.
+app/plugins/posthog.client.ts(1,21): error TS2307: Cannot find module 'posthog-js' or its corresponding type declarations.
+app/plugins/posthog.client.ts(17,16): error TS7006: Parameter 'instance' implicitly has an 'any' type.
+server/api/auth/login.post.ts(21,22): error TS2304: Cannot find name 'verifyCredentials'.
+server/api/auth/login.post.ts(27,27): error TS2304: Cannot find name 'createSession'.
+server/api/auth/logout.post.ts(7,11): error TS2304: Cannot find name 'deleteSession'.
+server/api/auth/me.get.ts(10,24): error TS2304: Cannot find name 'getSessionWithUser'.
+server/api/auth/seed-admin.post.ts(64,16): error TS2339: Property 'prepare' does not exist on type '{}'.
+server/api/auth/seed-admin.post.ts(73,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/auth/seed-admin.post.ts(79,22): error TS2304: Cannot find name 'getUserByEmail'.
+server/api/auth/seed-admin.post.ts(84,32): error TS2304: Cannot find name 'hashPassword'.
+server/api/auth/signup.post.ts(24,26): error TS2304: Cannot find name 'getUserByEmail'.
+server/api/auth/signup.post.ts(29,22): error TS2304: Cannot find name 'createUser'.
+server/api/auth/signup.post.ts(30,27): error TS2304: Cannot find name 'createSession'.
+server/api/feed/post.get.ts(12,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/feed/post.get.ts(13,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/feed/videos.get.ts(16,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/feed/videos.get.ts(17,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/audio.post.ts(22,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/audio.post.ts(27,51): error TS18048: 'parsed.error' is possibly 'undefined'.
+server/api/generate/audio.post.ts(30,11): error TS2339: Property 'mediaItemId' does not exist on type '{ mediaItemId: string; prompt?: string | undefined; endpoint?: string | undefined; } | undefined'.
+server/api/generate/audio.post.ts(30,24): error TS2339: Property 'prompt' does not exist on type '{ mediaItemId: string; prompt?: string | undefined; endpoint?: string | undefined; } | undefined'.
+server/api/generate/audio.post.ts(30,32): error TS2339: Property 'endpoint' does not exist on type '{ mediaItemId: string; prompt?: string | undefined; endpoint?: string | undefined; } | undefined'.
+server/api/generate/audio.post.ts(32,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/audio.post.ts(45,22): error TS2532: Object is possibly 'undefined'.
+server/api/generate/audio.post.ts(52,23): error TS18047: 'sourceItem.url' is possibly 'null'.
+server/api/generate/audio.post.ts(54,19): error TS18047: 'base64Match' is possibly 'null'.
+server/api/generate/audio.post.ts(56,20): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/audio.post.ts(58,27): error TS2304: Cannot find name 'readBase64FromR2'.
+server/api/generate/audio.post.ts(66,15): error TS2532: Object is possibly 'undefined'.
+server/api/generate/batch-pipeline.post.ts(41,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/cancel-all.post.ts(13,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/cancel-all.post.ts(14,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/cancel-all.post.ts(74,39): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+server/api/generate/cancel.post.ts(12,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/cancel.post.ts(19,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/cleanup-stale.post.ts(11,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/cleanup-stale.post.ts(12,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/custom.post.ts(8,15): error TS2554: Expected 2-3 arguments, but got 1.
+server/api/generate/custom.post.ts(15,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/custom.post.ts(26,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/delete.post.ts(14,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/delete.post.ts(16,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/dismiss.post.ts(14,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/dismiss.post.ts(16,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/dismiss.post.ts(38,37): error TS2339: Property 'media_items' does not exist on type '{ id: string; }'.
+server/api/generate/generation-status.get.ts(12,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/generation-status.get.ts(20,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/image.post.ts(22,18): error TS2554: Expected 2-3 arguments, but got 1.
+server/api/generate/image.post.ts(23,17): error TS2554: Expected 2-3 arguments, but got 1.
+server/api/generate/image.post.ts(31,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/image.post.ts(55,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/image2image.post.ts(21,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/image2image.post.ts(32,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/image2video-auto-batch.post.ts(32,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/image2video-auto-batch.post.ts(42,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/image2video-auto-batch.post.ts(80,20): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/image2video-auto-batch.post.ts(97,25): error TS2304: Cannot find name 'readBase64FromR2'.
+server/api/generate/image2video-auto.post.ts(27,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/image2video-auto.post.ts(41,16): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/image2video-auto.post.ts(50,22): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/image2video-auto.post.ts(52,23): error TS2304: Cannot find name 'readBase64FromR2'.
+server/api/generate/image2video-auto.post.ts(59,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/job/[id].get.ts(12,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/job/[id].get.ts(19,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/my-queue.get.ts(16,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/my-queue.get.ts(17,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/rate.post.ts(12,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/rate.post.ts(13,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/recover.post.ts(12,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/recover.post.ts(14,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/recover.post.ts(15,23): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/remix.post.ts(12,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/retry.post.ts(12,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/retry.post.ts(19,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/status/[id].get.ts(12,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/status/[id].get.ts(19,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/stream.get.ts(49,18): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/text2image-video.post.ts(31,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/text2image-video.post.ts(44,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/text2video.post.ts(29,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/text2video.post.ts(38,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/upscale.post.ts(16,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/upscale.post.ts(26,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/upscale.post.ts(54,22): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/upscale.post.ts(56,29): error TS2304: Cannot find name 'readBase64FromR2'.
+server/api/generate/upscale.post.ts(61,20): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/upscale.post.ts(65,29): error TS2304: Cannot find name 'readBase64FromR2'.
+server/api/generate/video.post.ts(27,24): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/video.post.ts(37,16): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/video.post.ts(63,22): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/video.post.ts(65,29): error TS2304: Cannot find name 'readBase64FromR2'.
+server/api/generate/video2prompt.post.ts(46,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/webhook.post.ts(64,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/webhook.post.ts(80,23): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generations.get.ts(18,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generations.get.ts(19,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generations/[id].get.ts(6,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generations/[id].get.ts(12,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/media/[id].get.ts(1,23): error TS2688: Cannot find type definition file for '@cloudflare/workers-types'.
+server/api/media/[id].get.ts(20,18): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/media/[id].get.ts(21,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/media/random.get.ts(10,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/media/random.get.ts(14,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/attributes.get.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/attributes.post.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/attributes/[id].delete.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/attributes/[id].put.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/cache-stats.get.ts(10,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/cache-status.get.ts(10,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/prompt-builder/cache-status.get.ts(12,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/cache-webhook.post.ts(52,16): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/delete-all.post.ts(17,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/export.get.ts(10,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/fill-cache.post.ts(14,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/prompt-builder/fill-cache.post.ts(16,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/generate.post.ts(13,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/prompt-builder/generate.post.ts(14,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/history.get.ts(12,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/import.post.ts(26,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/purge-duplicates.post.ts(12,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/templates.get.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/templates.post.ts(10,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/templates/[id].delete.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/templates/[id].put.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/runpod/active-pods.get.ts(25,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/runpod/setup-status.get.ts(7,1): error TS7022: 'default' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+server/api/runpod/setup-status.get.ts(7,35): error TS7024: Function implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+server/api/runpod/setup-status.get.ts(20,11): error TS7022: 'health' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+server/api/scoring/images.get.ts(12,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/scoring/images.get.ts(13,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/scoring/update.post.ts(19,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/scoring/update.post.ts(20,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/sweep/[id].get.ts(12,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/sweep/[id].get.ts(19,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/sweeps.get.ts(13,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/sweeps.get.ts(14,14): error TS2554: Expected 1 arguments, but got 0.
+server/utils/backgroundComplete.ts(13,32): error TS2307: Cannot find module './r2' or its corresponding type declarations.
+server/utils/completeItem.ts(9,33): error TS2307: Cannot find module './r2' or its corresponding type declarations.
+server/utils/podClient.ts(157,16): error TS2321: Excessive stack depth comparing types 'Exclude<R extends "/api/auth/login" ? { key: "/api/auth/login"; exact: true; score: []; catchAll: false; } : { key: "/api/auth/login"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery extends "" ? `${...' and '{ score: MaxTuple<((R extends "/api/auth/login" ? { key: "/api/auth/login"; exact: true; score: []; catchAll: false; } : { key: "/api/auth/login"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery exte...'.
+server/utils/podClient.ts(157,16): error TS2321: Excessive stack depth comparing types 'Exclude<{ key: "/__nuxt_error"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery extends "" ? `${RouteRest}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegW...' and '{ score: MaxTuple<((R extends "/api/auth/login" ? { key: "/api/auth/login"; exact: true; score: []; catchAll: false; } : { key: "/api/auth/login"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery exte...'.
+server/utils/podClient.ts(157,16): error TS2321: Excessive stack depth comparing types 'Exclude<{ key: "/robots.txt"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery extends "" ? `${RouteRest}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWit...' and '{ score: MaxTuple<((R extends "/api/auth/login" ? { key: "/api/auth/login"; exact: true; score: []; catchAll: false; } : { key: "/api/auth/login"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery exte...'.
+server/utils/podClient.ts(157,16): error TS2321: Excessive stack depth comparing types 'Exclude<{ key: "/sitemap.xml"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery extends "" ? `${RouteRest}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWi...' and '{ score: MaxTuple<((R extends "/api/auth/login" ? { key: "/api/auth/login"; exact: true; score: []; catchAll: false; } : { key: "/api/auth/login"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery exte...'.
+../../layers/narduk-nuxt-layer/app/app.vue(7,17): error TS2339: Property 'preference' does not exist on type '{ forced: boolean; }'.
+../../layers/narduk-nuxt-layer/app/app.vue(8,20): error TS2339: Property 'value' does not exist on type '{ forced: boolean; }'.
+../../layers/narduk-nuxt-layer/app/app.vue(13,39): error TS2339: Property 'preference' does not exist on type '{ forced: boolean; }'.
+../../layers/narduk-nuxt-layer/app/app.vue(14,13): error TS2339: Property 'preference' does not exist on type '{ forced: boolean; }'.
+../../layers/narduk-nuxt-layer/server/api/admin/indexing/batch.post.ts(65,31): error TS2339: Property 'trim' does not exist on type '{}'.
+../../layers/narduk-nuxt-layer/server/api/admin/indexing/batch.post.ts(67,16): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{}' is not assignable to parameter of type 'string'.
+../../layers/narduk-nuxt-layer/server/api/admin/indexing/batch.post.ts(68,27): error TS2345: Argument of type '{}' is not assignable to parameter of type 'string'.
+../../layers/narduk-nuxt-layer/server/utils/google.ts(37,29): error TS2339: Property 'trim' does not exist on type '{}'.
+../../layers/narduk-nuxt-layer/server/utils/google.ts(39,12): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{}' is not assignable to parameter of type 'string'.
+../../layers/narduk-nuxt-layer/server/utils/google.ts(40,25): error TS2345: Argument of type '{}' is not assignable to parameter of type 'string'.
+server/api/auth/login.post.ts(21,22): error TS2304: Cannot find name 'verifyCredentials'.
+server/api/auth/login.post.ts(27,27): error TS2552: Cannot find name 'createSession'. Did you mean 'clearSession'?
+server/api/auth/logout.post.ts(7,11): error TS2552: Cannot find name 'deleteSession'. Did you mean 'getSession'?
+server/api/auth/me.get.ts(10,24): error TS2304: Cannot find name 'getSessionWithUser'.
+server/api/auth/seed-admin.post.ts(73,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/auth/seed-admin.post.ts(79,22): error TS2304: Cannot find name 'getUserByEmail'.
+server/api/auth/seed-admin.post.ts(84,32): error TS2552: Cannot find name 'hashPassword'. Did you mean 'password'?
+server/api/auth/signup.post.ts(24,26): error TS2304: Cannot find name 'getUserByEmail'.
+server/api/auth/signup.post.ts(29,22): error TS2552: Cannot find name 'createUser'. Did you mean 'createRouter'?
+server/api/auth/signup.post.ts(30,27): error TS2304: Cannot find name 'createSession'.
+server/api/feed/post.get.ts(12,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/feed/post.get.ts(13,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/feed/videos.get.ts(16,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/feed/videos.get.ts(17,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/audio.post.ts(22,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/audio.post.ts(27,51): error TS18048: 'parsed.error' is possibly 'undefined'.
+server/api/generate/audio.post.ts(30,11): error TS2339: Property 'mediaItemId' does not exist on type '{ mediaItemId: string; prompt?: string | undefined; endpoint?: string | undefined; } | undefined'.
+server/api/generate/audio.post.ts(30,24): error TS2339: Property 'prompt' does not exist on type '{ mediaItemId: string; prompt?: string | undefined; endpoint?: string | undefined; } | undefined'.
+server/api/generate/audio.post.ts(30,32): error TS2339: Property 'endpoint' does not exist on type '{ mediaItemId: string; prompt?: string | undefined; endpoint?: string | undefined; } | undefined'.
+server/api/generate/audio.post.ts(32,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/audio.post.ts(45,22): error TS2532: Object is possibly 'undefined'.
+server/api/generate/audio.post.ts(52,23): error TS18047: 'sourceItem.url' is possibly 'null'.
+server/api/generate/audio.post.ts(54,19): error TS18047: 'base64Match' is possibly 'null'.
+server/api/generate/audio.post.ts(56,20): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/audio.post.ts(58,27): error TS2304: Cannot find name 'readBase64FromR2'.
+server/api/generate/audio.post.ts(66,15): error TS2532: Object is possibly 'undefined'.
+server/api/generate/batch-pipeline.post.ts(41,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/cancel-all.post.ts(13,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/cancel-all.post.ts(14,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/cancel.post.ts(12,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/cancel.post.ts(19,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/cleanup-stale.post.ts(11,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/cleanup-stale.post.ts(12,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/custom.post.ts(8,15): error TS2554: Expected 2-3 arguments, but got 1.
+server/api/generate/custom.post.ts(15,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/custom.post.ts(26,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/delete.post.ts(14,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/delete.post.ts(16,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/dismiss.post.ts(14,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/dismiss.post.ts(16,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/dismiss.post.ts(38,37): error TS2339: Property 'media_items' does not exist on type '{ id: string; }'.
+server/api/generate/generation-status.get.ts(12,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/generation-status.get.ts(20,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/image.post.ts(22,18): error TS2554: Expected 2-3 arguments, but got 1.
+server/api/generate/image.post.ts(23,17): error TS2554: Expected 2-3 arguments, but got 1.
+server/api/generate/image.post.ts(31,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/image.post.ts(55,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/image2image.post.ts(21,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/image2image.post.ts(32,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/image2video-auto-batch.post.ts(32,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/image2video-auto-batch.post.ts(42,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/image2video-auto-batch.post.ts(80,20): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/image2video-auto-batch.post.ts(97,25): error TS2304: Cannot find name 'readBase64FromR2'.
+server/api/generate/image2video-auto.post.ts(27,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/image2video-auto.post.ts(41,16): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/image2video-auto.post.ts(50,22): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/image2video-auto.post.ts(52,23): error TS2304: Cannot find name 'readBase64FromR2'.
+server/api/generate/image2video-auto.post.ts(59,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/job/[id].get.ts(12,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/job/[id].get.ts(19,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/my-queue.get.ts(16,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/my-queue.get.ts(17,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/rate.post.ts(12,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/rate.post.ts(13,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/recover.post.ts(12,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/recover.post.ts(14,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/recover.post.ts(15,23): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/remix.post.ts(12,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/retry.post.ts(12,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/retry.post.ts(19,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/status/[id].get.ts(12,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/status/[id].get.ts(19,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/stream.get.ts(49,18): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/text2image-video.post.ts(31,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/text2image-video.post.ts(44,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/text2video.post.ts(29,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/text2video.post.ts(38,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/upscale.post.ts(16,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/upscale.post.ts(26,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/upscale.post.ts(54,22): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/upscale.post.ts(56,29): error TS2304: Cannot find name 'readBase64FromR2'.
+server/api/generate/upscale.post.ts(61,20): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/upscale.post.ts(65,29): error TS2304: Cannot find name 'readBase64FromR2'.
+server/api/generate/video.post.ts(27,24): error TS2304: Cannot find name 'requireAuth'.
+server/api/generate/video.post.ts(37,16): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/video.post.ts(63,22): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generate/video.post.ts(65,29): error TS2304: Cannot find name 'readBase64FromR2'.
+server/api/generate/video2prompt.post.ts(46,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/webhook.post.ts(64,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generate/webhook.post.ts(80,23): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/generations.get.ts(18,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generations.get.ts(19,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/generations/[id].get.ts(6,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/generations/[id].get.ts(12,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/media/[id].get.ts(1,23): error TS2688: Cannot find type definition file for '@cloudflare/workers-types'.
+server/api/media/[id].get.ts(20,18): error TS2304: Cannot find name 'useMediaBucket'.
+server/api/media/[id].get.ts(21,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/media/random.get.ts(10,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/media/random.get.ts(14,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/attributes.get.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/attributes.post.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/attributes/[id].delete.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/attributes/[id].put.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/cache-stats.get.ts(10,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/cache-status.get.ts(10,9): error TS2304: Cannot find name 'requireAuth'.
+server/api/prompt-builder/cache-status.get.ts(12,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/cache-webhook.post.ts(52,16): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/delete-all.post.ts(17,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/export.get.ts(10,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/fill-cache.post.ts(14,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/prompt-builder/fill-cache.post.ts(16,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/generate.post.ts(13,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/prompt-builder/generate.post.ts(14,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/history.get.ts(12,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/import.post.ts(26,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/purge-duplicates.post.ts(12,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/templates.get.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/templates.post.ts(10,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/templates/[id].delete.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/prompt-builder/templates/[id].put.ts(11,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/runpod/active-pods.get.ts(25,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/runpod/setup-status.get.ts(7,1): error TS7022: 'default' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+server/api/runpod/setup-status.get.ts(7,35): error TS7024: Function implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+server/api/runpod/setup-status.get.ts(20,11): error TS7022: 'health' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+server/api/scoring/images.get.ts(12,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/scoring/images.get.ts(13,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/scoring/update.post.ts(19,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/scoring/update.post.ts(20,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/sweep/[id].get.ts(12,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/sweep/[id].get.ts(19,14): error TS2554: Expected 1 arguments, but got 0.
+server/api/sweeps.get.ts(13,22): error TS2304: Cannot find name 'requireAuth'.
+server/api/sweeps.get.ts(14,14): error TS2554: Expected 1 arguments, but got 0.
+server/middleware/01.d1.ts(9,5): error TS2304: Cannot find name 'initDatabase'.
+server/middleware/03.auth.ts(21,26): error TS2304: Cannot find name 'getSessionWithUser'.
+server/tasks/recovery/sweep.ts(31,18): error TS2304: Cannot find name 'initDatabase'.
+server/utils/backgroundComplete.ts(13,32): error TS2307: Cannot find module './r2' or its corresponding type declarations.
+server/utils/completeItem.ts(9,33): error TS2307: Cannot find module './r2' or its corresponding type declarations.
+server/utils/podClient.ts(157,16): error TS2321: Excessive stack depth comparing types 'Exclude<R extends "/api/auth/login" ? { key: "/api/auth/login"; exact: true; score: []; catchAll: false; } : { key: "/api/auth/login"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery extends "" ? `${...' and '{ score: MaxTuple<((R extends "/api/auth/login" ? { key: "/api/auth/login"; exact: true; score: []; catchAll: false; } : { key: "/api/auth/login"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery exte...'.
+server/utils/podClient.ts(157,16): error TS2321: Excessive stack depth comparing types 'Exclude<{ key: "/__nuxt_error"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery extends "" ? `${RouteRest}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegW...' and '{ score: MaxTuple<((R extends "/api/auth/login" ? { key: "/api/auth/login"; exact: true; score: []; catchAll: false; } : { key: "/api/auth/login"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery exte...'.
+server/utils/podClient.ts(157,16): error TS2321: Excessive stack depth comparing types 'Exclude<{ key: "/robots.txt"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery extends "" ? `${RouteRest}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWit...' and '{ score: MaxTuple<((R extends "/api/auth/login" ? { key: "/api/auth/login"; exact: true; score: []; catchAll: false; } : { key: "/api/auth/login"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery exte...'.
+server/utils/podClient.ts(157,16): error TS2321: Excessive stack depth comparing types 'Exclude<{ key: "/sitemap.xml"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery extends "" ? `${RouteRest}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWi...' and '{ score: MaxTuple<((R extends "/api/auth/login" ? { key: "/api/auth/login"; exact: true; score: []; catchAll: false; } : { key: "/api/auth/login"; exact: false; score: `${R}/` extends `${infer RouteSeg}/${infer RouteRest}` ? `${RouteSeg}?` extends `${infer RouteSegWithoutQuery}?${string}` ? RouteSegWithoutQuery exte...'.
+nuxt.config.ts(90,3): error TS1117: An object literal cannot have multiple properties with the same name.
+../../layers/narduk-nuxt-layer/nuxt.config.ts(69,3): error TS2353: Object literal may only specify known properties, and 'colorMode' does not exist in type 'InputConfig<NuxtConfig, ConfigLayerMeta>'.
+
+ ERROR  Process exited with non-zero status (2)
+
+    at G._waitForOutput (/Users/narduk/new-code/ai-media-gen/node_modules/.pnpm/tinyexec@1.0.2/node_modules/tinyexec/dist/main.js:574:92)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.run (/Users/narduk/new-code/ai-media-gen/node_modules/.pnpm/@nuxt+cli@3.33.1_@nuxt+schema@4.3.1_cac@6.7.14_magicast@0.5.2/node_modules/@nuxt/cli/dist/typecheck-C8wVgBzd.mjs:37:52)
+    at async runCommand (/Users/narduk/new-code/ai-media-gen/node_modules/.pnpm/citty@0.2.1/node_modules/citty/dist/index.mjs:188:47)
+    at async runCommand (/Users/narduk/new-code/ai-media-gen/node_modules/.pnpm/citty@0.2.1/node_modules/citty/dist/index.mjs:185:21)
+    at async runMain (/Users/narduk/new-code/ai-media-gen/node_modules/.pnpm/citty@0.2.1/node_modules/citty/dist/index.mjs:285:10) 
+
+
+ ELIFECYCLE  Command failed with exit code 1.

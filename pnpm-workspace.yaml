@@ -1,0 +1,8 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'layers/*'
+
+# Allow install to succeed when layer/app have peer mismatches (e.g. eslint 10)
+pnpm:
+  strictPeerDependencies: false

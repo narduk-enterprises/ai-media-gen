@@ -1,0 +1,102 @@
+{
+  "name": "@narduk-enterprises/narduk-nuxt-template-layer",
+  "version": "1.0.11",
+  "type": "module",
+  "description": "Narduk Nuxt 4 Layer — shared components, composables, server routes, and Drizzle schema for Cloudflare Workers apps",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/narduk-enterprises/narduk-nuxt-template.git",
+    "directory": "layers/narduk-nuxt-layer"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "prepare": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "prelint": "test -f .nuxt/eslint.config.mjs || nuxt prepare",
+    "lint": "eslint .",
+    "quality": "pnpm run lint && pnpm run typecheck && pnpm run test:unit",
+    "test:unit": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@nuxt/eslint": "^1.15.2",
+    "@nuxt/fonts": "^0.14.0",
+    "@nuxt/image": "^2.0.0",
+    "@nuxt/ui": "4.5.0",
+    "@nuxtjs/seo": "^3.4.0",
+    "@takumi-rs/wasm": "^0.69.5",
+    "drizzle-orm": "^0.45.1",
+    "jose": "^6.1.3",
+    "postcss": "^8.5.6",
+    "posthog-js": "^1.205.0",
+    "tailwindcss": "^4.2.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250620.0",
+    "@iconify-json/lucide": "^1.2.94",
+    "@narduk/eslint-config": "workspace:*",
+    "@nuxt/test-utils": "^4.0.0",
+    "@playwright/test": "^1.58.2",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^22.19.13",
+    "@vue/test-utils": "^2.4.6",
+    "drizzle-kit": "^0.31.9",
+    "eslint": "^10.0.2",
+    "happy-dom": "^20.7.0",
+    "nuxt": "^4.3.1",
+    "playwright": "^1.58.2",
+    "prettier": "^3.8.1",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18",
+    "vue-tsc": "^3.2.5",
+    "wrangler": "^4.20.0"
+  },
+  "peerDependencies": {
+    "nuxt": ">=3.16.0",
+    "wrangler": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "wrangler": {
+      "optional": true
+    }
+  },
+  "overrides": {
+    "@cloudflare/unenv-preset": "2.12.1",
+    "vite": "npm:rolldown-vite@7.3.1"
+  },
+  "exports": {
+    ".": {
+      "import": "./nuxt.config.ts"
+    },
+    "./server/*": "./server/*",
+    "./app/*": "./app/*",
+    "./components/*": "./components/*",
+    "./server/database/schema": {
+      "import": "./server/database/schema.ts"
+    },
+    "./drizzle/*": "./drizzle/*"
+  },
+  "files": [
+    "app/",
+    "components/",
+    "public/",
+    "server/",
+    "drizzle/",
+    "nuxt.config.ts",
+    "tsconfig.json",
+    "drizzle.config.ts"
+  ],
+  "volta": {
+    "node": "22.22.0"
+  }
+}
