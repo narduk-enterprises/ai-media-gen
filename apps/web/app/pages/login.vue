@@ -1,7 +1,6 @@
 <script setup lang="ts">
 const { login, loggedIn } = useAuth()
 
-// Already logged in? Go to /create
 if (loggedIn.value) {
   await navigateTo('/create', { replace: true })
 }
@@ -29,30 +28,33 @@ async function handleLogin() {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center px-4">
-    <div class="w-full max-w-md">
+  <div class="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
+    <!-- Ambient orb -->
+    <div class="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full bg-violet-500/5 blur-3xl pointer-events-none" />
+
+    <div class="w-full max-w-md relative z-10 animate-enter">
       <!-- Back link -->
-      <NuxtLink to="/" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 mb-8 transition-colors">
-        <UIcon name="i-heroicons-arrow-left" class="w-4 h-4" />
+      <NuxtLink to="/" class="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 mb-8 transition-colors">
+        <UIcon name="i-lucide-arrow-left" class="w-4 h-4" />
         Back
       </NuxtLink>
 
       <div class="glass-card p-8">
         <!-- Header -->
         <div class="text-center mb-8">
-          <div class="w-14 h-14 mx-auto rounded-xl bg-linear-to-br from-violet-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-violet-500/20 mb-4">
+          <div class="w-14 h-14 mx-auto rounded-xl bg-linear-to-br from-violet-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-violet-500/25 mb-4">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 2L2 7l10 5 10-5-10-5z" />
               <path d="M2 17l10 5 10-5" />
               <path d="M2 12l10 5 10-5" />
             </svg>
           </div>
-          <h1 class="font-display text-2xl font-bold text-slate-800">Welcome back</h1>
-          <p class="text-sm text-slate-500 mt-1">Sign in to start creating</p>
+          <h1 class="font-display text-2xl font-bold text-white/90">Welcome back</h1>
+          <p class="text-sm text-white/40 mt-1">Sign in to start creating</p>
         </div>
 
         <!-- Error -->
-        <div v-if="error" class="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
+        <div v-if="error" class="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
           {{ error }}
         </div>
 
@@ -94,10 +96,10 @@ async function handleLogin() {
         <!-- Divider -->
         <div class="relative my-6">
           <div class="absolute inset-0 flex items-center">
-            <div class="w-full border-t border-slate-200" />
+            <div class="w-full border-t border-white/8" />
           </div>
           <div class="relative flex justify-center text-xs">
-            <span class="px-3 bg-white text-slate-400">or</span>
+            <span class="px-3 bg-[var(--color-surface-2)] text-white/30">or</span>
           </div>
         </div>
 
@@ -118,9 +120,9 @@ async function handleLogin() {
         </UButton>
 
         <!-- Sign up link -->
-        <p class="text-center text-sm text-slate-500 mt-6">
+        <p class="text-center text-sm text-white/40 mt-6">
           Don't have an account?
-          <NuxtLink to="/signup" class="text-violet-600 hover:text-violet-700 font-medium">
+          <NuxtLink to="/signup" class="text-violet-400 hover:text-violet-300 font-medium">
             Create one
           </NuxtLink>
         </p>

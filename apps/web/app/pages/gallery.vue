@@ -174,18 +174,18 @@ function goToReuse(item: GalleryMediaItem) {
 </script>
 
 <template>
-  <div class="min-h-[calc(100vh-4rem)] bg-slate-50">
+  <div class="min-h-[calc(100vh-4rem)]">
     <!-- Header -->
-    <div class="sticky top-16 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
+    <div class="sticky top-16 z-30 bg-[var(--color-surface-1)]/90 backdrop-blur-xl border-b border-white/6">
       <div class="max-w-400 mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3 flex-wrap">
-        <h1 class="font-display text-lg font-bold text-slate-800 shrink-0">Gallery</h1>
-        <span class="text-xs text-slate-400"><span class="font-medium text-slate-600">{{ mediaItems.length }}</span> of {{ total }} items</span>
+        <h1 class="font-display text-lg font-bold text-white/90 shrink-0">Gallery</h1>
+        <span class="text-xs text-white/30"><span class="font-medium text-white/60">{{ mediaItems.length }}</span> of {{ total }} items</span>
         <div class="flex-1" />
 
         <UInput v-model="searchQuery" placeholder="Search…" icon="i-lucide-search" size="sm" class="w-40 lg:w-56" />
 
         <!-- Type filter -->
-        <div class="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+        <div class="flex items-center gap-0.5 bg-white/5 rounded-lg p-0.5">
           <UButton size="xs" :variant="typeFilter === 'all' ? 'solid' : 'ghost'" color="neutral" @click="typeFilter = 'all'">All</UButton>
           <UButton size="xs" :variant="typeFilter === 'image' ? 'solid' : 'ghost'" color="neutral" icon="i-lucide-image" @click="typeFilter = 'image'" />
           <UButton size="xs" :variant="typeFilter === 'video' ? 'solid' : 'ghost'" color="neutral" icon="i-lucide-film" @click="typeFilter = 'video'" />
@@ -216,8 +216,8 @@ function goToReuse(item: GalleryMediaItem) {
 
       <!-- Bulk Action Bar -->
       <Transition name="fade">
-        <div v-if="isSelectionMode && selectedIds.size > 0" class="bg-violet-50 border-b border-violet-100 flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2">
-          <span class="text-sm font-medium text-violet-700">{{ selectedIds.size }} selected</span>
+        <div v-if="isSelectionMode && selectedIds.size > 0" class="bg-violet-500/10 border-b border-violet-500/20 flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2">
+          <span class="text-sm font-medium text-violet-300">{{ selectedIds.size }} selected</span>
           <div class="flex items-center gap-2">
             <UButton size="xs" color="neutral" variant="solid" @click="selectedIds.clear()">Deselect All</UButton>
             <UButton size="xs" color="error" variant="solid" icon="i-lucide-trash-2" :loading="isDeleting" @click="handleDelete()">Delete Selected</UButton>
@@ -232,17 +232,17 @@ function goToReuse(item: GalleryMediaItem) {
       <GallerySkeletonGrid v-if="pending && !mediaItems.length" :large="largeGrid" />
 
       <!-- Error -->
-      <div v-else-if="error" class="p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm max-w-lg mx-auto">
+      <div v-else-if="error" class="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm max-w-lg mx-auto">
         Failed to load gallery. <button class="underline" @click="refresh()">Retry</button>
       </div>
 
       <!-- Empty -->
       <div v-else-if="!mediaItems.length" class="flex items-center justify-center min-h-[50vh]">
         <div class="text-center">
-          <div class="w-20 h-20 mx-auto rounded-2xl bg-violet-50 border border-violet-100 flex items-center justify-center mb-4">
-            <UIcon name="i-lucide-image" class="w-10 h-10 text-violet-300" />
+          <div class="w-20 h-20 mx-auto rounded-2xl bg-violet-500/10 border border-violet-500/15 flex items-center justify-center mb-4">
+            <UIcon name="i-lucide-image" class="w-10 h-10 text-violet-400/50" />
           </div>
-          <p class="text-slate-500 text-sm mb-1">Your gallery is empty</p>
+          <p class="text-white/40 text-sm mb-1">Your gallery is empty</p>
           <UButton to="/create" size="sm">Create something</UButton>
         </div>
       </div>
@@ -250,9 +250,9 @@ function goToReuse(item: GalleryMediaItem) {
       <!-- No results -->
       <div v-else-if="filteredMedia.length === 0" class="flex items-center justify-center min-h-[30vh]">
         <div class="text-center">
-          <UIcon name="i-lucide-search" class="w-8 h-8 text-slate-300 mx-auto mb-2" />
-          <p class="text-slate-500 text-sm">No results</p>
-          <button class="text-violet-500 text-xs mt-1 hover:underline" @click="searchQuery = ''; typeFilter = 'all'">Clear filters</button>
+          <UIcon name="i-lucide-search" class="w-8 h-8 text-white/20 mx-auto mb-2" />
+          <p class="text-white/40 text-sm">No results</p>
+          <button class="text-violet-400 text-xs mt-1 hover:underline" @click="searchQuery = ''; typeFilter = 'all'">Clear filters</button>
         </div>
       </div>
 
@@ -261,8 +261,8 @@ function goToReuse(item: GalleryMediaItem) {
         <div
           v-for="(item, index) in filteredMedia" :key="item.id"
           :class="[
-            'group relative rounded-xl overflow-hidden cursor-pointer border transition-all hover:shadow-lg',
-            selectedIds.has(item.id) ? 'border-violet-500 ring-2 ring-violet-500 ring-offset-2 ring-offset-slate-50' : 'border-slate-200 hover:border-violet-300'
+            'group relative rounded-xl overflow-hidden cursor-pointer border transition-all',
+            selectedIds.has(item.id) ? 'border-violet-500 ring-2 ring-violet-500 ring-offset-2 ring-offset-[var(--color-surface-base)]' : 'border-white/8 hover:border-violet-500/30 hover:shadow-lg hover:shadow-violet-500/5'
           ]"
           @click="handleItemClick(item, index)"
         >
@@ -270,8 +270,8 @@ function goToReuse(item: GalleryMediaItem) {
             <UIcon v-if="selectedIds.has(item.id)" name="i-lucide-check" class="w-3.5 h-3.5" />
           </div>
 
-          <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="metadata" class="w-full h-auto min-h-40 bg-slate-100 block" @mouseenter="!isSelectionMode && ($event.target as HTMLVideoElement).play()" @mouseleave="!isSelectionMode && ($event.target as HTMLVideoElement).pause()" />
-          <NuxtImg v-else :src="item.url" :alt="item.prompt" :width="largeGrid ? 512 : 300" class="w-full h-auto min-h-40 bg-slate-100 block" loading="lazy" />
+          <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="metadata" class="w-full h-auto min-h-40 bg-[var(--color-surface-2)] block" @mouseenter="!isSelectionMode && ($event.target as HTMLVideoElement).play()" @mouseleave="!isSelectionMode && ($event.target as HTMLVideoElement).pause()" />
+          <NuxtImg v-else :src="item.url" :alt="item.prompt" :width="largeGrid ? 512 : 300" class="w-full h-auto min-h-40 bg-[var(--color-surface-2)] block" loading="lazy" />
 
           <!-- Video badge -->
           <div v-if="item.type === 'video' && !isSelectionMode" class="absolute top-2.5 left-2.5 px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm text-white text-xs flex items-center gap-1">
@@ -309,7 +309,7 @@ function goToReuse(item: GalleryMediaItem) {
             v-for="i in 6"
             :key="'skeleton-' + i"
             :class="[
-              'rounded-xl overflow-hidden border border-slate-200 bg-slate-100 animate-pulse',
+              'rounded-xl overflow-hidden border border-white/6 bg-[var(--color-surface-2)] animate-pulse',
             ]"
           >
             <div :class="['w-full', i % 3 === 0 ? 'aspect-3/4' : i % 3 === 1 ? 'aspect-square' : 'aspect-4/3']" />
@@ -322,7 +322,7 @@ function goToReuse(item: GalleryMediaItem) {
         <UButton v-if="hasMore && !loadingMore" variant="ghost" size="xs" color="neutral" @click="loadMore()">
           {{ mediaItems.length }} of {{ total }} loaded
         </UButton>
-        <span v-else-if="!hasMore && mediaItems.length > 0" class="text-xs text-slate-300">All {{ total }} items loaded</span>
+        <span v-else-if="!hasMore && mediaItems.length > 0" class="text-xs text-white/20">All {{ total }} items loaded</span>
       </div>
     </div>
 
