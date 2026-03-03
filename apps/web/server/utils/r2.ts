@@ -6,7 +6,7 @@ import type { H3Event } from 'h3'
  */
 export function useMediaBucket(event: H3Event): R2Bucket | null {
     const env = event.context.cloudflare?.env as Record<string, unknown> | undefined
-    return (env?.MEDIA_BUCKET as R2Bucket) ?? null
+    return (env?.MEDIA_BUCKET as R2Bucket) || (env?.MEDIA as R2Bucket) || null
 }
 
 /**

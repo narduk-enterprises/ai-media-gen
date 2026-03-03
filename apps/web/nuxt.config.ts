@@ -75,8 +75,8 @@ export default defineNuxtConfig({
   },
 
   site: {
-    url: process.env.SITE_URL || 'https://ai-media-gen.narduk.workers.dev',
-    name: 'AI Media Gen'
+    url: process.env.SITE_URL || 'https://ai-media-gen.nard.uk',
+    name: 'AI Media Gen',
   },
 
   sitemap: {

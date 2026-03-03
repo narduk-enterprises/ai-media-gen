@@ -391,7 +391,7 @@ export async function fillPromptCache(
     const podUrl = await resolveApiUrl(undefined, undefined, ['prompt_refine'])
 
     const config = useRuntimeConfig() as any
-    const siteUrl = config.public?.siteUrl || config.siteUrl || 'https://ai-media-gen.narduk.workers.dev'
+    const siteUrl = config.public?.siteUrl || config.siteUrl || 'https://ai-media-gen.nard.uk'
     const callbackUrl = `${siteUrl}/api/prompt-builder/cache-webhook`
     const callbackSecret = config.webhookSecret || ''
 

@@ -75,7 +75,7 @@ export default defineEventHandler(async (event) => {
         // Resolve relative URLs to absolute
         const fullUrl = sourceItem.url.startsWith('http')
           ? sourceItem.url
-          : `${useRuntimeConfig().public?.appUrl || 'https://ai-media-gen.narduk.workers.dev'}${sourceItem.url}`
+          : `${useRuntimeConfig().public?.appUrl || 'https://ai-media-gen.nard.uk'}${sourceItem.url}`
         console.log(`[Upscale] Falling back to URL fetch: ${fullUrl}`)
         const resp = await fetch(fullUrl)
         if (resp.ok) {
@@ -118,7 +118,7 @@ export default defineEventHandler(async (event) => {
 
   console.log(`[Upscale] Item queued: ${enhancedId.slice(0, 8)} (${scale}x ${isVideo ? 'video' : 'image'})`)
 
- event.waitUntil(submitItemToComfyUI(db, enhancedId))
+  event.waitUntil(submitItemToComfyUI(db, enhancedId))
 
   return {
     item: {
