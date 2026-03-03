@@ -35,4 +35,4 @@ typecheck_errors.txt
 .vercel
 .wrangler/
 wrangler.json
-web/.data
+web/.data.turbo
