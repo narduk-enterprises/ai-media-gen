@@ -21,12 +21,14 @@
     "@narduk-enterprises/narduk-nuxt-template-layer": "workspace:*",
     "@narduk/eslint-config": "workspace:*",
     "@nuxt/ui": "4.5.0",
+    "@takumi-rs/core": "^0.70.3",
     "drizzle-orm": "^0.45.1",
     "nuxt": "^4.3.1",
     "posthog-js": "^1.357.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@iconify-json/lucide": "^1.2.95",
     "@nuxtjs/robots": "^5.7.0",
     "@nuxtjs/sitemap": "^7.6.0",
     "@tailwindcss/vite": "^4.0.0",
