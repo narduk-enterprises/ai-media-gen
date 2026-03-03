@@ -20,6 +20,7 @@
     "@cloudflare/workers-types": "^4.20260301.1",
     "@narduk-enterprises/narduk-nuxt-template-layer": "workspace:*",
     "@narduk/eslint-config": "workspace:*",
+    "@nuxt/ui": "4.5.0",
     "drizzle-orm": "^0.45.1",
     "nuxt": "^4.3.1",
     "posthog-js": "^1.357.2",
