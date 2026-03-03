@@ -36,3 +36,5 @@ typecheck_errors.txt
 .wrangler/
 wrangler.json
 web/.data.turbo
+
+.turbo/
