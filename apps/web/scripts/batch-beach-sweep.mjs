@@ -11,7 +11,7 @@
  * Usage: node web/scripts/batch-beach-sweep.mjs
  */
 
-const API_BASE = 'https://ai-media-gen.narduk.workers.dev'
+const API_BASE = 'https://ai-media-gen.nard.uk'
 const SESSION_COOKIE = 'session=1b9b689f-2179-475b-baf6-0e8746eab371'
 
 // ─── Two focused prompts ───────────────────────────────────

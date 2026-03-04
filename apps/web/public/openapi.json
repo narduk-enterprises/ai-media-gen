@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://ai-media-gen.narduk.workers.dev",
+      "url": "https://ai-media-gen.nard.uk",
       "description": "Production Server"
     }
   ],

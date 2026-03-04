@@ -2,7 +2,7 @@
 """Check video sizes via GET range request (first byte) to identify stubs."""
 import urllib.request, json, sys, concurrent.futures
 
-BASE = "https://ai-media-gen.narduk.workers.dev/api/media"
+BASE = "https://ai-media-gen.nard.uk/api/media"
 
 def check(vid_id):
     try:

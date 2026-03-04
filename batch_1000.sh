@@ -3,7 +3,7 @@
 # Batch generate 1000 images using cyberrealistic_pony model
 # with auto-generated prompts from the prompt builder endpoint.
 #
-BASE="https://ai-media-gen.narduk.workers.dev"
+BASE="https://ai-media-gen.nard.uk"
 SESSION="session=1b9b689f-2179-475b-baf6-0e8746eab371"
 MODEL="cyberrealistic_pony"
 BATCH_SIZE=16

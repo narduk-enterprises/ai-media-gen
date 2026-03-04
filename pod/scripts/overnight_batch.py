@@ -6,7 +6,7 @@ Loops every 30 min with fresh seeds until 9 AM CST.
 """
 import json, time, random, urllib.request
 
-WORKER_URL = "https://ai-media-gen.narduk.workers.dev/api/generate/batch-pipeline"
+WORKER_URL = "https://ai-media-gen.nard.uk/api/generate/batch-pipeline"
 BATCH_KEY = "overnight-batch-2026"
 POD_ENDPOINT = "https://4rrjaor7zvldlt-8188.proxy.runpod.net"
 

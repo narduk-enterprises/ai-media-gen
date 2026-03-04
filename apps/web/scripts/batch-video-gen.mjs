@@ -8,7 +8,7 @@
  * Results appear in the gallery via the normal queue processing pipeline.
  */
 
-const API_BASE = 'https://ai-media-gen.narduk.workers.dev'
+const API_BASE = 'https://ai-media-gen.nard.uk'
 const SESSION_COOKIE = 'session=8133e365-535e-4eaf-b920-4b866b1d942d'
 const ENDPOINT = 'https://4rrjaor7zvldlt-8188.proxy.runpod.net'
 

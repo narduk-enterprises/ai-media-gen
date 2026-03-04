@@ -5,7 +5,7 @@ Run on a GPU machine (RunPod, etc.) to score all images in your gallery.
 
 Usage:
   pip install torch torchvision transformers pillow requests
-  python score_images.py --url https://ai-media-gen.narduk.workers.dev --email you@example.com --password yourpass
+  python score_images.py --url https://ai-media-gen.nard.uk --email you@example.com --password yourpass
 
 This will:
   1. Log in to get a session cookie

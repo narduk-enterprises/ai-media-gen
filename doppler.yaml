@@ -1,0 +1,3 @@
+setup:
+  project: ai-media-gen
+  config: prd
