@@ -113,8 +113,8 @@ export interface JobResult {
 export function getPodUrl(): string {
   try {
     const config = useRuntimeConfig()
-    const comfyUrl = (config as any).comfyUrl
-    if (comfyUrl) return comfyUrl.replace(/\/+$/, '')
+    const typedConfig = config as unknown as { comfyUrl?: string }
+    if (typedConfig.comfyUrl) return typedConfig.comfyUrl.replace(/\/+$/, '')
   } catch { /* runtime config not yet available */ }
   return ''
 }
@@ -149,13 +149,13 @@ export async function submitJob(
  * Submit a text-to-image job.
  */
 export async function submitText2Image(
-  input: Record<string, any>,
+  input: Record<string, unknown>,
   podUrl?: string,
   callbackUrl?: string,
   callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
-  return await ofetch(`${url}/generate/text2image`, {
+  return await ofetch<{ job_id: string; status: string }>(`${url}/generate/text2image`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: {
@@ -165,7 +165,7 @@ export async function submitText2Image(
       height: input.height,
       steps: input.steps,
       seed: input.seed,
-      model: input.model || 'wan22',
+      model: (input.model as string) || 'wan22',
       lora_strength: input.lora_strength,
       cfg: input.cfg,
       sampler_name: input.sampler_name,
@@ -183,13 +183,13 @@ export async function submitText2Image(
  * Generates an image first, then animates it with I2V.
  */
 export async function submitText2ImageThenVideo(
-  input: Record<string, any>,
+  input: Record<string, unknown>,
   podUrl?: string,
   callbackUrl?: string,
   callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
-  return await ofetch(`${url}/generate/text2image-then-video`, {
+  return await ofetch<{ job_id: string; status: string }>(`${url}/generate/text2image-then-video`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: {
@@ -200,11 +200,11 @@ export async function submitText2ImageThenVideo(
       steps: input.steps,
       cfg: input.cfg,
       seed: input.seed,
-      image_model: input.image_model || 'cyberrealistic_pony',
+      image_model: (input.image_model as string) || 'cyberrealistic_pony',
       sampler_name: input.sampler_name,
       scheduler: input.scheduler,
       video_prompt: input.video_prompt,
-      video_model: input.video_model || 'wan22',
+      video_model: (input.video_model as string) || 'wan22',
       video_steps: input.video_steps,
       video_frames: input.video_frames,
       video_fps: input.video_fps,
@@ -221,13 +221,13 @@ export async function submitText2ImageThenVideo(
  * Submit an image-to-image job.
  */
 export async function submitImage2Image(
-  input: Record<string, any>,
+  input: Record<string, unknown>,
   podUrl?: string,
   callbackUrl?: string,
   callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
-  return await ofetch(`${url}/generate/image2image`, {
+  return await ofetch<{ job_id: string; status: string }>(`${url}/generate/image2image`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: {
@@ -240,7 +240,7 @@ export async function submitImage2Image(
       cfg: input.cfg,
       denoise: input.denoise,
       seed: input.seed,
-      model: input.model || 'wan22',
+      model: (input.model as string) || 'wan22',
       callback_url: callbackUrl,
       callback_secret: callbackSecret,
     },
@@ -252,18 +252,18 @@ export async function submitImage2Image(
  * Submit a custom raw ComfyUI workflow.
  */
 export async function submitCustomWorkflow(
-  input: Record<string, any>,
+  input: Record<string, unknown>,
   podUrl?: string,
   callbackUrl?: string,
   callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
-  return await ofetch(`${url}/generate/custom`, {
+  return await ofetch<{ job_id: string; status: string }>(`${url}/generate/custom`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: {
       workflow: input.workflow,
-      expect_video: input.expect_video ?? false,
+      expect_video: (input.expect_video as boolean) ?? false,
       callback_url: callbackUrl,
       callback_secret: callbackSecret,
     },
@@ -276,20 +276,20 @@ export async function submitCustomWorkflow(
  * Uses video_url (R2 download link) instead of base64 video data.
  */
 export async function submitVideo2Prompt(
-  input: Record<string, any>,
+  input: Record<string, unknown>,
   podUrl?: string,
   callbackUrl?: string,
   callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
-  return await ofetch(`${url}/generate/video2prompt`, {
+  return await ofetch<{ job_id: string; status: string }>(`${url}/generate/video2prompt`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: {
       video_url: input.video_url,
       frames: input.frames,
       custom_system_prompt: input.custom_system_prompt,
-      target_model: input.target_model || 'Qwen2.5-VL-7B-Instruct-AWQ',
+      target_model: (input.target_model as string) || 'Qwen2.5-VL-7B-Instruct-AWQ',
       callback_url: callbackUrl,
       callback_secret: callbackSecret,
     },
@@ -301,13 +301,13 @@ export async function submitVideo2Prompt(
  * Submit an image-to-video job.
  */
 export async function submitImage2Video(
-  input: Record<string, any>,
+  input: Record<string, unknown>,
   podUrl?: string,
   callbackUrl?: string,
   callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
-  return await ofetch(`${url}/generate/image2video`, {
+  return await ofetch<{ job_id: string; status: string }>(`${url}/generate/image2video`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: {
@@ -316,12 +316,12 @@ export async function submitImage2Video(
       negative_prompt: input.negative_prompt,
       width: input.width,
       height: input.height,
-      frames: input.frames || input.num_frames,
+      frames: (input.frames as number) || (input.num_frames as number),
       steps: input.steps,
       fps: input.fps,
       seed: input.seed,
       cfg: input.cfg,
-      model: input.model || 'ltx2',
+      model: (input.model as string) || 'ltx2',
       camera_lora: input.camera_lora,
       preset: input.preset,
       audio_prompt: input.audio_prompt,
@@ -339,13 +339,13 @@ export async function submitImage2Video(
  * Submit a text-to-video job.
  */
 export async function submitText2Video(
-  input: Record<string, any>,
+  input: Record<string, unknown>,
   podUrl?: string,
   callbackUrl?: string,
   callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
-  return await ofetch(`${url}/generate/text2video`, {
+  return await ofetch<{ job_id: string; status: string }>(`${url}/generate/text2video`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: {
@@ -353,11 +353,11 @@ export async function submitText2Video(
       negative_prompt: input.negative_prompt,
       width: input.width,
       height: input.height,
-      frames: input.frames || input.num_frames,
+      frames: (input.frames as number) || (input.num_frames as number),
       steps: input.steps,
       fps: input.fps,
       seed: input.seed,
-      model: input.model || 'wan22',
+      model: (input.model as string) || 'wan22',
       lora_strength: input.lora_strength,
       camera_lora: input.camera_lora,
       audio_prompt: input.audio_prompt,
@@ -374,14 +374,15 @@ export async function submitText2Video(
  * Strips fields not in the pod's MultiSegmentRequest schema to avoid 400s.
  */
 export async function submitMultiSegmentVideo(
-  input: Record<string, any>,
+  input: Record<string, unknown>,
   podUrl?: string,
   callbackUrl?: string,
   callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
-  const body: Record<string, any> = {
-    segments: (input.segments || []).map((s: any) => ({
+  const segments = (input.segments as SegmentInput[] | undefined) || []
+  const body = {
+    segments: segments.map((s) => ({
       image: s.image || 'auto',
       prompt: s.prompt || '',
       ...(s.frames ? { frames: s.frames } : {}),
@@ -390,16 +391,16 @@ export async function submitMultiSegmentVideo(
       ...(s.camera_lora ? { camera_lora: s.camera_lora } : {}),
       ...(s.preset ? { preset: s.preset } : {}),
     })),
-    model: input.model || 'ltx2',
-    width: input.width || 1280,
-    height: input.height || 720,
-    fps: input.fps || 24,
-    transition: input.transition || 'crossfade',
-    transition_duration: input.transition_duration ?? 0.5,
+    model: (input.model as string) || 'ltx2',
+    width: (input.width as number) || 1280,
+    height: (input.height as number) || 720,
+    fps: (input.fps as number) || 24,
+    transition: (input.transition as string) || 'crossfade',
+    transition_duration: (input.transition_duration as number) ?? 0.5,
     callback_url: callbackUrl,
     callback_secret: callbackSecret,
   }
-  return await ofetch(`${url}/generate/multi-segment`, {
+  return await ofetch<{ job_id: string; status: string }>(`${url}/generate/multi-segment`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body,
@@ -411,19 +412,19 @@ export async function submitMultiSegmentVideo(
  * Submit an upscale job (image or video).
  */
 export async function submitUpscale(
-  input: Record<string, any>,
+  input: Record<string, unknown>,
   podUrl?: string,
   callbackUrl?: string,
   callbackSecret?: string,
 ): Promise<{ job_id: string; status: string }> {
   const url = podUrl || getPodUrl()
-  return await ofetch(`${url}/generate/upscale`, {
+  return await ofetch<{ job_id: string; status: string }>(`${url}/generate/upscale`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: {
       image: input.image,
       video: input.video,
-      scale: input.scale || 2,
+      scale: (input.scale as number) || 2,
       fps: input.fps,
       callback_url: callbackUrl,
       callback_secret: callbackSecret,
@@ -473,8 +474,9 @@ export async function checkJobStatus(
           data = result.video_base64 || result.image_base64
           if (result.video_base64) type = 'video'
           else if (result.image_base64) type = 'image'
-        } catch (e: any) {
-          console.warn(`[Pod] Failed to fetch result for ${jobId}: ${e.message}`)
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e)
+          console.warn(`[Pod] Failed to fetch result for ${jobId}: ${msg}`)
         }
       }
 
@@ -507,10 +509,10 @@ export async function checkJobStatus(
 
     // Still processing — return null to continue polling
     return null
-  } catch (e: any) {
+  } catch (e: unknown) {
     // 404 = pod restarted and lost in-memory job state, or job expired.
     // Return FAILED so the item resolves instead of polling forever.
-    if (e?.response?.status === 404) {
+    if ((e as any)?.response?.status === 404) {
       console.warn(`[Pod] Job ${jobId} not found on pod (expired or pod restarted)`)
       return {
         status: 'FAILED',
@@ -518,7 +520,9 @@ export async function checkJobStatus(
       }
     }
     // Other transient errors (network blip, timeout) — keep polling
-    console.warn(`[Pod] Status check failed for ${jobId}: ${e?.response?.status || ''} ${e.message}`)
+    const status = (e as any)?.response?.status ? `${(e as any).response.status} ` : ''
+    const msg = e instanceof Error ? e.message : String(e)
+    console.warn(`[Pod] Status check failed for ${jobId}: ${status}${msg}`)
     return null
   }
 }
@@ -637,50 +641,50 @@ export async function getSyncStatus(podUrl?: string): Promise<SyncState | null> 
  * Build a MultiSegmentRequest from stored comfyInput metadata.
  * Maps the old comfyInput format to the new pod API format.
  */
-export function buildRequestFromMeta(meta: Record<string, any>): MultiSegmentRequest {
-  const input = meta.comfyInput || meta
+export function buildRequestFromMeta(meta: Record<string, unknown>): MultiSegmentRequest {
+  const input = (meta.comfyInput as Record<string, unknown>) || meta
 
   // Multi-segment: input has a segments array
   if (input.segments && Array.isArray(input.segments)) {
     return {
-      segments: input.segments.map((s: any) => ({
+      segments: input.segments.map((s) => ({
         image: s.image,
         prompt: s.prompt || '',
-        frames: s.frames || s.numFrames || s.num_frames || 121,
+        frames: s.frames || 121,
         steps: s.steps,
         seed: s.seed,
-        camera_lora: s.camera_lora || s.cameraLora,
+        camera_lora: s.camera_lora,
         preset: s.preset,
       })),
-      model: input.model || 'ltx2',
-      width: input.width || 1280,
-      height: input.height || 720,
-      fps: input.fps || 24,
-      transition: input.transition || 'crossfade',
-      transition_duration: input.transition_duration ?? 0.5,
+      model: (input.model as "ltx2" | "wan22" | undefined) || 'ltx2',
+      width: (input.width as number) || 1280,
+      height: (input.height as number) || 720,
+      fps: (input.fps as number) || 24,
+      transition: (input.transition as "crossfade" | "cut" | undefined) || 'crossfade',
+      transition_duration: (input.transition_duration as number) ?? 0.5,
     }
   }
 
   // Single-segment: build from flat input
   const segment: SegmentInput = {
-    prompt: input.prompt || '',
-    frames: input.frames || input.numFrames || input.num_frames || 121,
-    steps: input.steps,
-    seed: input.seed,
-    camera_lora: input.camera_lora || input.cameraLora,
-    preset: input.preset,
+    prompt: (input.prompt as string) || '',
+    frames: (input.frames as number) || 121,
+    steps: input.steps as number,
+    seed: input.seed as number,
+    camera_lora: input.camera_lora as string,
+    preset: input.preset as string,
   }
 
   // Include image for I2V
   if (input.image) {
-    segment.image = input.image
+    segment.image = input.image as string
   }
 
   return {
     segments: [segment],
-    model: input.model || 'ltx2',
-    width: input.width || 1280,
-    height: input.height || 720,
-    fps: input.fps || 24,
+    model: (input.model as "ltx2" | "wan22" | undefined) || 'ltx2',
+    width: (input.width as number) || 1280,
+    height: (input.height as number) || 720,
+    fps: (input.fps as number) || 24,
   }
 }

@@ -13,7 +13,6 @@
     "build:vue-official": "cd eslint-plugin-vue-official-best-practices && pnpm run build",
     "lint": "echo 'eslint-config: lint pass (config-only package)'",
     "typecheck": "pnpm run build",
-    "quality": "pnpm run lint && pnpm run typecheck && pnpm run test",
     "test": "vitest run",
     "test:plugins": "vitest run eslint-plugins/tests"
   },

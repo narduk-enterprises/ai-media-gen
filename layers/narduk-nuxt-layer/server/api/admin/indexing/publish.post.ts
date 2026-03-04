@@ -8,25 +8,27 @@ const bodySchema = z.object({
         .default('URL_UPDATED'),
 })
 
+import { requireLayerAdmin } from '../../../utils/auth'
+
 /**
  * Google Indexing API — publish a single URL notification.
  *
  * POST /api/admin/indexing/publish
- * Body: { url: string, type?: "URL_UPDATED" | "URL_DELETED" }
+ * JSON body: { url: string, action?: 'URL_UPDATED' | 'URL_DELETED' }
  *
  * Notifies Google that a URL has been updated or should be removed.
- * Requires GSC_SERVICE_ACCOUNT_JSON with the Indexing API enabled.
+ * Requires GSC_SERVICE_ACCOUNT_JSON with the API enabled.
  *
- * Note: Google officially limits the Indexing API to pages with JobPosting
- * or BroadcastEvent structured data, but may process other page types.
+ * Note: officially Google limits the Indexing API to pages with JobPosting (or
+ * BroadcastEvent) structured data, but it may work for other page types.
  *
  * Usage:
- *   curl -X POST https://your-site.com/api/admin/indexing/publish \
- *     -H "Content-Type: application/json" \
- *     -d '{"url": "https://your-site.com/jobs/42", "type": "URL_UPDATED"}'
+ * curl -X POST https://ai-media-gen.com/api/admin/indexing/publish \
+ *   -H "Content-Type: application/json" \
+ *   -d '{ "url": "https://ai-media-gen.com/page1", "action": "URL_UPDATED" }'
  */
 export default defineEventHandler(async (event) => {
-    await requireAdmin(event)
+    await requireLayerAdmin(event)
     await enforceRateLimit(event, 'google-indexing-publish', 10, 60_000)
 
     const body = await readBody<unknown>(event)

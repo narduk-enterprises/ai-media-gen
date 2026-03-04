@@ -2,12 +2,16 @@
 import { formatDate, downloadMedia, type GalleryMediaItem } from '~/composables/useGallery'
 
 definePageMeta({ middleware: 'auth' })
-useSeoMeta({ title: 'Gallery' })
+useSeo({
+  title: 'Gallery',
+  description: 'View and manage your AI generated images and videos.'
+})
+useWebPageSchema()
 
 function formatDuration(submittedAt?: string | null, completedAt?: string | null): string | null {
   if (!submittedAt || !completedAt) return null
   const ms = new Date(completedAt).getTime() - new Date(submittedAt).getTime()
-  if (ms < 0 || isNaN(ms)) return null
+  if (ms < 0 || Number.isNaN(ms)) return null
   const secs = Math.round(ms / 1000)
   if (secs < 60) return `${secs}s`
   const mins = Math.floor(secs / 60)

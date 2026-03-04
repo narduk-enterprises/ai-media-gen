@@ -9,7 +9,7 @@ import { mediaItems, generations } from '../database/schema'
 import { uploadImageToR2 } from './r2'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 
-type DB = DrizzleD1Database<any>
+type DB = DrizzleD1Database<Record<string, unknown>>
 
 export interface RunPodResult {
   status: string

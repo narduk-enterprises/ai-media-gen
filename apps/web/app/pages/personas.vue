@@ -1,6 +1,10 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth', ssr: false })
-useSeoMeta({ title: 'Personas & Scenes' })
+useSeo({
+  title: 'Personas & Scenes',
+  description: 'Define your characters and scenes here. Combine them on the Create page to generate images.'
+})
+useWebPageSchema()
 </script>
 
 <template>

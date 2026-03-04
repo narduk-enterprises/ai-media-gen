@@ -5,7 +5,11 @@ if (loggedIn.value) {
   await navigateTo('/create', { replace: true })
 }
 
-useSeoMeta({ title: 'Log In' })
+useSeo({
+  title: 'Log In',
+  description: 'Sign in to your AI Media Gen account to start creating.'
+})
+useWebPageSchema({ type: 'ContactPage' })
 
 const email = ref('')
 const password = ref('')

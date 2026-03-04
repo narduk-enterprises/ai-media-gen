@@ -2,7 +2,11 @@
 import type { TabsItem } from '#ui/types'
 
 definePageMeta({ middleware: 'auth' })
-useSeoMeta({ title: 'Create' })
+useSeo({
+  title: 'Create',
+  description: 'Generate images and videos with AI models.'
+})
+useWebPageSchema()
 
 // ─── Composables ────────────────────────────────────────────────────────
 const gen = useGeneration()

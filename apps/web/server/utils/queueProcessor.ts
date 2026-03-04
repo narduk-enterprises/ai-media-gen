@@ -21,7 +21,7 @@ import { completeMediaItem, updateGenerationStatus } from './completeItem'
 import { resolveApiUrl, getRequiredGroups } from './ai'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 
-type DB = DrizzleD1Database<any>
+type DB = DrizzleD1Database<Record<string, unknown>>
 
 const MAX_CONCURRENT = 10
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000 // 24 hours — only catches truly lost jobs
@@ -97,11 +97,11 @@ async function submitPhase(db: DB) {
       }
 
       // Route to correct pod endpoint based on action type
-      const action = input.action || ''
+      const action = (input.action as string) || ''
       // Use model-aware routing: determine required groups and find a pod that has them
       const requiredGroups = getRequiredGroups(input)
       const skipImagePreference = !!meta.anyMachine
-      const podUrl = meta.apiUrl || meta.podUrl || await resolveApiUrl(undefined, undefined, requiredGroups, { skipImagePreference })
+      const podUrl = (meta.apiUrl as string) || (meta.podUrl as string) || await resolveApiUrl(undefined, undefined, requiredGroups, { skipImagePreference })
 
       // Construct callback URL so the pod can notify us on completion
       let callbackUrl = ''
@@ -153,13 +153,15 @@ async function submitPhase(db: DB) {
 
       console.log(`[Queue] ✅ Submitted ${item.id.slice(0, 8)} → Pod job ${response.job_id} on ${podUrl}`)
       return true
-    } catch (e: any) {
-      const errMsg = e?.data?.error?.message || e?.data?.message || e?.message || ''
+    } catch (e: unknown) {
+      const errorData = (e as any)?.data as { error?: { message?: string }; message?: string } | undefined
+      const errMsg = errorData?.error?.message || errorData?.message || (e instanceof Error ? e.message : String(e))
       const requeued = await requeueForRetry(db, item, errMsg, e)
       if (!requeued) {
-        console.error(`[Queue] ❌ Failed to submit ${item.id.slice(0, 8)}:`, e.message)
+        const finalMsg = e instanceof Error ? e.message : String(e)
+        console.error(`[Queue] ❌ Failed to submit ${item.id.slice(0, 8)}:`, finalMsg)
         await db.update(mediaItems)
-          .set({ status: 'failed', error: `Pod submit failed: ${e.message}` })
+          .set({ status: 'failed', error: `Pod submit failed: ${finalMsg}` })
           .where(eq(mediaItems.id, item.id))
         await updateGenerationStatus(db, item.generationId)
       }
@@ -208,8 +210,9 @@ async function pollPhase(db: DB, mediaBucket: R2Bucket | null) {
         return 'failed' as const
       }
       return 'processing' as const
-    } catch (e: any) {
-      console.warn(`[Queue] ⚠️ ${item.id.slice(0, 8)} check error:`, e.message)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.warn(`[Queue] ⚠️ ${item.id.slice(0, 8)} check error:`, msg)
       return 'processing' as const
     }
   }))
@@ -296,14 +299,14 @@ export async function requeueForRetry(
   db: DB,
   item: { id: string; metadata?: string | null; generationId: string },
   errMsg: string,
-  error?: any,
+  error?: unknown,
 ): Promise<boolean> {
   if (!isRetryableError(errMsg, error)) return false
 
   const meta = parseItemMeta(item)
-  const retryCount = meta._retryCount || 0
-  const failedPods: string[] = meta._failedPods || []
-  const podUrl = meta.apiUrl || meta.podUrl || ''
+  const retryCount = (meta._retryCount as number) || 0
+  const failedPods = (meta._failedPods as string[]) || []
+  const podUrl = (meta.apiUrl as string) || (meta.podUrl as string) || ''
 
   if (retryCount >= MAX_RETRIES) return false
 
@@ -338,8 +341,8 @@ export async function requeueForRetry(
  * Detect errors that may succeed on a different pod.
  * Covers both submission-time and execution-time failures.
  */
-export function isRetryableError(msg: string, error?: any): boolean {
-  const statusCode = error?.statusCode || error?.status || 0
+export function isRetryableError(msg: string, error?: unknown): boolean {
+  const statusCode = (error as any)?.statusCode || (error as any)?.status || 0
   const lower = msg.toLowerCase()
 
   // ComfyUI 400 — model/checkpoint not found on this pod

@@ -31,11 +31,13 @@
  * ```
  */
 
+import { type MaybeRefOrGetter, toValue } from 'vue'
+
 interface SeoOptions {
   /** Page title (used in <title>, og:title, twitter:title) */
-  title: string
+  title: MaybeRefOrGetter<string>
   /** Page description (used in <meta name="description">, og:description, twitter:description) */
-  description: string
+  description: MaybeRefOrGetter<string>
   /** Static image URL for og:image / twitter:image. Overridden by `ogImage` if set. */
   image?: string
   /** Open Graph type — defaults to 'website'. Use 'article' for blog posts. */
@@ -79,26 +81,21 @@ export function useSeo(options: SeoOptions) {
     robots,
   } = options
 
-  // --- Core meta tags (no intermediate Record<string, any>) ---
+  // --- Core meta tags ---
   useSeoMeta({
     title,
     description,
     ogTitle: title,
     ogDescription: description,
-    // ogType accepts 'website' | 'article' | 'profile' etc.
     ogType: type,
     twitterCard: 'summary_large_image',
     twitterTitle: title,
     twitterDescription: description,
-    // Static image fallback
     ...(image && { ogImage: image, twitterImage: image }),
-    // Article-specific
     ...(type === 'article' && publishedAt && { articlePublishedTime: publishedAt }),
     ...(type === 'article' && modifiedAt && { articleModifiedTime: modifiedAt }),
     ...(type === 'article' && author && { articleAuthor: [author] }),
-    // Keywords
     ...(keywords?.length && { keywords: keywords.join(', ') }),
-    // Robots
     ...(robots && { robots }),
   })
 
@@ -115,10 +112,11 @@ export function useSeo(options: SeoOptions) {
     // @ts-expect-error OgImage components are provided by this layer but OgImageComponents
     // types aren't populated until the consuming app runs nuxt prepare.
     defineOgImage(componentName, {
-      title: ogImage.title || title,
-      description: ogImage.description || description,
+      title: ogImage.title || toValue(title),
+      description: ogImage.description || toValue(description),
       icon: ogImage.icon || '✨',
       ...(ogImage.category && { category: ogImage.category }),
     })
   }
 }
+

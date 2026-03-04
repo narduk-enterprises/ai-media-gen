@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { requireLayerAdmin } from '../../../utils/auth'
 
 const querySchema = z.object({
     url: z.string().url(),
@@ -18,7 +19,7 @@ const querySchema = z.object({
  *   curl "https://your-site.com/api/admin/indexing/status?url=https%3A%2F%2Fyour-site.com%2Fjobs%2F42"
  */
 export default defineEventHandler(async (event) => {
-    await requireAdmin(event)
+    await requireLayerAdmin(event)
     await enforceRateLimit(event, 'google-indexing-status', 10, 60_000)
 
     const query = await getValidatedQuery(event, querySchema.parse)

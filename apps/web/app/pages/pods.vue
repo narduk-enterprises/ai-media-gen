@@ -1,23 +1,79 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth', ssr: false })
-useSeoMeta({ title: 'GPU Pods' })
+useSeo({
+  title: 'GPU Pods',
+  description: 'Manage your active AI generation instances.'
+})
+useWebPageSchema()
+
+interface Pod {
+  id: string
+  name: string
+  status: string
+  gpuName?: string
+  gpuCount: number
+  costPerHr?: number
+  gpuUtilPercent: number
+  gpuMemoryPercent: number
+  memoryUsedGb: number
+  memoryTotalGb: number
+  memoryPercent: number
+  volumeInGb?: number
+  ip?: string
+  imageName?: string
+  dockerId?: string
+  runtime?: string
+  comfy_ready?: boolean
+}
+
+interface GpuType {
+  id: string
+  displayName: string
+  name: string
+  vram: number
+  vram_free: number
+  securePrice: number
+  communityPrice: number
+  price: number
+  valueScore: number
+  memoryInGb: number
+}
+
+interface DataCenter {
+  id: string
+  name: string
+}
+
+interface TemplateOption {
+  id: string
+  name: string
+}
+
+interface Option {
+  label: string
+  value: string
+  disabled?: boolean
+  memoryInGb?: number
+  securePrice?: number
+  communityPrice?: number
+}
 
 // Active pods with live job counts (for display only — routing is server-side)
 const { data: activePodData } = useFetch<{ pods: { id: string; activeJobs: number }[] }>('/api/runpod/active-pods', { default: () => ({ pods: [] }) })
 function getActiveJobs(podId: string): number {
-  const found = activePodData.value?.pods?.find((p: any) => p.id === podId)
+  const found = activePodData.value?.pods?.find((p) => p.id === podId)
   return found?.activeJobs ?? 0
 }
 
 // ─── Fetch Pods ─────────────────────────────────────────────────────────────
-const { data, pending, error, refresh } = useFetch('/api/runpod/pods', { server: false })
+const { data, pending, error, refresh } = useFetch<{ pods: Pod[] }>('/api/runpod/pods', { server: false })
 
 // ─── Deploy Pod ─────────────────────────────────────────────────────────────
 const showDeployModal = ref(false)
 const optionsPending = ref(false)
-const templates = ref<any[]>([])
-const gpuTypes = ref<any[]>([])
-const dataCenters = ref<any[]>([])
+const templates = ref<Option[]>([])
+const gpuTypes = ref<Option[]>([])
+const dataCenters = ref<Option[]>([])
 const availableDataCenters = ref<string[]>([])
 const loadingAvailability = ref(false)
 
@@ -26,7 +82,7 @@ const deployState = reactive({
   template: '',
   gpuType: 'NVIDIA RTX A6000',
   gpuCount: 1,
-  cloudType: 'SECURE',
+  cloudType: 'SECURE' as 'SECURE' | 'COMMUNITY' | 'ALL',
   dataCenter: 'ANY',
   volumeInGb: 40,
   containerDiskInGb: 40,
@@ -80,7 +136,7 @@ const QUICK_DEPLOY_PRESETS: QuickDeployPreset[] = [
 const showQuickDeploy = ref(false)
 const quickDeployPreset = ref<QuickDeployPreset | null>(null)
 const quickDeployLoading = ref(false)
-const quickDeployGpus = ref<any[]>([])
+const quickDeployGpus = ref<GpuType[]>([])
 const quickDeployTemplateId = ref('')
 const quickDeployError = ref('')
 const quickDeploying = ref(false)
@@ -88,6 +144,7 @@ const quickDeploying = ref(false)
 const bestValueGpuIds = computed(() => {
   if (quickDeployGpus.value.length === 0) return []
   const cheapest = quickDeployGpus.value[0]
+  if (!cheapest) return []
   
   // Sort all GPUs by valueScore descending to find the top values
   const sortedByValue = [...quickDeployGpus.value].sort((a, b) => b.valueScore - a.valueScore)
@@ -118,10 +175,14 @@ async function openQuickDeploy(preset: QuickDeployPreset) {
   quickDeployLoading.value = true
 
   try {
-    const res = await $fetch<{ gpus: any[]; templateId: string }>('/api/runpod/quick-deploy-options')
+    const res = await $fetch<{ gpus: GpuType[]; templateId: string }>('/api/runpod/quick-deploy-options')
     quickDeployTemplateId.value = res.templateId
     // Filter GPUs to those with enough VRAM for this preset
-    quickDeployGpus.value = res.gpus.filter((g: any) => g.vram >= preset.minVram)
+    quickDeployGpus.value = res.gpus.map(g => ({
+      ...g,
+      vram: g.vram || g.memoryInGb || 0,
+      price: g.price || g.communityPrice || 0
+    })).filter((g) => g.vram >= preset.minVram)
   } catch (e: any) {
     quickDeployError.value = e?.data?.statusMessage || e?.message || 'Failed to load GPU availability'
   } finally {
@@ -129,7 +190,7 @@ async function openQuickDeploy(preset: QuickDeployPreset) {
   }
 }
 
-async function quickDeploy(gpu: any) {
+async function quickDeploy(gpu: GpuType) {
   const preset = quickDeployPreset.value
   if (!preset || !quickDeployTemplateId.value) return
 
@@ -254,7 +315,7 @@ watch(showDeployModal, async (open) => {
   if (open && templates.value.length === 0) {
     optionsPending.value = true
     try {
-      const res = await $fetch<{ templates: any[], gpuTypes: any[], dataCenters: any[] }>('/api/runpod/options')
+      const res = await $fetch<{ templates: TemplateOption[], gpuTypes: GpuType[], dataCenters: DataCenter[] }>('/api/runpod/options')
       
       // Nuxt UI 4 requires objects with `label` and `value` properties.
       templates.value = (res.templates || []).map(t => ({
@@ -268,7 +329,7 @@ watch(showDeployModal, async (open) => {
         memoryInGb: g.memoryInGb,
         securePrice: g.securePrice,
         communityPrice: g.communityPrice
-      }))
+      })) as Option[]
 
       dataCenters.value = [
         { label: 'Any Data Center', value: 'ANY' },
@@ -737,20 +798,24 @@ d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831
             </div>
             <!-- Disk -->
             <div
-class="text-center" :title="podHealth[pod.id]?.disk?.total_gb
-              ? `Disk: ${podHealth[pod.id]!.disk.used_gb?.toFixed(1)}GB / ${podHealth[pod.id]!.disk.total_gb?.toFixed(1)}GB\nFree: ${podHealth[pod.id]!.disk.free_gb?.toFixed(1)}GB`
-              : `Volume: ${pod.volumeInGb}GB`">
+              class="text-center" 
+              :title="podHealth[pod.id]?.disk?.total_gb
+                ? `Disk: ${podHealth[pod.id]?.disk?.used_gb?.toFixed(1)}GB / ${podHealth[pod.id]?.disk?.total_gb?.toFixed(1)}GB\nFree: ${podHealth[pod.id]?.disk?.free_gb?.toFixed(1)}GB`
+                : `Volume: ${pod.volumeInGb}GB`"
+            >
               <div class="relative w-11 h-11 mx-auto">
                 <svg viewBox="0 0 36 36" class="w-11 h-11">
                   <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" stroke-width="3" />
                   <path
-d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none"
-                    :stroke="(podHealth[pod.id]?.disk?.total_gb && (podHealth[pod.id]!.disk.used_gb! / podHealth[pod.id]!.disk.total_gb!) > 0.85) ? '#ef4444' : '#10b981'"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" 
+                    fill="none"
+                    :stroke="(podHealth[pod.id]?.disk?.total_gb && podHealth[pod.id]?.disk?.used_gb != null && (podHealth[pod.id]!.disk.used_gb! / podHealth[pod.id]!.disk.total_gb!) > 0.85) ? '#ef4444' : '#10b981'"
                     stroke-width="3"
-                    :stroke-dasharray="`${podHealth[pod.id]?.disk?.total_gb
+                    :stroke-dasharray="`${(podHealth[pod.id]?.disk?.total_gb && podHealth[pod.id]?.disk?.used_gb != null)
                       ? Math.round((podHealth[pod.id]!.disk.used_gb! / podHealth[pod.id]!.disk.total_gb!) * 100)
                       : 0}, 100`"
-                    stroke-linecap="round" />
+                    stroke-linecap="round" 
+                  />
                 </svg>
                 <span class="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-slate-700">
                   {{ podHealth[pod.id]?.disk?.used_gb != null
@@ -958,15 +1023,15 @@ v-if="setupStatus[pod.id]" class="mb-3 p-3 rounded-lg text-xs" :class="{
                 <template #item-label="{ item }">
                   <div class="flex items-center justify-between w-full">
                     <span>
-                      {{ (item as any).label }} 
-                      <span class="text-xs text-slate-400 font-mono ml-1">({{ (item as any).memoryInGb }}GB)</span>
+                      {{ item.label }} 
+                      <span v-if="item.memoryInGb" class="text-xs text-slate-400 font-mono ml-1">({{ item.memoryInGb }}GB)</span>
                     </span>
                     <div class="flex items-center gap-3 text-xs font-mono ml-4">
-                      <span v-if="(item as any).communityPrice" class="text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded" title="Community Price">
-                        ${{ (item as any).communityPrice }}/hr
+                      <span v-if="item.communityPrice" class="text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded" title="Community Price">
+                        ${{ item.communityPrice }}/hr
                       </span>
-                      <span v-if="(item as any).securePrice" class="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded" title="Secure Price">
-                        ${{ (item as any).securePrice }}/hr
+                      <span v-if="item.securePrice" class="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded" title="Secure Price">
+                        ${{ item.securePrice }}/hr
                       </span>
                     </div>
                   </div>

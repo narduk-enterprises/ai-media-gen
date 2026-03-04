@@ -1,6 +1,10 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
-useSeoMeta({ title: 'Job Details' })
+useSeo({
+  title: 'Job Details',
+  description: 'View details and status of your AI generation job.'
+})
+useWebPageSchema()
 
 const route = useRoute()
 const itemId = route.params.id as string

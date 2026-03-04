@@ -144,22 +144,24 @@ export async function resolveApiUrl(
         return best.url
       }
     }
-  } catch (e: any) {
+  } catch (e) {
     // RunPod API may be unavailable — fall through to env vars
-    console.warn(`[Router] RunPod API unavailable, falling back to env vars: ${e.message}`)
+    const msg = e instanceof Error ? e.message : String(e)
+    console.warn(`[Router] RunPod API unavailable, falling back to env vars: ${msg}`)
   }
 
   // 3. Profile-specific env var fallback
   if (_profile) {
     try {
-      const config = useRuntimeConfig() as any
-      if (_profile === 'image' && config.podImageUrl) {
-        return config.podImageUrl.replace(/\/+$/, '')
+      const config = useRuntimeConfig()
+      const typedConfig = config as unknown as { podImageUrl?: string; podVideoUrl?: string }
+      if (_profile === 'image' && typedConfig.podImageUrl) {
+        return typedConfig.podImageUrl.replace(/\/+$/, '')
       }
-      if (_profile === 'video' && config.podVideoUrl) {
-        return config.podVideoUrl.replace(/\/+$/, '')
+      if (_profile === 'video' && typedConfig.podVideoUrl) {
+        return typedConfig.podVideoUrl.replace(/\/+$/, '')
       }
-    } catch {}
+    } catch { }
   }
 
   // 4. Global fallback
@@ -170,16 +172,16 @@ export async function resolveApiUrl(
  * Determine which model groups a job requires based on its ComfyUI input.
  * Used by the queue processor to pass to resolveApiUrl for model-aware routing.
  */
-export function getRequiredGroups(input: Record<string, any>): string[] {
+export function getRequiredGroups(input: Record<string, unknown>): string[] {
   const groups = new Set<string>()
-  const action = input.action || ''
+  const action = (input.action as string) || ''
   const json = JSON.stringify(input).toLowerCase()
 
   if (['text2video', 'image2video', 'multi_segment_video'].includes(action)) {
     // Only search for video models for video actions to avoid matching words in prompts (like 'pony')
     if (json.includes('ltxv') || json.includes('ltx2') || json.includes('ltx-video')) groups.add('ltx2')
     if (json.includes('wan2.2') || json.includes('wan_2.1') || json.includes('wan22')) groups.add('wan22')
-    
+
     // Default video model if none matched
     if (groups.size === 0) groups.add('wan22')
   } else if (['text2image', 'image2image'].includes(action)) {
@@ -221,12 +223,12 @@ export function getRequiredGroups(input: Record<string, any>): string[] {
  * use submitItemToPod() via the queue system instead.
  */
 export async function callRunPod(
-  input: Record<string, any>,
+  input: Record<string, unknown>,
   apiUrl?: string,
-): Promise<any> {
+): Promise<unknown> {
   const url = await resolveApiUrl(apiUrl)
 
-  const response = await $fetch<any>(`${url}/runsync`, {
+  const response = await $fetch<unknown>(`${url}/runsync`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: { input },
@@ -241,12 +243,12 @@ export async function callRunPod(
  * Used by older code paths that haven't been migrated to podClient yet.
  */
 export async function callRunPodAsync(
-  input: Record<string, any>,
+  input: Record<string, unknown>,
   apiUrl?: string,
 ): Promise<{ jobId: string; apiUrl: string }> {
   const url = await resolveApiUrl(apiUrl)
 
-  const response = await $fetch<any>(`${url}/run`, {
+  const response = await $fetch<{ id?: string; job_id?: string; prompt_id?: string }>(`${url}/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: { input },
@@ -254,7 +256,7 @@ export async function callRunPodAsync(
   })
 
   return {
-    jobId: response.id || response.job_id || response.prompt_id,
+    jobId: (response.id || response.job_id || response.prompt_id)!,
     apiUrl: url,
   }
 }

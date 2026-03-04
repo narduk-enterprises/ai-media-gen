@@ -1,7 +1,11 @@
 <script setup lang="ts">
 
 definePageMeta({ layout: false })
-useSeoMeta({ title: 'Feed' })
+useSeo({
+  title: 'Feed',
+  description: 'Infinite scroll feed of AI generated videos.'
+})
+useWebPageSchema()
 
 // ─── Data ────────────────────────────────────────────────────
 interface FeedVideo {
@@ -269,7 +273,7 @@ let progressRaf: number | null = null
 
 function tickProgress() {
   const video = videoElements.get(currentIndex.value)
-  if (video && video.duration && !isNaN(video.duration)) {
+  if (video && video.duration && !Number.isNaN(video.duration)) {
     progress.value = (video.currentTime / video.duration) * 100
   }
   progressRaf = requestAnimationFrame(tickProgress)

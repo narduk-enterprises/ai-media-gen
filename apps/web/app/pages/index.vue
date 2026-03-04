@@ -7,9 +7,11 @@ onMounted(() => {
   }
 })
 
-useSeoMeta({
+useSeo({
   title: 'AI Media Gen — Generate Images, Videos & Audio with AI',
+  description: 'Type a prompt. Get stunning images, videos, and audio — powered by cutting-edge generative AI.',
 })
+useWebPageSchema()
 </script>
 
 <template>

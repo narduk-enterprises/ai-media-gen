@@ -28,13 +28,116 @@ export interface RunPodInfo {
   containerDiskInGb: number
 }
 
+interface RunPodPort {
+  ip: string
+  isIpPublic: boolean
+  privatePort: number
+  publicPort: number
+  type: string
+}
+
+interface RunPodGpu {
+  id: string
+  gpuUtilPercent: number
+  memoryUtilPercent: number
+}
+
+interface RunPodContainer {
+  cpuPercent: number
+  memoryPercent: number
+}
+
+interface RunPodRuntime {
+  uptimeInSeconds: number
+  gpus: RunPodGpu[]
+  container: RunPodContainer
+  ports: RunPodPort[]
+}
+
+interface RunPodMachine {
+  gpuDisplayName: string
+  costPerHr: number
+}
+
+interface RunPodPod {
+  id: string
+  name: string
+  desiredStatus: string
+  runtime: RunPodRuntime | null
+  volumeInGb: number
+  volumeMountPath: string
+  containerDiskInGb: number
+  machine: RunPodMachine
+  gpuCount: number
+  vcpuCount: number
+  memoryInGb: number
+  machineId: string
+  podType: string
+  costPerHr: number
+}
+
+interface RunPodMyself {
+  pods: RunPodPod[]
+  podTemplates?: {
+    id: string
+    name: string
+    imageName: string
+  }[]
+}
+
+interface RunPodGPUOption {
+  id: string
+  displayName: string
+  memoryInGb: number
+  securePrice: number
+  communityPrice: number
+}
+
+interface RunPodDataCenterOption {
+  id: string
+  name: string
+}
+
+interface RunPodOptionsResponse {
+  myself: {
+    podTemplates: {
+      id: string
+      name: string
+      imageName: string
+    }[]
+  }
+  gpuTypes: RunPodGPUOption[]
+  dataCenters: RunPodDataCenterOption[]
+}
+
+interface RunPodDeployInput {
+  gpuCount: number
+  volumeInGb: number
+  containerDiskInGb: number
+  minVcpuCount: number
+  minMemoryInGb: number
+  gpuTypeId: string
+  name: string
+  templateId: string
+  env: { key: string; value: string }[]
+  dockerArgs: string
+  cloudType?: string
+  dataCenterId?: string
+}
+
+interface RunPodDeployResponse {
+  podFindAndDeployOnDemand: {
+    id: string
+  }
+}
+
 /**
  * Execute a GraphQL query against RunPod.
  */
 export async function fetchRunPodGraphQL<T>(query: string, variables: Record<string, any> = {}): Promise<T> {
   const config = useRuntimeConfig()
   const apiKey = config.runpodApiKey || process.env.RUNPOD_API_KEY || process.env.AI_API_KEY
-  
+
   if (!apiKey) {
     throw createError({ statusCode: 500, statusMessage: 'RunPod API Key is not configured (RUNPOD_API_KEY / AI_API_KEY)' })
   }
@@ -104,17 +207,17 @@ export async function getRunPods(): Promise<RunPodInfo[]> {
     }
   `
 
-  const data = await fetchRunPodGraphQL<any>(query)
-  
-  return data.myself.pods.map((pod: any) => {
+  const data = await fetchRunPodGraphQL<{ myself: RunPodMyself }>(query)
+
+  return data.myself.pods.map((pod) => {
     const gpus = pod.runtime?.gpus || []
     const avgGpuUtil = gpus.length > 0
-      ? gpus.reduce((sum: number, g: any) => sum + (g.gpuUtilPercent || 0), 0) / gpus.length
+      ? gpus.reduce((sum, g) => sum + (g.gpuUtilPercent || 0), 0) / gpus.length
       : 0
     const avgGpuMemUtil = gpus.length > 0
-      ? gpus.reduce((sum: number, g: any) => sum + (g.memoryUtilPercent || 0), 0) / gpus.length
+      ? gpus.reduce((sum, g) => sum + (g.memoryUtilPercent || 0), 0) / gpus.length
       : 0
-    const container = pod.runtime?.container || {}
+    const container = pod.runtime?.container || { cpuPercent: 0, memoryPercent: 0 }
 
     return {
       id: pod.id,
@@ -122,7 +225,7 @@ export async function getRunPods(): Promise<RunPodInfo[]> {
       status: pod.desiredStatus,
       uptimeSeconds: pod.runtime?.uptimeInSeconds || 0,
       ip: pod.runtime?.ports?.[0]?.ip || '',
-      ports: pod.runtime?.ports?.map((p: any) => `${p.publicPort}->${p.privatePort}`).join(', ') || '',
+      ports: pod.runtime?.ports?.map((p) => `${p.publicPort}->${p.privatePort}`).join(', ') || '',
       podType: pod.podType,
       machineId: pod.machineId,
       // Metrics
@@ -130,10 +233,10 @@ export async function getRunPods(): Promise<RunPodInfo[]> {
       gpuCount: pod.gpuCount || 1,
       gpuUtilPercent: Math.round(avgGpuUtil),
       gpuMemoryPercent: Math.round(avgGpuMemUtil),
-      cpuUtilPercent: Math.round(container.cpuPercent || 0),
-      memoryPercent: Math.round(container.memoryPercent || 0),
+      cpuUtilPercent: Math.round(container.cpuPercent),
+      memoryPercent: Math.round(container.memoryPercent),
       memoryTotalGb: pod.memoryInGb || 0,
-      memoryUsedGb: Math.round(((container.memoryPercent || 0) / 100) * (pod.memoryInGb || 0) * 10) / 10,
+      memoryUsedGb: Math.round(((container.memoryPercent) / 100) * (pod.memoryInGb || 0) * 10) / 10,
       diskUsedGb: 0,
       diskTotalGb: (pod.volumeInGb || 0) + (pod.containerDiskInGb || 0),
       vcpuCount: pod.vcpuCount || 0,
@@ -189,7 +292,7 @@ export async function terminateRunPod(podId: string): Promise<void> {
 /**
  * Get available RunPod templates and GPU types.
  */
-export async function getRunPodOptions(): Promise<{ templates: any[], gpuTypes: any[], dataCenters: any[] }> {
+export async function getRunPodOptions(): Promise<{ templates: { id: string, name: string, imageName: string }[], gpuTypes: RunPodGPUOption[], dataCenters: RunPodDataCenterOption[] }> {
   const query = `
     query {
       myself {
@@ -212,7 +315,7 @@ export async function getRunPodOptions(): Promise<{ templates: any[], gpuTypes: 
       }
     }
   `
-  const data = await fetchRunPodGraphQL<any>(query)
+  const data = await fetchRunPodGraphQL<RunPodOptionsResponse>(query)
   return {
     templates: data.myself?.podTemplates || [],
     gpuTypes: data.gpuTypes || [],
@@ -239,8 +342,8 @@ export async function deployRunPod(
     modelGroups?: string[],
   }
 ): Promise<string> {
-  const config = useRuntimeConfig() as any
-  const githubPat = config.githubPat || process.env.GITHUB_PAT || ''
+  const config = useRuntimeConfig()
+  const githubPat = (config as any).githubPat || process.env.GITHUB_PAT || ''
   const repoUrl = 'loganrenz/ai-media-gen'
   const modelGroups = options?.modelGroups || []
 
@@ -275,7 +378,7 @@ export async function deployRunPod(
     : 120 // default: full ~120GB
   const defaultVolume = Math.ceil(estimatedSize * 1.3) // 30% headroom
 
-  const input: any = {
+  const input: RunPodDeployInput = {
     gpuCount,
     volumeInGb: options?.volumeInGb || defaultVolume,
     containerDiskInGb: options?.containerDiskInGb || 40,
@@ -290,18 +393,10 @@ export async function deployRunPod(
       { key: 'REPO_URL', value: repoUrl },
     ],
     dockerArgs: bootstrapCmd,
+    cloudType: options?.cloudType || "ALL",
+    dataCenterId: (options?.dataCenterId && options.dataCenterId !== 'ANY') ? options.dataCenterId : undefined
   }
 
-  if (options?.cloudType) {
-    input.cloudType = options.cloudType
-  } else {
-    input.cloudType = "ALL"
-  }
-
-  if (options?.dataCenterId && options.dataCenterId !== 'ANY') {
-    input.dataCenterId = options.dataCenterId
-  }
-
-  const data = await fetchRunPodGraphQL<any>(query, { input })
+  const data = await fetchRunPodGraphQL<RunPodDeployResponse>(query, { input })
   return data.podFindAndDeployOnDemand.id
 }

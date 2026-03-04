@@ -40,9 +40,11 @@ const { data, pending, error } = await useFetch<{ post: PostData; siblings: Sibl
 const post = computed(() => data.value?.post ?? null)
 const siblings = computed(() => data.value?.siblings ?? [])
 
-useSeoMeta({
+useSeo({
   title: computed(() => post.value ? `Post · ${post.value.prompt.slice(0, 50)}` : 'Post'),
+  description: computed(() => post.value ? post.value.prompt : 'Viewing an AI generated post.')
 })
+useWebPageSchema()
 
 // ─── Parse settings ─────────────────────────────────────────
 interface ParsedSettings {

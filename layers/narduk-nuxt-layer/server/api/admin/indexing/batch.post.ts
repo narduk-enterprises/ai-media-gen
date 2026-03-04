@@ -9,27 +9,27 @@ const bodySchema = z.object({
 })
 
 
+import { requireLayerAdmin } from '../../../utils/auth'
+
 /**
  * Google Indexing API — batch publish URL notifications.
  *
  * POST /api/admin/indexing/batch
- * Body: { urls: string[], type?: "URL_UPDATED" | "URL_DELETED" }
+ * JSON body: { urls: string[], action: 'URL_UPDATED' | 'URL_DELETED' }
  *
- * Submits up to 100 URLs in a single batch request using Google's
- * multipart/mixed batch API.
+ * Submits up to 100 URLs in a single batch request (Google's "multipart/mixed" batch API).
+ * Requires GSC_SERVICE_ACCOUNT_JSON with the API enabled.
  *
- * Requires GSC_SERVICE_ACCOUNT_JSON with the Indexing API enabled.
- *
- * Note: Google officially limits the Indexing API to pages with JobPosting
- * or BroadcastEvent structured data, but may process other page types.
+ * Note: officially Google limits the Indexing API to pages with JobPosting (or
+ * BroadcastEvent) structured data, but it may work for other page types.
  *
  * Usage:
- *   curl -X POST https://your-site.com/api/admin/indexing/batch \
- *     -H "Content-Type: application/json" \
- *     -d '{"urls": ["https://your-site.com/jobs/1", "https://your-site.com/jobs/2"]}'
+ * curl -X POST https://ai-media-gen.com/api/admin/indexing/batch \
+ *   -H "Content-Type: application/json" \
+ *   -d '{ "urls": ["https://ai-media-gen.com/page1"], "action": "URL_UPDATED" }'
  */
 export default defineEventHandler(async (event) => {
-    await requireAdmin(event)
+    await requireLayerAdmin(event)
     await enforceRateLimit(event, 'google-indexing-batch', 5, 60_000)
 
     const body = await readBody<unknown>(event)

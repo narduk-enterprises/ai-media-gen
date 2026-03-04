@@ -1,6 +1,10 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth', ssr: false })
-useSeoMeta({ title: 'Settings' })
+useSeo({
+  title: 'Settings',
+  description: 'Manage your account settings and GPU pods.'
+})
+useWebPageSchema()
 
 const { user, logout } = useAuth()
 

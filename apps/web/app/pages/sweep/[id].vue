@@ -6,7 +6,11 @@ definePageMeta({ middleware: 'auth' })
 const route = useRoute()
 const sweepId = computed(() => route.params.id as string)
 
-useSeoMeta({ title: 'Sweep Viewer' })
+useSeo({
+  title: 'Sweep Viewer',
+  description: computed(() => sweep.value ? `Parameter sweep for: ${sweep.value.prompt}` : 'Viewing a parameter sweep.')
+})
+useWebPageSchema()
 
 // ─── Fetch sweep data ───────────────────────────────────────────────────
 const { data: sweep, pending, error, refresh } = useAsyncData(

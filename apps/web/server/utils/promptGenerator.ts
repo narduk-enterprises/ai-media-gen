@@ -5,6 +5,10 @@ import {
   promptGenerationLog,
   promptCache,
 } from '../database/schema'
+import type { DrizzleD1Database } from 'drizzle-orm/d1'
+import type { H3Event } from 'h3'
+
+type DB = DrizzleD1Database<Record<string, unknown>>
 
 // ─── Weighted Random Selection ──────────────────────────────
 
@@ -63,7 +67,7 @@ export function computeSimilarityHash(prompt: string): string {
 /**
  * Check if a similar prompt was generated recently.
  */
-async function isDuplicate(db: any, hash: string): Promise<boolean> {
+async function isDuplicate(db: DB, hash: string): Promise<boolean> {
   const existing = await db
     .select({ id: promptGenerationLog.id })
     .from(promptGenerationLog)
@@ -88,7 +92,7 @@ export interface RefineResult {
  */
 export async function refineWithLLM(
   rawPrompt: string,
-  _ai?: any, // kept for backward compat but no longer used
+  _ai?: unknown, // kept for backward compat but no longer used
 ): Promise<RefineResult> {
   try {
     const { resolveApiUrl } = await import('./ai')
@@ -110,8 +114,8 @@ export async function refineWithLLM(
     }
     // Pod returned same text or empty — treat as unrefined
     return { text: rawPrompt, wasRefined: false, refineError: 'Pod returned same or empty text' }
-  } catch (e: any) {
-    const errMsg = e?.message || e?.statusMessage || String(e)
+  } catch (e: unknown) {
+    const errMsg = e instanceof Error ? e.message : String(e)
     console.warn(`[PromptGen] Pod LLM refinement failed: ${errMsg}`)
     return { text: rawPrompt, wasRefined: false, refineError: errMsg }
   }
@@ -147,12 +151,12 @@ export interface GenerateOptions {
  * 6. Store in generation log
  */
 export async function generatePrompt(
-  db: any,
-  ai: any,
+  db: DB,
+  ai: unknown,
   userId?: string,
   maxRetries: number = 3,
   options?: GenerateOptions,
-  event?: any,
+  event?: H3Event,
 ): Promise<GenerateResult> {
   const mediaType = options?.mediaType || 'any'
   const modelHint = options?.modelHint || null
@@ -212,7 +216,7 @@ export async function generatePrompt(
       rawPrompt: entry.rawPrompt,
       refinedPrompt: entry.refinedPrompt,
       similarityHash: entry.similarityHash,
-      mediaType: entry.mediaType || 'any',
+      mediaType: (entry.mediaType as string) || 'any',
       modelHint: entry.modelHint,
       wasRefined: true, // cached prompts are always refined
     }
@@ -232,9 +236,9 @@ export async function generatePrompt(
   if (mediaType !== 'any') {
     templateConditions.push(
       or(
-        eq(promptTemplates.mediaType, mediaType),
+        eq(promptTemplates.mediaType, mediaType as string),
         eq(promptTemplates.mediaType, 'any'),
-      )! as any,
+      ),
     )
   }
   if (modelHint) {
@@ -242,7 +246,7 @@ export async function generatePrompt(
       or(
         eq(promptTemplates.modelHint, modelHint),
         isNull(promptTemplates.modelHint),
-      )! as any,
+      )!,
     )
   }
 
@@ -322,8 +326,8 @@ export async function generatePrompt(
  * happens asynchronously via the webhook).
  */
 export async function fillPromptCache(
-  db: any,
-  ai: any,
+  db: DB,
+  ai: unknown,
   count: number = 10,
   mediaType?: 'image' | 'video',
 ): Promise<number> {
@@ -332,9 +336,9 @@ export async function fillPromptCache(
   if (mediaType) {
     conditions.push(
       or(
-        eq(promptTemplates.mediaType, mediaType),
+        eq(promptTemplates.mediaType, mediaType as string),
         eq(promptTemplates.mediaType, 'any'),
-      )! as any,
+      ),
     )
   }
 
@@ -390,10 +394,11 @@ export async function fillPromptCache(
     const { resolveApiUrl } = await import('./ai')
     const podUrl = await resolveApiUrl(undefined, undefined, ['prompt_refine'])
 
-    const config = useRuntimeConfig() as any
-    const siteUrl = config.public?.siteUrl || config.siteUrl || 'https://ai-media-gen.nard.uk'
+    const config = useRuntimeConfig()
+    const typedConfig = config as unknown as { webhookSecret?: string; public?: { siteUrl?: string }; siteUrl?: string }
+    const siteUrl = typedConfig.public?.siteUrl || typedConfig.siteUrl || 'https://ai-media-gen.nard.uk'
     const callbackUrl = `${siteUrl}/api/prompt-builder/cache-webhook`
-    const callbackSecret = config.webhookSecret || ''
+    const callbackSecret = typedConfig.webhookSecret || ''
 
     const response = await $fetch<{ batch_id: string; status: string; count: number }>(
       `${podUrl}/generate/batch-refine`,
@@ -412,8 +417,9 @@ export async function fillPromptCache(
 
     console.log(`[PromptGen] 🚀 Batch ${response.batch_id?.slice(0, 8)} sent: ${count} prompts → pod will refine and webhook results back`)
     return count
-  } catch (e: any) {
-    console.warn(`[PromptGen] ❌ Batch refine failed: ${e.message}`)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.warn(`[PromptGen] ❌ Batch refine failed: ${msg}`)
     return 0
   }
 }
@@ -429,7 +435,7 @@ const BATCH_SIZE = 20  // prompts per batch-refine call
  * Fills whichever media type (image/video) has fewer cached prompts.
  * Uses DB-based timing guard instead of in-memory flag (serverless-safe).
  */
-export async function autoRefillCache(db: any, ai: any): Promise<void> {
+export async function autoRefillCache(db: DB, ai: unknown): Promise<void> {
   // Count by media type
   const countResult = await db
     .select({
@@ -467,8 +473,9 @@ export async function autoRefillCache(db: any, ai: any): Promise<void> {
     console.log(`[PromptGen] Cache: ${imageCount} image, ${videoCount} video — filling ${otherDeficit} ${otherType} prompts`)
     try {
       await fillPromptCache(db, ai, otherDeficit, otherType)
-    } catch (e: any) {
-      console.warn(`[PromptGen] fillPromptCache error: ${e.message}`)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.warn(`[PromptGen] fillPromptCache error: ${msg}`)
     }
     return
   }
@@ -477,7 +484,8 @@ export async function autoRefillCache(db: any, ai: any): Promise<void> {
 
   try {
     await fillPromptCache(db, ai, deficit, targetType)
-  } catch (e: any) {
-    console.warn(`[PromptGen] fillPromptCache error: ${e.message}`)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.warn(`[PromptGen] fillPromptCache error: ${msg}`)
   }
 }

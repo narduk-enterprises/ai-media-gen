@@ -6,10 +6,11 @@
 
 definePageMeta({ middleware: 'auth' })
 
-useSeoMeta({
+useSeo({
   title: 'Manage Prompts',
-  description: 'Admin panel for managing prompt templates, attributes, and generation history.',
+  description: 'Admin panel for managing prompt templates, attributes, and generation history.'
 })
+useWebPageSchema()
 
 const { user } = useAuth()
 
@@ -27,16 +28,55 @@ const tabs = [
   { label: 'History', value: 'history', icon: 'i-lucide-clock' },
 ]
 
+interface Template {
+  id: string
+  name: string
+  template: string
+  category: string
+  isActive: boolean
+}
+
+interface Attribute {
+  id: string
+  category: string
+  value: string
+  weight: number
+  isActive: boolean
+}
+
+interface HistoryEntry {
+  id: string
+  rawPrompt: string
+  refinedPrompt: string
+  templateName: string | null
+  createdAt: string
+}
+
+interface CacheStats {
+  total: number
+  target: number
+  fillPercent: number
+  byType: Record<string, number>
+  newest: string | null
+  oldest: string | null
+}
+
+interface ImportResult {
+  templatesCreated: number
+  attributesCreated: number
+  errors: string[]
+}
+
 // ─── Templates ──────────────────────────────────────────────
-const templates = ref<any[]>([])
+const templates = ref<Template[]>([])
 const loadingTemplates = ref(false)
 const newTemplate = ref({ name: '', template: '', category: 'general' })
-const editingTemplate = ref<any | null>(null)
+const editingTemplate = ref<Template | null>(null)
 
 async function fetchTemplates() {
   loadingTemplates.value = true
   try {
-    const data = await $fetch<any>('/api/prompt-builder/templates')
+    const data = await $fetch<{ templates: Template[] }>('/api/prompt-builder/templates')
     templates.value = data.templates
   } catch { /* ignore */ }
   loadingTemplates.value = false
@@ -55,7 +95,7 @@ async function createTemplate() {
   } catch { /* ignore */ }
 }
 
-async function updateTemplate(tpl: any) {
+async function updateTemplate(tpl: Template) {
   try {
     await $fetch(`/api/prompt-builder/templates/${tpl.id}`, {
       method: 'PUT',
@@ -74,14 +114,14 @@ async function deleteTemplate(id: string) {
   } catch { /* ignore */ }
 }
 
-function toggleTemplateActive(tpl: any) {
+function toggleTemplateActive(tpl: Template) {
   tpl.isActive = !tpl.isActive
   updateTemplate(tpl)
 }
 
 // ─── Attributes ─────────────────────────────────────────────
-const attributes = ref<any[]>([])
-const groupedAttributes = ref<Record<string, any[]>>({})
+const attributes = ref<Attribute[]>([])
+const groupedAttributes = ref<Record<string, Attribute[]>>({})
 const loadingAttributes = ref(false)
 const newAttribute = ref({ category: '', value: '', weight: 1.0 })
 const bulkCategory = ref('')
@@ -90,7 +130,7 @@ const bulkValues = ref('')
 async function fetchAttributes() {
   loadingAttributes.value = true
   try {
-    const data = await $fetch<any>('/api/prompt-builder/attributes')
+    const data = await $fetch<{ attributes: Attribute[]; grouped: Record<string, Attribute[]> }>('/api/prompt-builder/attributes')
     attributes.value = data.attributes
     groupedAttributes.value = data.grouped
   } catch { /* ignore */ }
@@ -125,7 +165,7 @@ async function bulkCreateAttributes() {
   } catch { /* ignore */ }
 }
 
-async function updateAttributeWeight(attr: any, newWeight: number) {
+async function updateAttributeWeight(attr: Attribute, newWeight: number) {
   try {
     await $fetch(`/api/prompt-builder/attributes/${attr.id}`, {
       method: 'PUT',
@@ -136,7 +176,7 @@ async function updateAttributeWeight(attr: any, newWeight: number) {
   } catch { /* ignore */ }
 }
 
-async function toggleAttributeActive(attr: any) {
+async function toggleAttributeActive(attr: Attribute) {
   try {
     await $fetch(`/api/prompt-builder/attributes/${attr.id}`, {
       method: 'PUT',
@@ -155,7 +195,7 @@ async function deleteAttribute(id: string) {
 }
 
 // ─── History ────────────────────────────────────────────────
-const history = ref<any[]>([])
+const history = ref<HistoryEntry[]>([])
 const historyTotal = ref(0)
 const historyOffset = ref(0)
 const historyLimit = 20
@@ -164,7 +204,7 @@ const loadingHistory = ref(false)
 async function fetchHistory() {
   loadingHistory.value = true
   try {
-    const data = await $fetch<any>('/api/prompt-builder/history', {
+    const data = await $fetch<{ items: HistoryEntry[]; total: number }>('/api/prompt-builder/history', {
       params: { limit: historyLimit, offset: historyOffset.value },
     })
     history.value = data.items
@@ -185,7 +225,7 @@ const totalHistoryPages = computed(() => Math.ceil(historyTotal.value / historyL
 
 // ─── Test Generator ─────────────────────────────────────────
 const generating = ref(false)
-const generatedResult = ref<any | null>(null)
+const generatedResult = ref<HistoryEntry | null>(null)
 const generateError = ref('')
 
 async function testGenerate() {
@@ -193,7 +233,7 @@ async function testGenerate() {
   generateError.value = ''
   generatedResult.value = null
   try {
-    const result = await $fetch<any>('/api/prompt-builder/generate', { method: 'POST', headers: csrfHeaders })
+    const result = await $fetch<HistoryEntry>('/api/prompt-builder/generate', { method: 'POST', headers: csrfHeaders })
     generatedResult.value = result
   } catch (e: any) {
     generateError.value = e.data?.message || e.message || 'Generation failed'
@@ -204,7 +244,7 @@ async function testGenerate() {
 // ─── JSON Import ────────────────────────────────────────────
 const importJson = ref('')
 const importing = ref(false)
-const importResult = ref<any | null>(null)
+const importResult = ref<ImportResult | null>(null)
 const importError = ref('')
 
 const JSON_SCHEMA_EXAMPLE = `{
@@ -257,7 +297,7 @@ async function importData() {
   importing.value = true
   importResult.value = null
   try {
-    const result = await $fetch<any>('/api/prompt-builder/import', {
+    const result = await $fetch<ImportResult>('/api/prompt-builder/import', {
       method: 'POST',
       headers: csrfHeaders,
       body: JSON.parse(importJson.value),
@@ -278,14 +318,14 @@ function loadSchemaExample() {
 }
 
 // ─── Cache Stats ────────────────────────────────────────────
-const cacheStats = ref<{ total: number; target: number; fillPercent: number; byType: Record<string, number>; newest: string | null; oldest: string | null } | null>(null)
+const cacheStats = ref<CacheStats | null>(null)
 const loadingCacheStats = ref(false)
 let cacheStatsInterval: ReturnType<typeof setInterval> | null = null
 
 async function fetchCacheStats() {
   loadingCacheStats.value = true
   try {
-    cacheStats.value = await $fetch<any>('/api/prompt-builder/cache-stats')
+    cacheStats.value = await $fetch<CacheStats>('/api/prompt-builder/cache-stats')
   } catch { /* ignore */ }
   loadingCacheStats.value = false
 }
@@ -344,7 +384,7 @@ const exporting = ref(false)
 async function exportAll() {
   exporting.value = true
   try {
-    const data = await $fetch<any>('/api/prompt-builder/export')
+    const data = await $fetch<Record<string, any>>('/api/prompt-builder/export')
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -361,13 +401,24 @@ async function exportAll() {
 // ─── Delete All ─────────────────────────────────────────────
 const deleteAllOpen = ref(false)
 const deleting = ref(false)
-const deleteResult = ref<any | null>(null)
+
+interface DeleteAllResult {
+  deleted: {
+    templates: number
+    attributes: number
+    cache: number
+    log: number
+  }
+  message: string
+}
+
+const deleteResult = ref<DeleteAllResult | null>(null)
 
 async function deleteAll() {
   deleting.value = true
   deleteResult.value = null
   try {
-    const result = await $fetch<any>('/api/prompt-builder/delete-all', {
+    const result = await $fetch<DeleteAllResult>('/api/prompt-builder/delete-all', {
       method: 'POST',
       headers: csrfHeaders,
       body: { confirm: true },

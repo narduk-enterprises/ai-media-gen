@@ -5,7 +5,11 @@ if (loggedIn.value) {
   navigateTo('/create')
 }
 
-useSeoMeta({ title: 'Create Account' })
+useSeo({
+  title: 'Create Account',
+  description: 'Join AI Media Gen to start generating images and videos with AI.'
+})
+useWebPageSchema({ type: 'ContactPage' })
 
 const name = ref('')
 const email = ref('')
