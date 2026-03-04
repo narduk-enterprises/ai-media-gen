@@ -6,7 +6,7 @@
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
-    "db:migrate": "wrangler d1 execute web-db --local --file=drizzle/0000_initial_schema.sql",
+    "db:migrate": "wrangler d1 execute ai-media-gen-db --local --file=drizzle/0000_initial_schema.sql",
     "db:studio": "drizzle-kit studio",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
