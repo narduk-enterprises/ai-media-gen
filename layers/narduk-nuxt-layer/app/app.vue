@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const route = useRoute()
-const colorMode = useColorMode() as unknown as { preference: string; value: string; forced: boolean }
+const colorMode = useColorMode()
 const appName = useRuntimeConfig().public.appName || ''
 
 const colorModeIcon = computed(() => {
