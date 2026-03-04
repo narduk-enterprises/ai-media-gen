@@ -23,8 +23,9 @@ async function handleLogin() {
   try {
     await login(email.value, password.value)
     navigateTo('/create')
-  } catch (e: any) {
-    error.value = e.data?.message || e.message || 'Login failed'
+  } catch (e: unknown) {
+    const err = e as { data?: { message?: string }; message?: string }
+    error.value = err.data?.message || err.message || 'Login failed'
   } finally {
     submitting.value = false
   }
@@ -63,8 +64,8 @@ async function handleLogin() {
         </div>
 
         <!-- Form -->
-        <form @submit.prevent="handleLogin" class="space-y-5">
-          <UFormField label="Email">
+        <UForm :state="{ email, password }" @submit="handleLogin" class="space-y-5">
+          <UFormField label="Email" name="email">
             <UInput
               v-model="email"
               type="email"
@@ -76,7 +77,7 @@ async function handleLogin() {
             />
           </UFormField>
 
-          <UFormField label="Password">
+          <UFormField label="Password" name="password">
             <UInput
               v-model="password"
               type="password"
@@ -95,7 +96,7 @@ async function handleLogin() {
           >
             Sign In
           </UButton>
-        </form>
+        </UForm>
 
         <!-- Divider -->
         <div class="relative my-6">

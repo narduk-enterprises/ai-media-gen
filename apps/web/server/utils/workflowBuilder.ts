@@ -23,6 +23,7 @@ import ltx2I2v from './workflows/ltx2_i2v.json'
 import upscaleTemplate from './workflows/upscale.json'
 
 // ── Template registry ──────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 const TEMPLATES: Record<string, any> = {
   wan_t2i: wanT2i,
   wan_t2v: wanT2v,
@@ -73,6 +74,7 @@ function seed(s?: number | null): number {
   return s
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 function loadTemplate(name: string): any {
   const t = TEMPLATES[name]
   if (!t) throw new Error(`Unknown workflow template: ${name}`)
@@ -82,12 +84,14 @@ function loadTemplate(name: string): any {
 /**
  * Deep-walk a workflow dict and replace {{key}} placeholders with values.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 function injectParams(workflow: any, params: Record<string, any>): any {
   const result = structuredClone(workflow)
   walk(result, params)
   return result
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 function walk(obj: any, params: Record<string, any>): void {
   if (Array.isArray(obj)) {
     for (let i = 0; i < obj.length; i++) {
@@ -755,6 +759,7 @@ export const I2V_PRESETS: Record<string, I2vPreset> = {
 }
 
 /** Apply an I2V parameter preset to a built LTX-2 I2V workflow. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 export function applyI2vPreset(wf: any, presetName: string): void {
   if (presetName === 'random') {
     const keys = Object.keys(I2V_PRESETS)
@@ -797,7 +802,9 @@ export function applyI2vPreset(wf: any, presetName: string): void {
 export function buildWorkflow(
   action: string,
   model: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   params: Record<string, any>,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 ): any {
   switch (action) {
     case 'text2image':
@@ -815,6 +822,7 @@ export function buildWorkflow(
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 function buildText2ImageByModel(model: string, p: Record<string, any>) {
   const opts: Text2ImageOptions = {
     prompt: p.prompt,
@@ -847,6 +855,7 @@ function buildText2ImageByModel(model: string, p: Record<string, any>) {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 function buildImage2ImageByModel(model: string, p: Record<string, any>) {
   const opts: Image2ImageOptions = {
     imageFilename: p.image_filename,
@@ -866,6 +875,7 @@ function buildImage2ImageByModel(model: string, p: Record<string, any>) {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 function buildText2VideoByModel(model: string, p: Record<string, any>) {
   const opts: Text2VideoOptions = {
     prompt: p.prompt,
@@ -886,6 +896,7 @@ function buildText2VideoByModel(model: string, p: Record<string, any>) {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 function buildImage2VideoByModel(model: string, p: Record<string, any>) {
   const opts: Image2VideoOptions = {
     imageFilename: p.image_filename,

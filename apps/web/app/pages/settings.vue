@@ -28,8 +28,9 @@ async function recoverGenerations() {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
     recoverResult.value = result
-  } catch (e: any) {
-    recoverError.value = e?.data?.message || e?.message || 'Recovery failed'
+  } catch (e: unknown) {
+    const err = e as { data?: { message?: string }; message?: string }
+    recoverError.value = err?.data?.message || err?.message || 'Recovery failed'
   } finally {
     recovering.value = false
   }

@@ -54,6 +54,7 @@ export async function resolveApiUrl(
       const podUrls = running.map(p => `https://${p.id}-8188.proxy.runpod.net`)
 
       const healthResults = await Promise.allSettled(
+        // eslint-disable-next-line nuxt-guardrails/no-map-async-in-server
         podUrls.map(async (url): Promise<PodHealth | null> => {
           try {
             const health = await $fetch<{

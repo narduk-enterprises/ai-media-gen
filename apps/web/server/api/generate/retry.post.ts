@@ -31,6 +31,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Verify it has comfyInput to re-submit
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   let meta: any = null
   try { meta = item.metadata ? JSON.parse(item.metadata) : null } catch {}
   if (!meta?.comfyInput) {

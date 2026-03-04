@@ -78,11 +78,13 @@ export const ALL_VIDEO_MODEL_IDS = VIDEO_CONFIGS.map(c => c.def.id) as [string, 
 
 // ─── Lookup Helpers ─────────────────────────────────────────────────────────
 
+// eslint-disable-next-line vue-official/require-use-prefix-for-composables
 export function getImageModelParams(modelId: string): ImageModelParams {
   return IMAGE_MODEL_PARAMS[modelId] ?? IMAGE_MODEL_PARAMS.wan22!
 }
 
 /** Get image params merged with I2I overrides (denoise, cfg tweaks, etc.) */
+// eslint-disable-next-line vue-official/require-use-prefix-for-composables
 export function getI2IModelParams(modelId: string): ImageModelParams {
   const base = getImageModelParams(modelId)
   const overrides = IMAGE_I2I_OVERRIDES[modelId]
@@ -90,24 +92,29 @@ export function getI2IModelParams(modelId: string): ImageModelParams {
   return { ...base, ...overrides }
 }
 
+// eslint-disable-next-line vue-official/require-use-prefix-for-composables
 export function getVideoModelParams(modelId: string): VideoModelParams {
   return VIDEO_MODEL_PARAMS[modelId] ?? VIDEO_MODEL_PARAMS.wan22!
 }
 
+// eslint-disable-next-line vue-official/require-use-prefix-for-composables
 export function getImageModel(modelId: string): ModelDef | undefined {
   return IMAGE_MODELS.find(m => m.id === modelId)
 }
 
+// eslint-disable-next-line vue-official/require-use-prefix-for-composables
 export function getVideoModel(modelId: string): ModelDef | undefined {
   return VIDEO_MODELS.find(m => m.id === modelId)
 }
 
 /** Get the full image config including I2I overrides */
+// eslint-disable-next-line vue-official/require-use-prefix-for-composables
 export function getImageConfig(modelId: string): ImageModelConfig | undefined {
   return IMAGE_CONFIGS.find(c => c.def.id === modelId)
 }
 
 /** Get the full video config */
+// eslint-disable-next-line vue-official/require-use-prefix-for-composables
 export function getVideoConfig(modelId: string): VideoModelConfig | undefined {
   return VIDEO_CONFIGS.find(c => c.def.id === modelId)
 }

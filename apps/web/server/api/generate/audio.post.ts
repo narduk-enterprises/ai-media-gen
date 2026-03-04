@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/ban-ts-comment */
 // @ts-nocheck — This endpoint is disabled (throws 501 at line 17). All code below is dead.
 import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'

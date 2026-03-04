@@ -21,6 +21,7 @@ export default defineEventHandler(async (event) => {
       timeout: 8_000,
     })
     return { logs: result.lines || 'No log output yet' }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (e: any) {
     return { logs: `[Error fetching logs: ${e?.message || 'Pod may still be starting up'}]` }
   }

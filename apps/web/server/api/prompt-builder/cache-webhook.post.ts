@@ -80,6 +80,7 @@ export default defineEventHandler(async (event) => {
     }
 
     return { ok: true, action: 'cached' }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (e: any) {
     console.error(`[CacheWebhook] ❌ Insert failed:`, e?.message || e)
     throw createError({ statusCode: 500, message: `Insert failed: ${e?.message || String(e)}` })

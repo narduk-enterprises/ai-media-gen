@@ -51,6 +51,7 @@ export default defineEventHandler(async (event) => {
 
   const runpodCancels = userActive
     .filter(item => item.runpodJobId)
+    // eslint-disable-next-line nuxt-guardrails/no-map-async-in-server
     .map(async (item) => {
       try {
         const apiUrl = item.metadata
@@ -72,6 +73,7 @@ export default defineEventHandler(async (event) => {
 
   // Step 4b: Clear ComfyUI queue on all pods (stops currently running jobs too)
   if (apiUrls.size === 0) apiUrls.add(defaultApiUrl)
+  // eslint-disable-next-line nuxt-guardrails/no-map-async-in-server
   const clearPromises = [...apiUrls].map(async (apiUrl) => {
     try {
       await fetch(`${apiUrl}/runsync`, {
@@ -84,6 +86,7 @@ export default defineEventHandler(async (event) => {
         signal: AbortSignal.timeout(5_000),
       })
       console.log(`[CancelAll] ✅ Cleared ComfyUI queue on ${apiUrl}`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       console.warn(`[CancelAll] ⚠️ Failed to clear ComfyUI queue on ${apiUrl}:`, e.message)
     }

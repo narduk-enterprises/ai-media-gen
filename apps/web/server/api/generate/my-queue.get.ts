@@ -31,6 +31,7 @@ export default defineEventHandler(async (event) => {
       .orderBy(desc(mediaItems.createdAt))
       .limit(100)
       .then(rows => rows.map(r => r.media_items))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (e: any) {
     console.error('[my-queue] Active items query failed:', e.message)
   }
@@ -52,6 +53,7 @@ export default defineEventHandler(async (event) => {
       .orderBy(desc(mediaItems.createdAt))
       .limit(30)
       .then(rows => rows.map(r => r.media_items))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (e: any) {
     console.error('[my-queue] Recent items query failed:', e.message)
   }

@@ -512,6 +512,7 @@ export async function checkJobStatus(
   } catch (e: unknown) {
     // 404 = pod restarted and lost in-memory job state, or job expired.
     // Return FAILED so the item resolves instead of polling forever.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     if ((e as any)?.response?.status === 404) {
       console.warn(`[Pod] Job ${jobId} not found on pod (expired or pod restarted)`)
       return {
@@ -520,6 +521,7 @@ export async function checkJobStatus(
       }
     }
     // Other transient errors (network blip, timeout) — keep polling
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     const status = (e as any)?.response?.status ? `${(e as any).response.status} ` : ''
     const msg = e instanceof Error ? e.message : String(e)
     console.warn(`[Pod] Status check failed for ${jobId}: ${status}${msg}`)

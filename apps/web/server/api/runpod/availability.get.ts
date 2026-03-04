@@ -33,6 +33,7 @@ export default defineEventHandler(async (event) => {
         }
       }
     `
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     promises.push(fetchRunPodGraphQL<any>(gql))
   }
 
@@ -41,6 +42,7 @@ export default defineEventHandler(async (event) => {
 
   for (const res of results) {
     // extract just our target GPU from the massive payload response
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     const gpuInfo = res.gpuTypes?.find((x: any) => x.id === gpuType)
     if (gpuInfo) {
       for (const k of Object.keys(gpuInfo)) {

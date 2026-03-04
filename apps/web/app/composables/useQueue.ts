@@ -70,6 +70,7 @@ export function useQueue() {
       if (data.stats.processing > 0 || data.stats.queued > 0) {
         _ensurePolling()
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       if (e?.statusCode !== 401) {
         error.value = e?.message || 'Failed to load queue'
@@ -150,6 +151,7 @@ export function useQueue() {
         items.value = items.value.map((item, i) => i === idx ? updated : item)
         _recalcStats()
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       console.warn('[Queue] Cancel failed:', e.message)
       await refresh()
@@ -165,6 +167,7 @@ export function useQueue() {
       })
       items.value = items.value.filter(i => i.id !== itemId)
       _recalcStats()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       console.warn('[Queue] Dismiss failed:', e.message)
     }
@@ -179,6 +182,7 @@ export function useQueue() {
       })
       items.value = items.value.filter(i => i.id !== itemId)
       _recalcStats()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       console.warn('[Queue] Delete failed:', e.message)
     }
@@ -194,6 +198,7 @@ export function useQueue() {
       items.value = []
       _recalcStats()
       stopPolling()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       console.warn('[Queue] Delete all failed:', e.message)
       await refresh()
@@ -209,6 +214,7 @@ export function useQueue() {
       })
       items.value = items.value.filter(i => i.status === 'queued' || i.status === 'processing')
       _recalcStats()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       console.warn('[Queue] Clear failed:', e.message)
       await refresh()
@@ -228,6 +234,7 @@ export function useQueue() {
       )
       _recalcStats()
       stopPolling()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       console.warn('[Queue] Cancel all failed:', e.message)
       await refresh()

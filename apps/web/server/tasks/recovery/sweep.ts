@@ -20,9 +20,11 @@ export default defineTask({
     name: 'recovery:sweep',
     description: 'Safety-net queue processor — submits queued items, catches missed webhooks',
   },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   async run(): Promise<{ result: Record<string, any> }> {
     try {
       // In cron context, the D1 middleware hasn't run — init DB directly from binding
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       const env = (globalThis as any).__env__
       if (!env?.DB) {
         console.error('[Cron] No D1 binding available')
@@ -40,6 +42,7 @@ export default defineTask({
       try {
         const { autoRefillCache } = await import('../../utils/promptGenerator')
         await autoRefillCache(db, null)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       } catch (e: any) {
         // Non-fatal — don't let cache warming break the cron
         if (!e.message?.includes('already full') && !e.message?.includes('already refilling')) {
@@ -48,6 +51,7 @@ export default defineTask({
       }
 
       return { result }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       console.error('[Cron] Queue processing error:', e.message)
       return { result: { error: e.message } }

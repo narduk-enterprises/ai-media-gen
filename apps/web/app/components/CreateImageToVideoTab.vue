@@ -62,7 +62,7 @@ watch(selectedModel, (id) => {
 const canGenerate = computed(() => hasImage.value)
 const totalCount = computed(() => canGenerate.value ? 1 : 0)
 
-const emit = defineEmits<{ 'generate-i2v': [body: Record<string, any>] }>()
+const emit = defineEmits<{ 'generate-i2v': [body: { image: string; seed: number; model: string; prompt?: string; negativePrompt?: string; numFrames: number; steps: number; cfg: number; width: number; height: number; fps?: number; loraStrength?: number; imageStrength?: number; audioPrompt?: string; preset?: string }] }>()
 
 function buildVideoOpts(presetOverride?: string) {
   return {

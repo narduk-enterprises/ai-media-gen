@@ -17,6 +17,7 @@ export default defineEventHandler(async (event) => {
       timeout: 10_000,
     })
     return result
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (e: any) {
     // Pod may not have the endpoint yet — return empty
     console.warn(`[synced-groups] Failed for pod ${podId}: ${e?.message}`)

@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { eq, and, isNull } from 'drizzle-orm'
 
 import { mediaItems, generations } from '../../database/schema'

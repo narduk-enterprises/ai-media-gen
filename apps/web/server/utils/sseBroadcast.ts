@@ -45,6 +45,7 @@ export function removeConnection(userId: string, conn: SSEConnection) {
  * Broadcast an SSE event to all connections for a user.
  * Silently drops connections that have closed.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 export function broadcast(userId: string, event: string, data: any) {
   // Try by userId directly
   const set = _connections.get(userId)
@@ -73,6 +74,7 @@ export function broadcast(userId: string, event: string, data: any) {
  * Broadcast to a user by looking up from generationId.
  * This is a convenience for the webhook handler.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 export function broadcastByGenerationId(generationId: string, event: string, data: any) {
   // We broadcast to all users — the generation's userId lookup happens at call site
   // This is called from the webhook with userId already resolved

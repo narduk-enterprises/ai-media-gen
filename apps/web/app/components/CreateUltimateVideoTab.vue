@@ -40,8 +40,9 @@ async function remixPrompt() {
   remixVariationsResult.value = []
   try {
     remixVariationsResult.value = await doRemixVariations(prompt.value.trim(), 4)
-  } catch (e: any) {
-    gen.error.value = e.data?.message || e.message || 'Remix failed'
+  } catch (e) {
+    const err = e as { data?: { message?: string }; message?: string }
+    gen.error.value = err.data?.message || err.message || 'Remix failed'
   }
 }
 
@@ -109,7 +110,7 @@ async function generate() {
       })
     } else {
       // Direct upload path
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         image: uploadedBase64.value,
         model: selectedModel.value,
         prompt: prompt.value.trim() || undefined,
@@ -129,11 +130,12 @@ async function generate() {
         })
         if (result.item) {
           gen.results.value.push(result.item)
-          const queue = useQueue()
-          queue.submitAndTrack(result.item.id)
+          const q = useQueue()
+          q.submitAndTrack(result.item.id)
         }
-      } catch (e: any) {
-        gen.error.value = e.data?.message || 'Video generation failed'
+      } catch (e) {
+        const err = e as { data?: { message?: string } }
+        gen.error.value = err.data?.message || 'Video generation failed'
       } finally {
         gen.submitting.value = false
       }
@@ -143,23 +145,30 @@ async function generate() {
 
 // ─── Persistence ─────────────────────────────────────────────
 onMounted(() => {
-  const s = shared.restoreForm()
-  if (s.ult_prompt != null) prompt.value = s.ult_prompt
-  if (s.ult_audio != null) audioPrompt.value = s.ult_audio
-  if (s.ult_neg != null) negativePrompt.value = s.ult_neg
-  if (s.ult_model != null) selectedModel.value = s.ult_model
-  if (s.ult_steps != null) steps.value = s.ult_steps
-  if (s.ult_frames != null) numFrames.value = s.ult_frames
-  if (s.ult_count != null) count.value = s.ult_count
-  if (s.ult_seed != null) seed.value = s.ult_seed
+  const s = shared.restoreForm() as Record<string, unknown>
+  if (s.ult_prompt != null) prompt.value = String(s.ult_prompt)
+  if (s.ult_audio != null) audioPrompt.value = String(s.ult_audio)
+  if (s.ult_neg != null) negativePrompt.value = String(s.ult_neg)
+  if (s.ult_model != null) selectedModel.value = String(s.ult_model)
+  if (s.ult_steps != null) steps.value = Number(s.ult_steps)
+  if (s.ult_frames != null) numFrames.value = Number(s.ult_frames)
+  if (s.ult_count != null) count.value = Number(s.ult_count)
+  if (s.ult_seed != null) seed.value = Number(s.ult_seed)
 })
+
+/* vue-official allow-deep-watch */
 watch([prompt, audioPrompt, negativePrompt, selectedModel, steps, numFrames, count, seed], () => {
   shared.persistForm({
-    ult_prompt: prompt.value, ult_audio: audioPrompt.value, ult_neg: negativePrompt.value,
-    ult_model: selectedModel.value, ult_steps: steps.value, ult_frames: numFrames.value,
-    ult_count: count.value, ult_seed: seed.value,
+    ult_prompt: prompt.value,
+    ult_audio: audioPrompt.value,
+    ult_neg: negativePrompt.value,
+    ult_model: selectedModel.value,
+    ult_steps: steps.value,
+    ult_frames: numFrames.value,
+    ult_count: count.value,
+    ult_seed: seed.value,
   })
-}, { deep: true })
+})
 
 defineExpose({ generate, canGenerate, totalCount, isVideo: true })
 </script>
@@ -282,9 +291,9 @@ v-for="p in AUDIO_PRESETS" :key="p.label" size="xs"
           <div class="text-[10px] text-violet-500 uppercase tracking-wider font-semibold mb-0.5">Ready to generate</div>
           <p class="text-xs text-violet-700">
             {{ count }} × {{ DURATION_PRESETS.find(d => d.value === numFrames)?.label || numFrames + 'f' }} video{{ count > 1 ? 's' : '' }}
-            · {{ selectedModel === 'ltx2' ? 'LTX-2' : 'Wan 2.2 I2V' }}
+            · {{ isLtx2 ? 'LTX-2' : 'Wan 2.2 I2V' }}
             · {{ steps }} steps
-            <template v-if="audioPrompt"> · 🔊 audio</template>
+            · {{ audioPrompt ? '🔊 audio' : '' }}
           </p>
         </div>
         <UIcon name="i-lucide-rocket" class="w-5 h-5 text-violet-400" />

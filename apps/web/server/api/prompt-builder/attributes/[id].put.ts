@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
   if (!id) throw createError({ statusCode: 400, message: 'Attribute ID required' })
 
   const body = await readBody(event)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   const updates: Record<string, any> = { updatedAt: new Date().toISOString() }
 
   if (body.value !== undefined) updates.value = body.value.trim()

@@ -38,8 +38,8 @@ watch(workflowJson, (val) => {
     } else {
       jsonError.value = ''
     }
-  } catch (e: any) {
-    jsonError.value = e.message
+  } catch (e) {
+    jsonError.value = (e as Error).message
   }
 })
 
@@ -58,7 +58,7 @@ async function generate() {
   gen.results.value = []
 
   try {
-    const result = await $fetch<any>('/api/generate/custom', {
+    const result = await $fetch<{ items?: { id: string }[] }>('/api/generate/custom', {
       method: 'POST',
       body: {
         workflow: parsedWorkflow.value,
@@ -71,13 +71,14 @@ async function generate() {
 
     if (result.items?.length) {
       for (const item of result.items) {
-        gen.results.value.push(item)
+        gen.results.value.push({ id: item.id, type: 'image', url: null, status: 'queued', parentId: null })
         const queue = useQueue()
         queue.submitAndTrack(item.id)
       }
     }
-  } catch (e: any) {
-    gen.error.value = e.data?.message || 'Custom workflow failed'
+  } catch (e) {
+    const err = e as { data?: { message?: string } }
+    gen.error.value = err.data?.message || 'Custom workflow failed'
   } finally {
     gen.submitting.value = false
   }

@@ -42,7 +42,7 @@ export function useCreateShared() {
   // ─── Form persistence ─────────────────────────────────────────
   const FORM_KEY = 'ai-media-gen:create-form'
 
-  function persistForm(extra: Record<string, any> = {}) {
+  function persistForm(extra: Record<string, unknown> = {}) {
     if (import.meta.server) return
     try {
       localStorage.setItem(FORM_KEY, JSON.stringify({
@@ -50,17 +50,17 @@ export function useCreateShared() {
         targetMachine: targetMachine.value,
         ...extra,
       }))
-    } catch {}
+    } catch { }
   }
 
-  function restoreForm(): Record<string, any> {
+  function restoreForm(): Record<string, unknown> {
     if (import.meta.server) return {}
     try {
       const raw = localStorage.getItem(FORM_KEY)
       if (!raw) return {}
-      const s = JSON.parse(raw)
-      if (s.negativePrompt != null) negativePrompt.value = s.negativePrompt
-      if (s.targetMachine != null) targetMachine.value = s.targetMachine
+      const s = JSON.parse(raw) as Record<string, unknown>
+      if (s.negativePrompt != null) negativePrompt.value = String(s.negativePrompt)
+      if (s.targetMachine != null) targetMachine.value = s.targetMachine as TargetMachine
       // Backward compat: old anyMachine boolean
       else if (s.anyMachine === true) targetMachine.value = 'any'
       return s

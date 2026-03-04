@@ -1,4 +1,5 @@
 import { z } from 'zod'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { eq } from 'drizzle-orm'
 
 
@@ -42,6 +43,7 @@ export default defineEventHandler(async (event) => {
   const requiredGroups = getRequiredGroups(sampleInput)
   const apiUrl = await resolveApiUrl(endpoint, 'image', requiredGroups)
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   const settingsObj: Record<string, any> = {
     negativePrompt, steps, width, height, seed, model, loraStrength,
     attributes: attributes || {},

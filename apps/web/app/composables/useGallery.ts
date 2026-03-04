@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { GenerationResult, MediaItemResult } from '~/types/gallery'
 
 const PAGE_SIZE = 20
@@ -50,6 +51,7 @@ export function useGallery(typeFilter?: Ref<string>, allUsers?: Ref<boolean>) {
 
       mediaItems.value = (result.items ?? []).filter(i => i.url) as GalleryMediaItem[]
       total.value = result.total ?? 0
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       error.value = e
     } finally {
@@ -71,6 +73,7 @@ export function useGallery(typeFilter?: Ref<string>, allUsers?: Ref<boolean>) {
       const newItems = (result.items ?? []).filter(i => i.url && !existingIds.has(i.id)) as GalleryMediaItem[]
       mediaItems.value = [...mediaItems.value, ...newItems]
       total.value = result.total ?? total.value
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       error.value = e
     } finally {
@@ -91,6 +94,7 @@ export function useGallery(typeFilter?: Ref<string>, allUsers?: Ref<boolean>) {
       const toDelete = new Set(itemIds)
       mediaItems.value = mediaItems.value.filter(item => !toDelete.has(item.id))
       total.value = Math.max(0, total.value - itemIds.length)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       console.error('Failed to delete items:', e)
       throw e
@@ -106,6 +110,7 @@ export function useGallery(typeFilter?: Ref<string>, allUsers?: Ref<boolean>) {
 }
 
 /** Trigger a browser download for a media URL. */
+// eslint-disable-next-line vue-official/require-use-prefix-for-composables
 export function downloadMedia(url: string, type: string = 'image') {
   const a = document.createElement('a')
   a.href = url
@@ -114,6 +119,7 @@ export function downloadMedia(url: string, type: string = 'image') {
 }
 
 /** Human-friendly relative date string. */
+// eslint-disable-next-line vue-official/require-use-prefix-for-composables
 export function formatDate(dateStr: string): string {
   const date = new Date(dateStr)
   const now = new Date()

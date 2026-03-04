@@ -41,8 +41,8 @@ const post = computed(() => data.value?.post ?? null)
 const siblings = computed(() => data.value?.siblings ?? [])
 
 useSeo({
-  title: computed(() => post.value ? `Post · ${post.value.prompt.slice(0, 50)}` : 'Post'),
-  description: computed(() => post.value ? post.value.prompt : 'Viewing an AI generated post.')
+  title: post.value ? `Post · ${post.value.prompt.slice(0, 50)}` : 'Post',
+  description: post.value ? post.value.prompt : 'Viewing an AI generated post.'
 })
 useWebPageSchema()
 
@@ -54,7 +54,7 @@ interface ParsedSettings {
   height?: number
   cfg?: number
   attributes?: Record<string, string>
-  [key: string]: any
+  [key: string]: unknown
 }
 
 const parsedSettings = computed<ParsedSettings | null>(() => {
@@ -107,6 +107,12 @@ function sharePost() {
 function copyPrompt() {
   if (!post.value) return
   navigator.clipboard.writeText(post.value.prompt)
+}
+
+function getQualityScoreClass(score: number): string {
+  if (score >= 7) return 'text-emerald-400'
+  if (score >= 5) return 'text-amber-400'
+  return 'text-red-400'
 }
 </script>
 
@@ -234,7 +240,7 @@ function copyPrompt() {
             </div>
             <div v-if="post.qualityScore">
               <span class="text-[11px] text-white/30 block mb-0.5">Quality Score</span>
-              <span class="text-sm tabular-nums" :class="post.qualityScore >= 7 ? 'text-emerald-400' : post.qualityScore >= 5 ? 'text-amber-400' : 'text-red-400'">
+              <span class="text-sm tabular-nums" :class="getQualityScoreClass(post.qualityScore)">
                 {{ post.qualityScore.toFixed(1) }} / 10
               </span>
             </div>
@@ -264,7 +270,7 @@ function copyPrompt() {
         <!-- Quality score (if no settings but has score) -->
         <div v-else-if="post.qualityScore" class="rounded-2xl bg-white/[0.03] border border-white/5 p-5">
           <h3 class="text-xs uppercase tracking-wider text-white/30 font-medium mb-3">Quality</h3>
-          <span class="text-lg tabular-nums font-medium" :class="post.qualityScore >= 7 ? 'text-emerald-400' : post.qualityScore >= 5 ? 'text-amber-400' : 'text-red-400'">
+          <span class="text-lg tabular-nums font-medium" :class="getQualityScoreClass(post.qualityScore)">
             {{ post.qualityScore.toFixed(1) }} / 10
           </span>
         </div>

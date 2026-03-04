@@ -32,14 +32,17 @@ export default defineEventHandler(async (event) => {
     }
   `
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   const data = await fetchRunPodGraphQL<any>(query)
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   const templates = (data.myself?.podTemplates || []).map((t: any) => ({
     id: t.id,
     name: t.name,
   }))
 
   // Find the default template
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   const defaultTemplate = templates.find((t: any) => t.name.includes('ai-media-gen'))
 
   // Heuristic speed scores for common RunPod GPUs (higher = faster AI generation)
@@ -95,7 +98,9 @@ export default defineEventHandler(async (event) => {
 
   // Filter to GPUs that have either community or secure pricing and sort by community price first
   const gpus = (data.gpuTypes || [])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     .filter((g: any) => g.communityPrice > 0 || g.securePrice > 0 || g.lowestPrice?.uninterruptablePrice > 0)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     .map((g: any) => {
       // Prioritize community price, fallback to lowest price uninterruptable, then secure
       const price = g.communityPrice > 0 ? g.communityPrice : (g.lowestPrice?.uninterruptablePrice || g.securePrice)
@@ -118,6 +123,7 @@ export default defineEventHandler(async (event) => {
         valueScore,
       }
     })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     .sort((a: any, b: any) => {
        // Sort by primary price (which prefers community) ascending
        const priceA = a.price || 9999

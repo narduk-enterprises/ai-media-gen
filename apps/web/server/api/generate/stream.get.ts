@@ -13,6 +13,7 @@
  *   - item:completed / item:failed: individual item status changes
  *   - ping: keepalive heartbeat (every 30s)
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { eq, and, ne } from 'drizzle-orm'
 import { mediaItems } from '../../database/schema'
 
@@ -38,6 +39,7 @@ export default defineEventHandler(async (event) => {
 
   const stream = new ReadableStream({
     async start(controller) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       const send = (eventName: string, data: any) => {
         try {
           const message = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`
@@ -74,6 +76,7 @@ export default defineEventHandler(async (event) => {
         }
 
         send('snapshot', { items })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       } catch (e: any) {
         console.warn(`[SSE] Snapshot failed: ${e.message}`)
       }

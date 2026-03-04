@@ -76,7 +76,7 @@ export default defineEventHandler(async (event) => {
   console.log(`[AutoVideoBatch] Created gen ${genId.slice(0, 8)} with ${items.length} placeholder items`)
 
   // ═══ Process everything in the background ═══
- event.waitUntil((async () => {
+  event.waitUntil((async () => {
     const bucket = useMediaBucket(event)
 
     for (const item of items) {
@@ -116,7 +116,8 @@ export default defineEventHandler(async (event) => {
           lora_strength: loraStrength,
         }
 
-        const result = await callRunPod(captionInput, apiUrl)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = await callRunPod(captionInput, apiUrl) as { error?: string, output?: any }
         const rawOutput = result.output || {}
         const output = rawOutput.output || rawOutput
         const prompts: string[] = output.prompts || []
@@ -148,9 +149,10 @@ export default defineEventHandler(async (event) => {
           .where(eq(mediaItems.id, item.id))
 
         await submitItemToComfyUI(db, item.id)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       } catch (e: any) {
         console.error(`[AutoVideoBatch] ❌ Failed processing ${item.id.slice(0, 8)}:`, e.message)
-        await db.update(mediaItems).set({ status: 'failed', prompt: `Pipeline error: ${e.message}` }).where(eq(mediaItems.id, item.id)).catch(() => {})
+        await db.update(mediaItems).set({ status: 'failed', prompt: `Pipeline error: ${e.message}` }).where(eq(mediaItems.id, item.id)).catch(() => { })
       }
     }
 

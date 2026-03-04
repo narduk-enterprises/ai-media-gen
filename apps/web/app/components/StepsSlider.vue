@@ -12,6 +12,7 @@ withDefaults(defineProps<{
   max: 20,
   lowLabel: 'Faster',
   highLabel: 'Higher quality',
+  hint: undefined,
 })
 
 const modelValue = defineModel<number>({ default: 4 })

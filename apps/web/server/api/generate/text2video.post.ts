@@ -39,6 +39,7 @@ export default defineEventHandler(async (event) => {
 
   // Build input payload early so we can extract required model groups for routing
   const isLtx2 = model === 'ltx2'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   const inputPayload: Record<string, any> = {
     action: 'text2video',
     prompt,

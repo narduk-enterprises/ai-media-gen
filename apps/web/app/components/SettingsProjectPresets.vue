@@ -80,6 +80,32 @@ function handleExportProject() {
 function copyExport() { navigator.clipboard.writeText(exportedJson.value) }
 
 const totalCustomPresets = computed(() => attributeKeys.reduce((sum, k) => sum + getCustomCount(k), 0))
+
+function basePromptPreview(bp: string): string {
+  return bp.length > 40 ? bp.slice(0, 40) + '...' : bp
+}
+function handleNegativePromptInput(e: Event) {
+  setNegativePrompt((e.target as HTMLTextAreaElement).value)
+}
+function handleAddBasePromptSubmit() {
+  addBasePrompt(newBasePrompt.value)
+  newBasePrompt.value = ''
+}
+function handleStartRename(proj: { id: string; name: string }) {
+  startRename(proj.id, proj.name)
+}
+function getCategoryPlaceholder(key: AttributeKey): string {
+  return `Add custom ${attributeLabels[key].label.toLowerCase()}...\nOne per line`
+}
+function getClearLabel(key: AttributeKey): string {
+  return `Clear ${attributeLabels[key].label.toLowerCase()} presets`
+}
+function handleDeleteProject(proj: { id: string }) {
+  deleteProject(proj.id)
+}
+function removePresetFor(key: AttributeKey) {
+  return (preset: string) => removePreset(key, preset)
+}
 </script>
 
 <template>
@@ -103,8 +129,8 @@ v-for="proj in projects" :key="proj.id" class="group relative flex items-center 
         <span>{{ proj.name }}</span>
         <span v-if="activeProject?.id === proj.id" class="w-1.5 h-1.5 rounded-full bg-violet-500" />
         <div v-if="projects.length > 1" class="hidden group-hover:flex items-center ml-1 gap-0.5">
-          <button class="p-0.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" title="Rename" @click.stop="startRename(proj.id, proj.name)"><UIcon name="i-lucide-pencil" class="w-3 h-3" /></button>
-          <button class="p-0.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete" @click.stop="deleteProject(proj.id)"><UIcon name="i-lucide-x" class="w-3 h-3" /></button>
+          <button class="p-0.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" title="Rename" @click.stop="handleStartRename(proj)"><UIcon name="i-lucide-pencil" class="w-3 h-3" /></button>
+          <button class="p-0.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete" @click.stop="handleDeleteProject(proj)"><UIcon name="i-lucide-x" class="w-3 h-3" /></button>
         </div>
       </button>
       <div class="flex items-center gap-1.5">
@@ -154,7 +180,7 @@ v-for="proj in projects" :key="proj.id" class="group relative flex items-center 
       <div class="mb-4 p-3 rounded-lg bg-slate-50 border border-slate-200">
         <p class="text-xs font-medium text-slate-700 mb-1.5">🚫 Default Negative Prompt</p>
         <p class="text-[10px] text-slate-400 mb-2">Loaded automatically when you switch to this project.</p>
-        <textarea :value="config.negativePrompt" @input="(e: Event) => setNegativePrompt((e.target as HTMLTextAreaElement).value)" placeholder="ugly, deformed, blurry, low quality…" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 placeholder-slate-400 resize-none focus:outline-none focus:ring-1 focus:ring-violet-500/30 min-h-[60px]" />
+        <textarea :value="config.negativePrompt" @input="handleNegativePromptInput" placeholder="ugly, deformed, blurry, low quality…" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 placeholder-slate-400 resize-none focus:outline-none focus:ring-1 focus:ring-violet-500/30 min-h-[60px]" />
       </div>
 
       <!-- Base prompts -->
@@ -164,12 +190,12 @@ v-for="proj in projects" :key="proj.id" class="group relative flex items-center 
           <button v-if="config.basePrompts.length > 0" class="text-[10px] text-slate-400 hover:text-red-500 transition-colors" @click="clearBasePrompts">Clear all</button>
         </div>
         <div class="flex gap-2 mb-2">
-          <input v-model="newBasePrompt" placeholder="Add a base prompt..." class="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-violet-500/30" @keyup.enter="() => { addBasePrompt(newBasePrompt); newBasePrompt = '' }" />
-          <UButton size="xs" :disabled="!newBasePrompt.trim()" @click="() => { addBasePrompt(newBasePrompt); newBasePrompt = '' }">Add</UButton>
+          <input v-model="newBasePrompt" placeholder="Add a base prompt..." class="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-violet-500/30" @keyup.enter="handleAddBasePromptSubmit" />
+          <UButton size="xs" :disabled="!newBasePrompt.trim()" @click="handleAddBasePromptSubmit">Add</UButton>
         </div>
         <div v-if="config.basePrompts.length > 0" class="flex flex-wrap gap-1.5">
           <span v-for="bp in config.basePrompts" :key="bp" class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] group border border-emerald-200">
-            {{ bp.length > 40 ? bp.slice(0, 40) + '...' : bp }}
+            {{ basePromptPreview(bp) }}
             <button class="opacity-0 group-hover:opacity-100 text-emerald-500 hover:text-red-500 transition-all text-xs" @click="removeBasePrompt(bp)">✕</button>
           </span>
         </div>
@@ -203,7 +229,7 @@ v-for="proj in projects" :key="proj.id" class="group relative flex items-center 
           </button>
           <div v-if="expandedCategory === key" class="px-3 pb-3">
             <div class="mb-3">
-              <textarea v-model="newPresetInputs[key]" :placeholder="`Add custom ${attributeLabels[key].label.toLowerCase()}...\nOne per line`" rows="3" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none" />
+              <textarea v-model="newPresetInputs[key]" :placeholder="getCategoryPlaceholder(key)" rows="3" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none" />
               <div class="flex items-center justify-between mt-1.5">
                 <p class="text-[10px] text-slate-400">One per line • or paste JSON array</p>
                 <UButton size="xs" :disabled="!newPresetInputs[key]?.trim()" @click="handleAddPreset(key)">Add All</UButton>
@@ -214,10 +240,10 @@ v-for="proj in projects" :key="proj.id" class="group relative flex items-center 
               <div class="flex flex-wrap gap-1.5">
                 <span v-for="preset in config.custom[key]" :key="preset" class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-violet-50 text-violet-700 text-[11px] group border border-violet-200">
                   {{ preset }}
-                  <button class="text-violet-400 hover:text-red-500 transition-colors" @click="removePreset(key, preset)">✕</button>
+                  <button class="text-violet-400 hover:text-red-500 transition-colors" @click="removePresetFor(key)(preset)">✕</button>
                 </span>
               </div>
-              <button class="text-[10px] text-slate-400 hover:text-slate-600 transition-colors mt-2" @click="clearCustomPresets(key)">Clear {{ attributeLabels[key].label.toLowerCase() }} presets</button>
+              <button class="text-[10px] text-slate-400 hover:text-slate-600 transition-colors mt-2" @click="clearCustomPresets(key)">{{ getClearLabel(key) }}</button>
             </div>
             <div>
               <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 font-medium">Built-in Presets</p>

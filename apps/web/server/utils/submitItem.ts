@@ -20,6 +20,7 @@ import {
 import { resolveApiUrl, getRequiredGroups } from './ai'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 type DB = DrizzleD1Database<any>
 
 /**
@@ -120,6 +121,7 @@ export async function submitItemToPod(
 
     console.log(`[Submit] ✅ ${itemId.slice(0, 8)} → Pod job ${response.job_id}`)
     return response.job_id
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (e: any) {
     console.warn(`[Submit] ⚠️ ${itemId.slice(0, 8)} failed, cron will retry: ${e.message}`)
     return null

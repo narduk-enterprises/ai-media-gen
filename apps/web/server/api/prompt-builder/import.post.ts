@@ -54,6 +54,7 @@ export default defineEventHandler(async (event) => {
           updatedAt: now,
         })
         results.templatesCreated++
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       } catch (e: any) {
         results.errors.push(`Template "${tpl.name}": ${e.message}`)
       }
@@ -70,7 +71,9 @@ export default defineEventHandler(async (event) => {
       if (!Array.isArray(values)) continue
       for (const item of values) {
         // Support both string and { value, weight } formats
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
         const value = typeof item === 'string' ? item : (item as any)?.value
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
         const weight = typeof item === 'object' ? ((item as any)?.weight ?? 1.0) : 1.0
 
         if (!value?.trim()) continue
@@ -94,6 +97,7 @@ export default defineEventHandler(async (event) => {
             updatedAt: now,
           })
           results.attributesCreated++
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
         } catch (e: any) {
           results.errors.push(`Attribute "${category}:${value}": ${e.message}`)
         }

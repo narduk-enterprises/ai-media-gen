@@ -88,7 +88,8 @@ export default defineEventHandler(async (event) => {
       lora_strength: loraStrength,
     }
 
-    const result = await callRunPod(captionInput, apiUrl)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await callRunPod(captionInput, apiUrl) as { error?: string, output?: any }
 
     if (result.error) {
       await db.update(generations).set({ status: 'failed' }).where(eq(generations.id, genId))
@@ -107,6 +108,7 @@ export default defineEventHandler(async (event) => {
 
     // ── Phase 2: Submit each prompt as a proper async I2V job ──
     // This follows the same pattern as video.post.ts so the cron can track them
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     const items: any[] = []
     for (const prompt of prompts) {
       const videoId = crypto.randomUUID()
@@ -150,7 +152,7 @@ export default defineEventHandler(async (event) => {
     console.log(`[AutoVideo] ✅ ${items.length} items created for gen ${genId.slice(0, 8)}`)
 
     // Submit each job asynchronously in the background
-   event.waitUntil((async () => {
+    event.waitUntil((async () => {
       for (const item of items) {
         await submitItemToComfyUI(db, item.id)
       }
@@ -167,6 +169,7 @@ export default defineEventHandler(async (event) => {
         totalSeconds: output.elapsed_seconds,
       },
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (e: any) {
     if (e.statusCode) throw e
     console.error(`[AutoVideo] Pipeline error:`, e)

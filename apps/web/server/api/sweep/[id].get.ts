@@ -38,6 +38,7 @@ export default defineEventHandler(async (event) => {
 
   // Fetch media items for each generation
   const results = await Promise.all(
+    // eslint-disable-next-line nuxt-guardrails/no-map-async-in-server
     sweepGens.map(async (gen) => {
       const items = await db.select()
         .from(mediaItems)

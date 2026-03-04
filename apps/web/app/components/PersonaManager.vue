@@ -25,7 +25,7 @@ const isCreating = ref(false)
 const justSaved = ref(false)
 
 const selectedPerson = computed(() =>
-  persons.value.find((p: any) => p.id === selectedPersonId.value) ?? null
+  persons.value.find((p: { id: string }) => p.id === selectedPersonId.value) ?? null
 )
 
 interface PersonFormData {
@@ -37,10 +37,10 @@ const personForm = reactive<PersonFormData>({
   name: '', description: '', hair: '', eyes: '', bodyType: '', skinTone: '', clothing: '',
 })
 
-function populatePersonForm(person: any) {
+function populatePersonForm(person: { name: string; description?: string; hair?: string; eyes?: string; bodyType?: string; skinTone?: string; clothing?: string }) {
   personForm.name = person.name; personForm.description = person.description || ''
-  personForm.hair = person.hair; personForm.eyes = person.eyes
-  personForm.bodyType = person.bodyType; personForm.skinTone = person.skinTone; personForm.clothing = person.clothing
+  personForm.hair = person.hair || ''; personForm.eyes = person.eyes || ''
+  personForm.bodyType = person.bodyType || ''; personForm.skinTone = person.skinTone || ''; personForm.clothing = person.clothing || ''
 }
 
 function resetPersonForm() {
@@ -66,7 +66,8 @@ function cancelCreatePerson() {
 const hasUnsavedPersonChanges = computed(() => {
   if (isCreating.value) return true
   if (!selectedPerson.value) return false
-  const p = selectedPerson.value as any
+  const p = selectedPerson.value as Record<string, string> | null
+  if (!p) return false
   return personForm.name !== p.name || personForm.description !== (p.description || '') ||
     personForm.hair !== p.hair || personForm.eyes !== p.eyes || personForm.bodyType !== p.bodyType ||
     personForm.skinTone !== p.skinTone || personForm.clothing !== p.clothing
@@ -112,7 +113,7 @@ function randomizePersonField(key: CharacterAttributeKey) {
   personForm[key] = pickRandom(attributePresets[key])
 }
 
-function personSummary(person: any): string {
+function personSummary(person: Record<string, string>): string {
   if (person.description) return person.description.length > 50 ? person.description.slice(0, 50) + '…' : person.description
   const parts: string[] = []
   for (const key of characterAttributeKeys) {

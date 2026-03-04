@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { IMAGE_MODELS, IMAGE_MODEL_PARAMS, type ModelDef } from '~/composables/useCreateShared'
+import { IMAGE_MODELS } from '~/composables/useCreateShared'
 import type { BatchItem } from '~/components/BatchJsonInput.vue'
 
 const gen = useGeneration()
@@ -92,19 +92,20 @@ async function generate(append = false) {
 // ─── Persistence ────────────────────────────────────────────────────────
 onMounted(() => {
   const s = shared.restoreForm()
-  if (s.t2i_prompt != null) prompt.value = s.t2i_prompt
-  if (Array.isArray(s.t2i_selectedModels)) selectedModels.value = s.t2i_selectedModels
-  if (s.t2i_steps != null) steps.value = s.t2i_steps
-  if (s.t2i_width != null) imageWidth.value = s.t2i_width
-  if (s.t2i_height != null) imageHeight.value = s.t2i_height
-  if (s.t2i_lora != null) loraStrength.value = s.t2i_lora
-  if (s.t2i_cfg != null) cfg.value = s.t2i_cfg
-  if (s.t2i_sampler != null) sampler.value = s.t2i_sampler
-  if (s.t2i_scheduler != null) scheduler.value = s.t2i_scheduler
-  if (s.t2i_seed != null) seed.value = s.t2i_seed
-  if (s.t2i_count != null) count.value = s.t2i_count
+  if (s.t2i_prompt != null) prompt.value = s.t2i_prompt as string
+  if (Array.isArray(s.t2i_selectedModels)) selectedModels.value = s.t2i_selectedModels as string[]
+  if (s.t2i_steps != null) steps.value = s.t2i_steps as number
+  if (s.t2i_width != null) imageWidth.value = s.t2i_width as number
+  if (s.t2i_height != null) imageHeight.value = s.t2i_height as number
+  if (s.t2i_lora != null) loraStrength.value = s.t2i_lora as number
+  if (s.t2i_cfg != null) cfg.value = s.t2i_cfg as number
+  if (s.t2i_sampler != null) sampler.value = s.t2i_sampler as string
+  if (s.t2i_scheduler != null) scheduler.value = s.t2i_scheduler as string
+  if (s.t2i_seed != null) seed.value = s.t2i_seed as number
+  if (s.t2i_count != null) count.value = s.t2i_count as number
 })
 
+/* vue-official allow-deep-watch */
 watch([prompt, selectedModels, steps, imageWidth, imageHeight, loraStrength, cfg, sampler, scheduler, seed, count, customLoras], () => {
   shared.persistForm({
     t2i_prompt: prompt.value, t2i_selectedModels: selectedModels.value,

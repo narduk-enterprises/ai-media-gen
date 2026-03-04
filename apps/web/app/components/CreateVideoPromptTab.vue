@@ -1,6 +1,5 @@
 <script setup lang="ts">
 const props = defineProps<{ prefillMediaId?: string | null }>()
-const gen = useGeneration()
 
 // ─── Source file ref (for FormData upload) ──────────────────
 const selectedMediaId = ref<string | null>(null)
@@ -79,8 +78,9 @@ async function generate() {
     // Poll the generation endpoint for completion
     const attempts = 0
     pollGeneration(jobId, attempts)
-  } catch (err: any) {
-    errorMsg.value = err.message || 'Generation failed'
+  } catch (err) {
+    const error = err as { message?: string }
+    errorMsg.value = error.message || 'Generation failed'
     isGenerating.value = false
   }
 }
@@ -93,7 +93,7 @@ async function pollGeneration(jobId: string, attempts: number) {
   }
   
   try {
-     const statusReq = await $fetch<{ items?: any[] }>('/api/generations', {
+     const statusReq = await $fetch<{ items?: { id: string; status: string; resultUrl?: string; error?: string }[] }>('/api/generations', {
        params: { id: jobId, limit: 1 },
        headers: { 'X-Requested-With': 'XMLHttpRequest' },
        timeout: 10000,
@@ -112,7 +112,7 @@ async function pollGeneration(jobId: string, attempts: number) {
            return
         }
      }
-  } catch (e) {
+  } catch (_e) {
      // ignore transient errors
   }
   

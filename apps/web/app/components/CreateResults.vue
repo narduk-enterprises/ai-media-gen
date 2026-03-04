@@ -1,18 +1,34 @@
 <script setup lang="ts">
-defineProps<{
-  results: any[]
+const props = defineProps<{
+  results: { id: string; status: string; type?: string; url?: string | null; parentId?: string | null }[]
   generating: boolean
   canGenerate: boolean
   isVideoMode: boolean
   totalDone: number
   totalFailed: number
   totalPending: number
-  completedMedia: any[]
+  completedMedia: { id: string; url: string | null; type: string }[]
   batchProgress: { current: number; total: number }
   actionLoading: Record<string, boolean>
   gridClass: string
   totalForButton: number
 }>()
+
+const progressValue = computed(() => {
+  if (props.results.length === 0) return 5
+  return Math.max(5, (props.totalDone / props.results.length) * 100)
+})
+
+const doneCountText = computed(() => `${props.totalDone} done`)
+const failedCountText = computed(() => `${props.totalFailed} failed`)
+const pendingCountText = computed(() => `${props.totalPending} pending`)
+
+function getLightboxIndex(itemId: string) {
+  return props.completedMedia.findIndex(i => i.id === itemId)
+}
+
+const showGenerateMoreButton = computed(() => !props.generating && props.totalDone > 0 && props.canGenerate)
+const generateMoreBtnLabel = computed(() => `Generate ${props.totalForButton} More`)
 
 const emit = defineEmits<{
   generateMore: []
@@ -22,6 +38,22 @@ const emit = defineEmits<{
   makeAudio: [mediaItemId: string]
   upscale: [mediaItemId: string]
 }>()
+
+function handleOpenLightbox(itemId: string) {
+  emit('openLightbox', getLightboxIndex(itemId))
+}
+
+function handleVideoAction(id: string) {
+  emit('openVideoModal', id)
+}
+
+function handleAudioAction(id: string) {
+  emit('makeAudio', id)
+}
+
+function handleUpscaleAction(id: string) {
+  emit('upscale', id)
+}
 </script>
 
 <template>
@@ -32,15 +64,15 @@ const emit = defineEmits<{
         <div class="flex items-center gap-2 text-xs text-slate-500">
           <span v-if="totalDone > 0" class="flex items-center gap-1">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <strong>{{ totalDone }}</strong> done
+            <strong>{{ doneCountText }}</strong>
           </span>
           <span v-if="totalFailed > 0" class="flex items-center gap-1">
             <span class="w-1.5 h-1.5 rounded-full bg-red-400" />
-            {{ totalFailed }} failed
+            {{ failedCountText }}
           </span>
           <span v-if="totalPending > 0" class="flex items-center gap-1">
             <span class="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
-            {{ totalPending }} pending
+            {{ pendingCountText }}
           </span>
         </div>
       </div>
@@ -53,7 +85,7 @@ const emit = defineEmits<{
     <!-- Progress -->
     <UProgress
       v-if="generating && results.length > 0"
-      :value="Math.max(5, (totalDone / results.length) * 100)"
+      :value="progressValue"
       class="mb-4"
       size="xs"
     />
@@ -61,20 +93,20 @@ const emit = defineEmits<{
     <!-- Grid -->
     <div :class="['grid gap-3', gridClass]">
       <MediaResultCard
-        v-for="(item, index) in results" :key="item.id"
+        v-for="(item, index) in (results as any[])" :key="item.id"
         :item="item"
         :index="index"
         :action-loading="actionLoading"
-        @click="emit('openLightbox', completedMedia.findIndex((i: any) => i.id === item.id))"
-        @video="emit('openVideoModal', $event)"
-        @audio="emit('makeAudio', $event)"
-        @upscale="emit('upscale', $event)"
+        @click="handleOpenLightbox(item.id)"
+        @video="handleVideoAction"
+        @audio="handleAudioAction"
+        @upscale="handleUpscaleAction"
       />
     </div>
 
-    <div v-if="!generating && totalDone > 0 && canGenerate" class="mt-6 text-center">
+    <div v-if="showGenerateMoreButton" class="mt-6 text-center">
       <UButton variant="soft" icon="i-lucide-plus-circle" @click="emit('generateMore')">
-        Generate {{ totalForButton }} More
+        {{ generateMoreBtnLabel }}
       </UButton>
     </div>
   </section>

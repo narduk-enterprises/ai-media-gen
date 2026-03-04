@@ -24,8 +24,9 @@ async function handleSignup() {
   try {
     await signup(email.value, password.value, name.value || undefined)
     navigateTo('/create')
-  } catch (e: any) {
-    error.value = e.data?.message || e.message || 'Signup failed'
+  } catch (e: unknown) {
+    const err = e as { data?: { message?: string }; message?: string }
+    error.value = err.data?.message || err.message || 'Signup failed'
   } finally {
     submitting.value = false
   }
@@ -61,8 +62,8 @@ async function handleSignup() {
         </div>
 
         <!-- Form -->
-        <form @submit.prevent="handleSignup" class="space-y-5">
-          <UFormField label="Name (optional)">
+        <UForm :state="{ email, password, name }" @submit="handleSignup" class="space-y-5">
+          <UFormField label="Name (optional)" name="name">
             <UInput
               v-model="name"
               type="text"
@@ -73,7 +74,7 @@ async function handleSignup() {
             />
           </UFormField>
 
-          <UFormField label="Email">
+          <UFormField label="Email" name="email">
             <UInput
               v-model="email"
               type="email"
@@ -84,7 +85,7 @@ async function handleSignup() {
             />
           </UFormField>
 
-          <UFormField label="Password">
+          <UFormField label="Password" name="password">
             <UInput
               v-model="password"
               type="password"
@@ -104,7 +105,7 @@ async function handleSignup() {
           >
             Create Account
           </UButton>
-        </form>
+        </UForm>
 
         <!-- Sign in link -->
         <p class="text-center text-sm text-slate-500 mt-6">

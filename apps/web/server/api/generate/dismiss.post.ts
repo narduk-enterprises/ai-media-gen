@@ -35,6 +35,7 @@ export default defineEventHandler(async (event) => {
           eq(mediaItems.status, 'cancelled'),
         ),
       ))
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       .then(rows => rows.map(r => (r as any).media_items ?? r))
 
     if (resolvable.length === 0) return { dismissed: 0 }

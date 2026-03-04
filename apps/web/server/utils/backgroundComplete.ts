@@ -10,10 +10,12 @@ import { eq, and, isNull, or } from 'drizzle-orm'
 import { mediaItems } from '../database/schema'
 import { checkJobStatus } from './podClient'
 import { completeMediaItem, updateGenerationStatus } from './completeItem'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useMediaBucket } from './r2'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import type { H3Event } from 'h3'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 type DB = DrizzleD1Database<any>
 
 /**

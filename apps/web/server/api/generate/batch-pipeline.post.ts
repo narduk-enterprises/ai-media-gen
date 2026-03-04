@@ -82,6 +82,7 @@ export default defineEventHandler(async (event) => {
   const videoId = crypto.randomUUID()
 
   // Build the appropriate payload based on mode
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   let inputPayload: Record<string, any>
 
   if (data.mode === 't2v') {

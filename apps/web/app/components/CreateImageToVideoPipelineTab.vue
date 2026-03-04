@@ -7,7 +7,7 @@ import {
 
 const gen = useGeneration()
 const shared = useCreateShared()
-const queue = useQueue()
+const _queue = useQueue()
 
 // ─── Source Mode ─────────────────────────────────────────────
 type SourceMode = 'gallery' | 'generate'
@@ -191,6 +191,7 @@ async function generate() {
         count: 1,
         ...(genId ? { generationId: genId } : {}),
       })
+      if (result?.generationId) genId = result.generationId
     }
     return
   }

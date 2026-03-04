@@ -18,6 +18,7 @@ withDefaults(defineProps<{
 }>(), {
   description: '',
   placeholder: '',
+  presets: undefined,
   rows: 2,
 })
 

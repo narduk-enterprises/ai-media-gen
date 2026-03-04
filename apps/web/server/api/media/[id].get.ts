@@ -31,6 +31,7 @@ export default defineEventHandler(async (event) => {
           .where(eq(mediaItems.id, id))
           .get()
         if (lookupItem?.metadata) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
           let meta: any = {}
           try { meta = JSON.parse(lookupItem.metadata) } catch {}
           if (meta.originalR2Key) {
@@ -53,6 +54,7 @@ export default defineEventHandler(async (event) => {
       }
       setResponseHeaders(event, headers)
       setResponseStatus(event, 200)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       return sendStream(event, object.body as any)
     }
   }

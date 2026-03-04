@@ -53,6 +53,7 @@ export default defineEventHandler(async (event) => {
 
   // Now fetch media items for each sweep to get counts + thumbnail
   const sweeps = await Promise.all(
+    // eslint-disable-next-line nuxt-guardrails/no-map-async-in-server
     Array.from(sweepMap.values()).map(async (sweep) => {
       const items = await Promise.all(
         sweep.generationIds.map(gid =>

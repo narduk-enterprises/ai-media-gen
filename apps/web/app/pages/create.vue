@@ -93,7 +93,7 @@ function goToVideoTab(mediaItemId: string) {
 const lightboxOpen = ref(false)
 const lightboxIndex = ref(0)
 function openLightbox(index: number) { lightboxIndex.value = index; lightboxOpen.value = true }
-const lightboxItems = computed(() => gen.completedMedia.value.map(m => ({ id: m.id, url: m.url!, type: m.type })))
+const lightboxItems = computed(() => gen.completedMedia.value.filter(m => m.url != null).map(m => ({ id: m.id, url: m.url!, type: m.type })))
 
 // ─── Persist mode + query param routing ─────────────────────────────────
 onMounted(() => {
@@ -104,7 +104,7 @@ onMounted(() => {
     if (qMedia) prefillMediaId.value = qMedia
   } else {
     const s = shared.restoreForm()
-    if (s.mode) mode.value = s.mode
+    if (s.mode) mode.value = s.mode as string
   }
 })
 watch(mode, () => shared.persistForm({ mode: mode.value }))
@@ -123,6 +123,24 @@ const gridClass = computed(() => {
   if (c <= 4) return 'grid-cols-2 xl:grid-cols-4'
   return 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
 })
+
+const generateButtonLabel = computed(() => {
+  if (gen.generating.value) return 'Generating…'
+  if (!canGenerate.value) return 'Configure above'
+  const type = isVideoMode.value ? 'Video' : 'Image'
+  const plural = totalCount.value !== 1 ? 's' : ''
+  return `Generate ${totalCount.value} ${type}${plural}`
+})
+
+function isUpscaleLoading(itemId: string): boolean {
+  return !!gen.actionLoading.value[`upscale-${itemId}`]
+}
+function isAudioLoading(itemId: string): boolean {
+  return !!gen.actionLoading.value[`audio-${itemId}`]
+}
+function handleMakeAudio(id: string) {
+  gen.makeAudio(id, '')
+}
 </script>
 
 <template>
@@ -179,7 +197,7 @@ const gridClass = computed(() => {
         <div class="flex items-center gap-4">
           <USelect v-model="shared.targetMachine.value" :items="machineOptions" size="xs" class="w-44" />
           <UButton :loading="gen.generating.value" :disabled="!canGenerate" size="lg" :icon="isVideoMode ? 'i-lucide-film' : 'i-lucide-sparkles'" @click="handleGenerate(false)">
-            {{ gen.generating.value ? 'Generating…' : (canGenerate ? (isVideoMode ? `Generate ${totalCount} Video${totalCount !== 1 ? 's' : ''}` : `Generate ${totalCount} Image${totalCount !== 1 ? 's' : ''}`) : 'Configure above') }}
+            {{ generateButtonLabel }}
           </UButton>
         </div>
       </div>
@@ -193,7 +211,7 @@ const gridClass = computed(() => {
       :completed-media="gen.completedMedia.value" :batch-progress="gen.batchProgress.value" :action-loading="gen.actionLoading.value"
       :grid-class="gridClass" :total-for-button="totalCount"
       @generate-more="handleGenerate(true)" @clear="gen.clearResults()" @open-lightbox="openLightbox"
-      @open-video-modal="goToVideoTab" @make-audio="gen.makeAudio($event, '')" @upscale="gen.upscale($event)"
+      @open-video-modal="goToVideoTab" @make-audio="handleMakeAudio($event)" @upscale="gen.upscale($event)"
     />
   </div>
 
@@ -201,10 +219,10 @@ const gridClass = computed(() => {
   <ClientOnly>
     <AppLightbox v-model:open="lightboxOpen" v-model:index="lightboxIndex" :items="lightboxItems">
       <template #toolbar="{ item }">
-        <UButton variant="ghost" size="xs" icon="i-lucide-sparkles" class="text-white/60 hover:text-white" :loading="gen.actionLoading.value[`upscale-${item.id}`]" @click="gen.upscale(item.id)">Enhance</UButton>
+        <UButton variant="ghost" size="xs" icon="i-lucide-sparkles" class="text-white/60 hover:text-white" :loading="isUpscaleLoading(item.id)" @click="gen.upscale(item.id)">Enhance</UButton>
         <template v-if="item.type === 'image'">
           <UButton variant="ghost" size="xs" icon="i-lucide-film" class="text-white/60 hover:text-white" @click="goToVideoTab(item.id)">Video</UButton>
-          <UButton variant="ghost" size="xs" icon="i-lucide-music" class="text-white/60 hover:text-white" :loading="gen.actionLoading.value[`audio-${item.id}`]" @click="gen.makeAudio(item.id, '')">Audio</UButton>
+          <UButton variant="ghost" size="xs" icon="i-lucide-music" class="text-white/60 hover:text-white" :loading="isAudioLoading(item.id)" @click="handleMakeAudio(item.id)">Audio</UButton>
         </template>
       </template>
     </AppLightbox>

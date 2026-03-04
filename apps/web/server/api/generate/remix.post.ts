@@ -48,6 +48,7 @@ export default defineEventHandler(async (event) => {
       statusCode: 502,
       message: 'No prompts returned from remix',
     })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (e: any) {
     // Re-throw our own validation errors (400)
     if (e.statusCode && e.statusCode < 500) throw e

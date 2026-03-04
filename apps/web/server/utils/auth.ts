@@ -31,7 +31,7 @@ export async function hashPassword(password: string): Promise<string> {
 async function verifyPassword(password: string, stored: string): Promise<boolean> {
     const [saltHex, _expectedHash] = stored.split(':')
     if (!saltHex || !_expectedHash) return false
-    const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map(h => parseInt(h, 16)))
+    const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map(h => Number.parseInt(h, 16)))
     const encoder = new TextEncoder()
     const keyMaterial = await crypto.subtle.importKey(
         'raw',

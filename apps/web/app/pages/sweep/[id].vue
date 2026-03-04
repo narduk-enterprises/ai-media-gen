@@ -6,42 +6,66 @@ definePageMeta({ middleware: 'auth' })
 const route = useRoute()
 const sweepId = computed(() => route.params.id as string)
 
-useSeo({
-  title: 'Sweep Viewer',
-  description: computed(() => sweep.value ? `Parameter sweep for: ${sweep.value.prompt}` : 'Viewing a parameter sweep.')
-})
-useWebPageSchema()
-
 // ─── Fetch sweep data ───────────────────────────────────────────────────
-const { data: sweep, pending, error, refresh } = useAsyncData(
-  `sweep-${sweepId.value}`,
-  () => $fetch<{
-    sweepId: string
+interface SweepData {
+  sweepId: string
+  prompt: string
+  totalVariants: number
+  generations: {
+    id: string
     prompt: string
-    totalVariants: number
-    generations: {
-      id: string
-      prompt: string
-      sweepLabel: string
-      settings: Record<string, any>
-      items: { id: string; type: string; status: string; url: string | null; error: string | null }[]
-      createdAt: string
-    }[]
-  }>(`/api/sweep/${sweepId.value}`, {
+    sweepLabel: string
+    settings: Record<string, unknown>
+    items: { id: string; type: string; status: string; url: string | null; error: string | null }[]
+    createdAt: string
+  }[]
+}
+
+const { data: sweep, pending, error, refresh } = useAsyncData<SweepData>(
+  `sweep-${sweepId.value}`,
+  () => $fetch<SweepData>(`/api/sweep/${sweepId.value}`, {
     headers: { 'X-Requested-With': 'XMLHttpRequest' },
   }),
   { server: false }
 )
 
+// ─── SEO Metadata ───────────────────────────────────────────
+const seoTitle = computed(() => {
+  if (sweep.value?.prompt) return `Sweep: ${sweep.value.prompt.slice(0, 50)}...`
+  return 'View Sweep'
+})
+
+const seoDesc = computed(() => {
+  if (sweep.value) return `Result for sweep with ${sweep.value.generations?.length || 0} variants.`
+  return 'View AI media generation sweep results.'
+})
+
+useSeo({
+  title: seoTitle.value,
+  description: seoDesc.value
+})
+useWebPageSchema()
+
 // ─── Transform to flat entries ──────────────────────────────────────────
+interface SweepVariant {
+  steps: number
+  cfg: number | undefined
+  loraStrength: number
+  sampler: string | undefined
+  scheduler: string | undefined
+  width: number
+  height: number
+  seed: number
+}
+
 interface SweepEntry {
   id: string
-  variant: Record<string, any>
+  variant: SweepVariant
   label: string
   itemId: string | null
   status: 'pending' | 'complete' | 'failed'
   url: string | null
-  settings: Record<string, any>
+  settings: Record<string, unknown>
   createdAt: string
 }
 
@@ -53,16 +77,16 @@ const entries = computed<SweepEntry[]>(() => {
     return {
       id: gen.id,
       variant: {
-        steps: s.steps ?? 0,
-        cfg: s.cfg,
-        loraStrength: s.loraStrength ?? 1.0,
-        sampler: s.sampler,
-        scheduler: s.scheduler,
-        width: s.width ?? 0,
-        height: s.height ?? 0,
-        seed: s.seed ?? 0,
+        steps: (s.steps as number) ?? 0,
+        cfg: s.cfg as number | undefined,
+        loraStrength: (s.loraStrength as number) ?? 1.0,
+        sampler: s.sampler as string | undefined,
+        scheduler: s.scheduler as string | undefined,
+        width: (s.width as number) ?? 0,
+        height: (s.height as number) ?? 0,
+        seed: (s.seed as number) ?? 0,
       },
-      label: gen.sweepLabel || s.sweepLabel || `Variant`,
+      label: (gen.sweepLabel || s.sweepLabel || `Variant`) as string,
       itemId: item?.id ?? null,
       status: (item?.status === 'complete' ? 'complete' : item?.status === 'failed' ? 'failed' : 'pending') as 'pending' | 'complete' | 'failed',
       url: item?.url ?? null,
@@ -168,6 +192,14 @@ const axes = computed<AxisDef[]>(() => {
   return result
 })
 
+function handleDownloadMedia(url: string | null) {
+  if (url) downloadMedia(url, 'image')
+}
+
+function handleOpenCompareAt(entry: SweepEntry) {
+  openCompareAt(entry)
+}
+
 const canShow2D = computed(() => axes.value.length === 2)
 
 // ─── Compare mode sliders ───────────────────────────────────────────────
@@ -266,8 +298,8 @@ function openCompareAt(entry: SweepEntry) {
         default: return
       }
     })()
-    if (val != null) {
-      const idx = axis.values.indexOf(val as any)
+    if (val !== undefined && val !== null) {
+      const idx = axis.values.indexOf(val as AxisValue)
       if (idx >= 0) axisIndices.value = { ...axisIndices.value, [axis.key]: idx }
     }
   }
@@ -320,6 +352,49 @@ async function downloadAll() {
 
 function formatSettingKey(key: string): string {
   return key.replaceAll(/([A-Z])/g, ' $1').replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase())
+}
+
+function getAxisValueLabel(axis: AxisDef): string {
+  const idx = axisIndices.value[axis.key] ?? 0
+  const val = axis.values[idx]
+  if (val === undefined) return ''
+  return axis.format(val)
+}
+
+function shouldShowSetting(key: string, val: unknown): boolean {
+  if (key === 'prompt' || key === 'sweepId' || key === 'sweepLabel') return false
+  if (val === undefined || val === null || val === '') return false
+  return true
+}
+
+function formatSettingValue(val: unknown): string {
+  if (typeof val === 'object' && val !== null) return JSON.stringify(val)
+  return String(val)
+}
+
+function onCopyPrompt() {
+  if (sweep.value?.prompt) copyPrompt(sweep.value.prompt)
+}
+
+function getGrid2DLabel(cells: { rowAxis: AxisDef; colAxis: AxisDef }): string {
+  return `${cells.rowAxis.label} \\ ${cells.colAxis.label}`
+}
+
+function _shouldShowAttr(key: string | number, val: unknown) {
+  return shouldShowSetting(String(key), val)
+}
+
+function isAttrVisible(key: string | number) {
+  return String(key) !== 'prompt'
+}
+
+function getAttrKey(key: string | number) {
+  return formatSettingKey(String(key))
+}
+
+function getCreatedAtText() {
+  if (!currentLightboxEntry.value?.createdAt) return ''
+  return formatDate(currentLightboxEntry.value.createdAt)
 }
 </script>
 
@@ -405,7 +480,7 @@ function formatSettingKey(key: string): string {
       </div>
 
       <!-- Error -->
-      <UAlert v-else-if="error" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="(error as any).message || 'Failed to load sweep'" class="mb-6">
+      <UAlert v-else-if="error" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="(error as { message?: string })?.message || 'Failed to load sweep'" class="mb-6">
         <template #actions>
           <UButton variant="outline" size="xs" @click="refresh()">Retry</UButton>
         </template>
@@ -431,7 +506,7 @@ function formatSettingKey(key: string): string {
               <div class="flex items-center justify-between">
                 <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{{ axis.label }}</label>
                 <span class="text-xs font-mono text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                  {{ axis.format(axis.values[axisIndices[axis.key] ?? 0]!) }}
+                  {{ getAxisValueLabel(axis) }}
                 </span>
               </div>
               <USlider
@@ -494,7 +569,7 @@ function formatSettingKey(key: string): string {
           <thead>
             <tr>
               <th class="p-2 text-[10px] font-semibold text-amber-700 bg-amber-50 border-b border-r border-amber-200 sticky left-0 z-10">
-                {{ grid2D.rowAxis.label }} \ {{ grid2D.colAxis.label }}
+                {{ getGrid2DLabel(grid2D) }}
               </th>
               <th v-for="(cv, ci) in grid2D.cols" :key="ci" class="p-2 text-[10px] font-mono text-amber-600 bg-amber-50/60 border-b border-amber-200 min-w-[120px]">
                 {{ grid2D.colAxis.format(cv) }}
@@ -513,7 +588,7 @@ function formatSettingKey(key: string): string {
                     <UIcon name="i-lucide-maximize-2" class="w-5 h-5 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow" />
                   </div>
                   <!-- Download on hover -->
-                  <button class="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-black/40 hover:bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" @click.stop="downloadMedia(cell.url!, 'image')">
+                  <button class="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-black/40 hover:bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" @click.stop="handleDownloadMedia(cell.url)">
                     <UIcon name="i-lucide-download" class="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -548,10 +623,10 @@ function formatSettingKey(key: string): string {
 
             <!-- Actions on hover -->
             <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button class="w-7 h-7 rounded-lg bg-black/40 hover:bg-black/60 text-white flex items-center justify-center backdrop-blur-sm transition-colors cursor-pointer" @click.stop="downloadMedia(entry.url!, 'image')" title="Download">
+              <button class="w-7 h-7 rounded-lg bg-black/40 hover:bg-black/60 text-white flex items-center justify-center backdrop-blur-sm transition-colors cursor-pointer" @click.stop="handleDownloadMedia(entry.url)" title="Download">
                 <UIcon name="i-lucide-download" class="w-3.5 h-3.5" />
               </button>
-              <button class="w-7 h-7 rounded-lg bg-black/40 hover:bg-black/60 text-white flex items-center justify-center backdrop-blur-sm transition-colors cursor-pointer" @click.stop="openCompareAt(entry)" title="Compare mode">
+              <button class="w-7 h-7 rounded-lg bg-black/40 hover:bg-black/60 text-white flex items-center justify-center backdrop-blur-sm transition-colors cursor-pointer" @click.stop="handleOpenCompareAt(entry)" title="Compare mode">
                 <UIcon name="i-lucide-sliders-horizontal" class="w-3.5 h-3.5" />
               </button>
             </div>
@@ -589,7 +664,7 @@ function formatSettingKey(key: string): string {
     <!-- ═══ Lightbox ═══ -->
     <AppLightbox v-model:open="lightboxOpen" v-model:index="lightboxIndex" :items="lightboxItems">
       <template #toolbar="{ item }">
-        <UButton variant="ghost" size="sm" icon="i-lucide-clipboard-copy" class="text-white/60 hover:text-white" @click="sweep && copyPrompt(sweep.prompt)">Copy Prompt</UButton>
+        <UButton variant="ghost" size="sm" icon="i-lucide-clipboard-copy" class="text-white/60 hover:text-white" @click="onCopyPrompt">Copy Prompt</UButton>
         <UButton variant="ghost" size="sm" icon="i-lucide-info" class="text-white/60 hover:text-white" @click="showInfo = !showInfo">Info</UButton>
       </template>
 
@@ -613,7 +688,7 @@ function formatSettingKey(key: string): string {
             <div>
               <div class="flex items-center justify-between mb-1">
                 <span class="text-[10px] text-white/40 uppercase tracking-wider">Prompt</span>
-                <button class="text-[10px] text-white/40 hover:text-white flex items-center gap-1 cursor-pointer" @click="sweep && copyPrompt(sweep.prompt)">
+                <button class="text-[10px] text-white/40 hover:text-white flex items-center gap-1 cursor-pointer" @click="onCopyPrompt">
                   <UIcon name="i-lucide-clipboard-copy" class="w-3 h-3" /> Copy
                 </button>
               </div>
@@ -623,15 +698,15 @@ function formatSettingKey(key: string): string {
             <!-- Settings grid -->
             <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs border-t border-white/10 pt-3">
               <template v-for="(val, key) in currentLightboxEntry.settings" :key="key">
-                <template v-if="key !== 'prompt' && key !== 'sweepId' && key !== 'sweepLabel' && val !== undefined && val !== null && val !== ''">
-                  <span class="text-white/40">{{ formatSettingKey(String(key)) }}</span>
+                <template v-if="isAttrVisible(key)">
+                  <span class="text-white/40">{{ getAttrKey(key) }}</span>
                   <span class="truncate font-mono text-[11px]" :title="String(val)">
-                    {{ typeof val === 'object' ? JSON.stringify(val) : val }}
+                    {{ formatSettingValue(val) }}
                   </span>
                 </template>
               </template>
               <span class="text-white/40">Created</span>
-              <span>{{ formatDate(currentLightboxEntry.createdAt) }}</span>
+              <span>{{ getCreatedAtText() }}</span>
             </div>
           </div>
         </Transition>

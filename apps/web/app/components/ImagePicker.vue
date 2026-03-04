@@ -54,7 +54,7 @@ function selectImage(img: { id: string; url: string }) {
 }
 
 function selectAll() {
-  const ids = new Set<string>(images.value.map((i: any) => i.id))
+  const ids = new Set<string>(images.value.map((i: { id: string }) => i.id))
   selectedIds.value = ids
   emit('update:selected', Array.from(ids))
 }

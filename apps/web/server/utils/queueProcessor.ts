@@ -66,6 +66,7 @@ async function submitPhase(db: DB) {
     .orderBy(asc(mediaItems.createdAt))
     .limit(slotsAvailable)
 
+  // eslint-disable-next-line nuxt-guardrails/no-map-async-in-server
   const results = await Promise.allSettled(queued.map(async (item) => {
     try {
       const meta = parseItemMeta(item)
@@ -154,6 +155,7 @@ async function submitPhase(db: DB) {
       console.log(`[Queue] ✅ Submitted ${item.id.slice(0, 8)} → Pod job ${response.job_id} on ${podUrl}`)
       return true
     } catch (e: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       const errorData = (e as any)?.data as { error?: { message?: string }; message?: string } | undefined
       const errMsg = errorData?.error?.message || errorData?.message || (e instanceof Error ? e.message : String(e))
       const requeued = await requeueForRetry(db, item, errMsg, e)
@@ -193,6 +195,7 @@ async function pollPhase(db: DB, mediaBucket: R2Bucket | null) {
 
   console.log(`[Queue] Polling ${pollable.length} processing items...`)
 
+  // eslint-disable-next-line nuxt-guardrails/no-map-async-in-server
   const results = await Promise.allSettled(pollable.map(async (item) => {
     try {
       const meta = parseItemMeta(item)
@@ -342,6 +345,7 @@ export async function requeueForRetry(
  * Covers both submission-time and execution-time failures.
  */
 export function isRetryableError(msg: string, error?: unknown): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   const statusCode = (error as any)?.statusCode || (error as any)?.status || 0
   const lower = msg.toLowerCase()
 

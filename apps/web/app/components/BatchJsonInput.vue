@@ -52,14 +52,14 @@ function parseBatchJson(raw: string): BatchItem[] | null {
               prompt: p.trim(),
               negativePrompt: item.negativePrompt ?? item.negative_prompt ?? item.negative ?? undefined,
               audioPrompt: item.audioPrompt ?? item.audio_prompt ?? item.audio ?? undefined,
-              steps: !isNaN(parsedSteps as any) ? parsedSteps : undefined,
-              cfg: !isNaN(parsedCfg as any) ? parsedCfg : undefined,
-              frames: !isNaN(parsedFrames as any) ? parsedFrames : undefined,
-              width: !isNaN(parsedWidth as any) ? parsedWidth : undefined,
-              height: !isNaN(parsedHeight as any) ? parsedHeight : undefined,
-              fps: !isNaN(parsedFps as any) ? parsedFps : undefined,
-              loraStrength: !isNaN(parsedLoraStrength as any) ? parsedLoraStrength : undefined,
-              seed: !isNaN(parsedSeed as any) ? parsedSeed : undefined,
+              steps: !Number.isNaN(parsedSteps) ? parsedSteps : undefined,
+              cfg: !Number.isNaN(parsedCfg) ? parsedCfg : undefined,
+              frames: !Number.isNaN(parsedFrames) ? parsedFrames : undefined,
+              width: !Number.isNaN(parsedWidth) ? parsedWidth : undefined,
+              height: !Number.isNaN(parsedHeight) ? parsedHeight : undefined,
+              fps: !Number.isNaN(parsedFps) ? parsedFps : undefined,
+              loraStrength: !Number.isNaN(parsedLoraStrength) ? parsedLoraStrength : undefined,
+              seed: !Number.isNaN(parsedSeed) ? parsedSeed : undefined,
               cameraLora: item.cameraLora ?? item.camera_lora,
               textEncoder: item.textEncoder ?? item.text_encoder,
             })
@@ -145,13 +145,27 @@ async function remixAll() {
       ...item,
       prompt: remixed[idx] ?? item.prompt,
     }))
-  } catch (e: any) {
-    fileError.value = `Remix failed: ${e.message}`
+  } catch (e) {
+    fileError.value = `Remix failed: ${e instanceof Error ? e.message : String(e)}`
   }
 }
 
 /** Backward-compat: flat prompt list (for consumers that only need strings) */
 const prompts = computed(() => items.value.map(i => i.prompt))
+
+const isRemixing = computed(() => remixing.value)
+const remixProgressText = computed(() => `Remixing ${remixProgress.value.current}/${remixProgress.value.total}`)
+const remixAllText = computed(() => `AI Remix All (${items.value.length})`)
+const remixPercent = computed(() => remixProgress.value.total ? `${(remixProgress.value.current / remixProgress.value.total) * 100}%` : '0%')
+
+const hasRichParams = (item: BatchItem) => {
+  return !!(item.negativePrompt || item.audioPrompt || hasGenParams(item))
+}
+
+const hasGenParams = (item: BatchItem) => {
+  return !!(item.steps || item.cfg || item.frames || item.cameraLora || item.width || item.seed)
+}
+
 defineExpose({ prompts })
 </script>
 
@@ -187,11 +201,11 @@ defineExpose({ prompts })
         variant="outline"
         color="primary"
         icon="i-lucide-sparkles"
-        :loading="remixing"
-        :disabled="remixing"
+        :loading="isRemixing"
+        :disabled="isRemixing"
         @click="remixAll"
       >
-        {{ remixing ? `Remixing ${remixProgress.current}/${remixProgress.total}` : `AI Remix All (${items.length})` }}
+        {{ isRemixing ? remixProgressText : remixAllText }}
       </UButton>
       <UButton v-if="items.length > 0" size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="clearAll">
         Clear All
@@ -225,7 +239,7 @@ defineExpose({ prompts })
         <div class="mt-1 h-1 bg-violet-200 rounded-full overflow-hidden">
           <div
             class="h-full bg-violet-500 rounded-full transition-all duration-300"
-            :style="{ width: remixProgress.total ? `${(remixProgress.current / remixProgress.total) * 100}%` : '0%' }"
+            :style="{ width: remixPercent }"
           />
         </div>
       </div>
@@ -242,10 +256,10 @@ defineExpose({ prompts })
           <span class="text-[10px] text-slate-400 font-mono w-6 shrink-0 text-right pt-0.5">{{ i + 1 }}</span>
           <div class="flex-1 min-w-0">
             <p class="text-xs text-slate-600 leading-relaxed line-clamp-2">{{ item.prompt }}</p>
-            <div v-if="richMode && (item.negativePrompt || item.audioPrompt || item.steps || item.cfg || item.frames || item.cameraLora || item.width || item.seed)" class="flex flex-wrap gap-2 mt-0.5 items-center">
+            <div v-if="richMode && hasRichParams(item)" class="flex flex-wrap gap-2 mt-0.5 items-center">
               <span v-if="item.negativePrompt" class="text-[10px] text-red-400 truncate max-w-[200px]">⛔ {{ item.negativePrompt }}</span>
               <span v-if="item.audioPrompt" class="text-[10px] text-amber-500 truncate max-w-[200px]">🔊 {{ item.audioPrompt }}</span>
-              <span v-if="item.steps || item.cfg || item.frames || item.cameraLora || item.width || item.seed" class="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded flex items-center gap-1">
+              <span v-if="hasGenParams(item)" class="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded flex items-center gap-1">
                 <UIcon name="i-lucide-settings-2" class="w-3 h-3" />
                 Custom Params
               </span>

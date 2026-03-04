@@ -24,6 +24,7 @@ export default defineEventHandler(async (event) => {
     while (Date.now() - start < maxWait) {
       await new Promise(r => setTimeout(r, 3000))
       const pods = await getRunPods()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       const pod = pods.find((p: any) => p.id === podId)
       if (!pod || pod.status === 'EXITED' || pod.status === 'STOPPED') {
         stopped = true
@@ -42,6 +43,7 @@ export default defineEventHandler(async (event) => {
     await startRunPod(podId)
 
     return { success: true, message: 'Pod restarting — it will auto-update code and verify models on boot.' }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (err: any) {
     throw createError({ statusCode: err.statusCode || 500, statusMessage: err.statusMessage || 'Failed to restart pod' })
   }

@@ -63,8 +63,8 @@ async function handleDelete(id?: string) {
       isSelectionMode.value = false
       selectedIds.value.clear()
     }
-  } catch (e: any) {
-    toast.add({ title: 'Deletion failed', description: e.message || 'Something went wrong.', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Deletion failed', description: (e as Error).message || 'Something went wrong.', color: 'error' })
   } finally {
     isDeleting.value = false
   }
@@ -116,7 +116,7 @@ watch([typeFilter, allUsers], () => refresh())
 
 // ─── Parsed settings (JSON → object, cached) ─────────────────────────
 const parsedSettings = computed(() => {
-  const cache = new Map<string, Record<string, any> | null>()
+  const cache = new Map<string, Record<string, unknown> | null>()
   for (const item of mediaItems.value) {
     if (item.settings) {
       try { cache.set(item.id, JSON.parse(item.settings)) } catch { cache.set(item.id, null) }
@@ -161,19 +161,69 @@ function goToReuse(item: GalleryMediaItem) {
   const settings = parsedSettings.value.get(item.id)
   if (!settings && !item.prompt) return
   // Store reuse data in sessionStorage for the create page to pick up
-  const reuse: Record<string, any> = {
+  const reuse: Record<string, unknown> = {
     prompt: item.prompt || '',
     ...settings,
   }
   sessionStorage.setItem('ai-media-gen:reuse', JSON.stringify(reuse))
   // Determine the correct tab based on the item type and settings
-  const model = settings?.model || settings?.Model || ''
   const isI2V = !!settings?.mediaItemId || !!settings?.image
   const tab = item.type === 'video'
     ? (isI2V ? 'ultimateVideo' : 'text2video')
     : 'text2image'
   navigateTo({ path: '/create', query: { tab, reuse: '1' } })
 }
+
+function onGridItemClick(item: GalleryMediaItem) {
+  const index = filteredMedia.value.indexOf(item)
+  handleItemClick(item, index)
+}
+function _downloadMediaHandler(url: string, type: string) {
+  downloadMedia(url, type)
+}
+function _formatDurationDisplay(submittedAt?: string | null, completedAt?: string | null): string {
+  return formatDuration(submittedAt, completedAt) ?? ''
+}
+function formatSettingKey(key: string | number): string {
+  return String(key).replaceAll('_', ' ')
+}
+function formatSettingValue(val: unknown): string {
+  return typeof val === 'object' ? JSON.stringify(val) : String(val)
+}
+function formatSettingTitle(val: unknown): string {
+  return String(val)
+}
+function _shouldShowSetting(key: string | number, val: unknown): boolean {
+  return String(key) !== 'prompt' && val !== undefined && val !== null && val !== ''
+}
+function _isVisibleSetting(key: string | number, val: unknown): boolean {
+  return String(key) !== 'prompt' && val !== undefined && val !== null && val !== ''
+}
+function isSettingVisible(key: string | number): boolean {
+  return String(key) !== 'prompt'
+}
+function playGalleryVideo(e: Event) {
+  if (!isSelectionMode.value) (e.target as HTMLVideoElement).play()
+}
+function pauseGalleryVideo(e: Event) {
+  if (!isSelectionMode.value) (e.target as HTMLVideoElement).pause()
+}
+function handleDownload(item: { url: string; type: string }) {
+  downloadMedia(item.url, item.type)
+}
+
+const currentGalleryItem = computed(() => {
+  if (!lightboxOpen.value || lightboxIndex.value < 0) return null
+  return filteredMedia.value[lightboxIndex.value] ?? null
+})
+const hasCurrentDuration = computed(() => {
+  if (!currentGalleryItem.value) return false
+  return !!formatDuration(currentGalleryItem.value.submittedAt, currentGalleryItem.value.completedAt)
+})
+const currentDurationDisplay = computed(() => {
+  if (!currentGalleryItem.value) return ''
+  return formatDuration(currentGalleryItem.value.submittedAt, currentGalleryItem.value.completedAt) ?? ''
+})
 
 </script>
 
@@ -268,13 +318,13 @@ function goToReuse(item: GalleryMediaItem) {
             'group relative rounded-xl overflow-hidden cursor-pointer border transition-all hover:shadow-lg',
             selectedIds.has(item.id) ? 'border-violet-500 ring-2 ring-violet-500 ring-offset-2 ring-offset-slate-50' : 'border-slate-200 hover:border-violet-300'
           ]"
-          @click="handleItemClick(item, index)"
+          @click="onGridItemClick(item)"
         >
           <div v-if="isSelectionMode" class="absolute top-2.5 left-2.5 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shadow-sm" :class="selectedIds.has(item.id) ? 'bg-violet-500 border-violet-500 text-white' : 'bg-white/50 backdrop-blur-sm border-white/80'">
             <UIcon v-if="selectedIds.has(item.id)" name="i-lucide-check" class="w-3.5 h-3.5" />
           </div>
 
-          <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="metadata" class="w-full h-auto min-h-40 bg-slate-100 block" @mouseenter="!isSelectionMode && ($event.target as HTMLVideoElement).play()" @mouseleave="!isSelectionMode && ($event.target as HTMLVideoElement).pause()" />
+          <video v-if="item.type === 'video'" :src="item.url + '#t=0.1'" muted preload="metadata" class="w-full h-auto min-h-40 bg-slate-100 block" @mouseenter="playGalleryVideo" @mouseleave="pauseGalleryVideo" />
           <NuxtImg v-else :src="item.url" :alt="item.prompt" :width="largeGrid ? 512 : 300" class="w-full h-auto min-h-40 bg-slate-100 block" loading="lazy" />
 
           <!-- Video badge -->
@@ -303,7 +353,7 @@ function goToReuse(item: GalleryMediaItem) {
           <!-- Actions on hover -->
           <div v-if="!isSelectionMode" class="absolute top-2.5 right-2.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <UButton size="sm" variant="soft" color="error" icon="i-lucide-trash-2" :loading="isDeleting" @click.stop="handleDelete(item.id)" />
-            <UButton size="sm" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="downloadMedia(item.url, item.type)" />
+            <UButton size="sm" variant="soft" color="neutral" icon="i-lucide-download" @click.stop="handleDownload(item)" />
           </div>
         </div>
 
@@ -361,15 +411,15 @@ function goToReuse(item: GalleryMediaItem) {
             </div>
             <div v-if="parsedSettings.get(currentItem.id)" class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs border-t border-white/10 pt-3">
               <span class="text-white/40">Created</span><span>{{ formatDate(currentItem.createdAt) }}</span>
-              <template v-if="formatDuration(currentItem.submittedAt, currentItem.completedAt)">
+              <template v-if="hasCurrentDuration">
                 <span class="text-white/40">Gen Time</span>
-                <span class="text-emerald-400 font-medium">{{ formatDuration(currentItem.submittedAt, currentItem.completedAt) }}</span>
+                <span class="text-emerald-400 font-medium">{{ currentDurationDisplay }}</span>
               </template>
               <template v-for="(val, key) in parsedSettings.get(currentItem.id)" :key="key">
-                <template v-if="key !== 'prompt' && val !== undefined && val !== null && val !== ''">
-                  <span class="text-white/40 capitalize">{{ String(key).replace(/_/g, ' ') }}</span>
-                  <span class="truncate" :title="String(val)">
-                    {{ typeof val === 'object' ? JSON.stringify(val) : val }}
+                <template v-if="isSettingVisible(key)">
+                  <span class="text-white/40 capitalize">{{ formatSettingKey(key) }}</span>
+                  <span class="truncate" :title="formatSettingTitle(val)">
+                    {{ formatSettingValue(val) }}
                   </span>
                 </template>
               </template>

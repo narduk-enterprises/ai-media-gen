@@ -134,6 +134,7 @@ interface RunPodDeployResponse {
 /**
  * Execute a GraphQL query against RunPod.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
 export async function fetchRunPodGraphQL<T>(query: string, variables: Record<string, any> = {}): Promise<T> {
   const config = useRuntimeConfig()
   const apiKey = config.runpodApiKey || process.env.RUNPOD_API_KEY || process.env.AI_API_KEY
@@ -142,6 +143,7 @@ export async function fetchRunPodGraphQL<T>(query: string, variables: Record<str
     throw createError({ statusCode: 500, statusMessage: 'RunPod API Key is not configured (RUNPOD_API_KEY / AI_API_KEY)' })
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   const response = await $fetch<{ data: T; errors?: any[] }>('https://api.runpod.io/graphql', {
     method: 'POST',
     headers: {
@@ -343,6 +345,7 @@ export async function deployRunPod(
   }
 ): Promise<string> {
   const config = useRuntimeConfig()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   const githubPat = (config as any).githubPat || process.env.GITHUB_PAT || ''
   const repoUrl = 'loganrenz/ai-media-gen'
   const modelGroups = options?.modelGroups || []

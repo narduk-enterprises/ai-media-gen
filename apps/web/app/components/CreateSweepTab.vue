@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { IMAGE_MODELS, IMAGE_MODEL_PARAMS } from '~/composables/useCreateShared'
+import { IMAGE_MODELS } from '~/composables/useCreateShared'
 import type { ImageModelParams } from '~/composables/models'
 
 const gen = useGeneration()
@@ -31,7 +31,7 @@ function parseNumericValues(raw: string): number[] {
       }
     } else {
       const n = Number.parseFloat(part)
-      if (!isNaN(n)) results.push(n)
+      if (!Number.isNaN(n)) results.push(n)
     }
   }
   return [...new Set(results)]
@@ -299,14 +299,15 @@ export interface SweepResultEntry {
 const sweepResults = ref<SweepResultEntry[]>([])
 const sweepActive = ref(false)
 
+/* vue-official allow-deep-watch */
 watch(() => gen.results.value, (results) => {
   if (!sweepActive.value) return
   for (const entry of sweepResults.value) {
     if (!entry.itemId) continue
-    const r = results.find((r: any) => r.id === entry.itemId)
+    const r = results.find(r => r.id === entry.itemId)
     if (r) {
       entry.status = r.status === 'complete' ? 'complete' : r.status === 'failed' ? 'failed' : 'pending'
-      entry.url = r.url || null
+      entry.url = (r as { url?: string | null }).url || null
     }
   }
 }, { deep: true })
@@ -354,6 +355,15 @@ async function generate() {
     }
   }
 }
+
+const isLargeSweep = computed(() => totalCount.value > 200)
+const isMediumSweep = computed(() => totalCount.value > 50)
+const sweepCountText = computed(() => `${totalCount.value} variant${totalCount.value !== 1 ? 's' : ''}`)
+const sweepCountClass = computed(() => {
+  if (isLargeSweep.value) return 'text-red-600'
+  if (isMediumSweep.value) return 'text-amber-600'
+  return 'text-slate-700'
+})
 
 defineExpose({ generate, canGenerate, totalCount, isVideo: false, sweepResults, sweepActive })
 </script>
@@ -486,10 +496,10 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: false, sweepResults, 
     <!-- ═══ Variant Summary ═══ -->
     <div class="flex items-center gap-3 px-2">
       <div class="flex items-center gap-2">
-        <span class="text-xs font-semibold" :class="totalCount > 100 ? 'text-red-600' : totalCount > 50 ? 'text-amber-600' : 'text-slate-700'">
-          {{ totalCount }} variant{{ totalCount !== 1 ? 's' : '' }}
+        <span class="text-xs font-semibold" :class="sweepCountClass">
+          {{ sweepCountText }}
         </span>
-        <span v-if="totalCount > 100" class="text-[10px] text-red-500">⚠ max 200</span>
+        <span v-if="isLargeSweep" class="text-[10px] text-red-500">⚠ max 200</span>
       </div>
 
       <button

@@ -38,6 +38,7 @@ export default defineEventHandler(async (event) => {
       vram,
       devices: health.comfy.gpu_name ? [health.comfy.gpu_name] : [],
     }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (e: any) {
     return {
       ok: false,

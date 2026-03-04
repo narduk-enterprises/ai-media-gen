@@ -72,6 +72,7 @@ export default defineEventHandler(async (event) => {
   const videoId = crypto.randomUUID()
 
   // Build the pod input — uses the text2image_then_video action
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   const inputPayload: Record<string, any> = {
     action: 'text2image_then_video',
     prompt: data.prompt,

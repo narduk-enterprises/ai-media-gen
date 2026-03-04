@@ -6,7 +6,7 @@ export interface LightboxItem {
   url: string
   type: string
   prompt?: string
-  settings?: string | Record<string, any> | null
+  settings?: string | Record<string, unknown> | null
   createdAt?: string
 }
 
@@ -17,7 +17,13 @@ const props = defineProps<{
 const open = defineModel<boolean>('open', { default: false })
 const index = defineModel<number>('index', { default: 0 })
 
-const currentItem = computed(() => props.items[index.value] ?? null)
+const currentItem = computed(() => props.items[index.value] || props.items[0])
+
+function handleDownload() {
+  if (currentItem.value) {
+    downloadMedia(currentItem.value.url, currentItem.value.type as 'image' | 'video')
+  }
+}
 
 function next() {
   if (index.value < props.items.length - 1) index.value++
@@ -44,6 +50,7 @@ watch(open, (isOpen) => {
   if (isOpen) window.addEventListener('keydown', handleKeydown)
   else window.removeEventListener('keydown', handleKeydown)
 })
+
 onUnmounted(() => {
   if (import.meta.client) window.removeEventListener('keydown', handleKeydown)
 })
@@ -120,7 +127,7 @@ onUnmounted(() => {
             size="sm"
             icon="i-lucide-download"
             class="text-white/60 hover:text-white"
-            @click="downloadMedia(currentItem?.url, currentItem?.type)"
+            @click="handleDownload"
           >
             Download
           </UButton>

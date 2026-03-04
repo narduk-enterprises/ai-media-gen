@@ -35,7 +35,7 @@ export function useGeneration() {
   const error = ref('')
   const results = ref<MediaItemResult[]>([])
   const activeGenerationId = ref<string | null>(null)
-  const lastSettings = ref<Record<string, any> | null>(null)
+  const lastSettings = ref<Record<string, unknown> | null>(null)
   const actionLoading = ref<Record<string, boolean>>({})
   const batchProgress = ref({ current: 0, total: 0 })
   const trackedGenerationIds = ref<Set<string>>(new Set())
@@ -49,6 +49,7 @@ export function useGeneration() {
 
   // Sync local results from queue updates
   if (import.meta.client) {
+    // eslint-disable-next-line vue-official/no-composable-conditional-hooks
     watch(() => queue.items.value, (queueItems) => {
       if (trackedGenerationIds.value.size === 0) return
       for (const qItem of queueItems) {
@@ -102,7 +103,7 @@ export function useGeneration() {
 
     for (const chunk of chunks) {
       try {
-        const body: Record<string, any> = {
+        const body: Record<string, unknown> = {
           prompt: chunk[0], prompts: chunk,
           negativePrompt: opts.negativePrompt, count: chunk.length,
           steps: opts.steps, width: opts.width, height: opts.height,
@@ -123,7 +124,7 @@ export function useGeneration() {
         })
 
         if (result.generation.settings) {
-          try { lastSettings.value = JSON.parse(result.generation.settings) } catch {}
+          try { lastSettings.value = JSON.parse(result.generation.settings) } catch { }
         }
 
         const newItems = result.items.filter(i => i.type === 'image')
@@ -132,8 +133,9 @@ export function useGeneration() {
         trackedGenerationIds.value.add(result.generation.id)
         if (chunks.length > 1) batchProgress.value.current += chunk.length
         for (const item of newItems) queue.submitAndTrack(item.id)
-      } catch (e: any) {
-        error.value = e.data?.message || e.message || 'Generation failed'
+      } catch (e: unknown) {
+        const err = e as { data?: { message?: string }, message?: string }
+        error.value = err.data?.message || err.message || 'Generation failed'
       }
     }
 
@@ -164,7 +166,6 @@ export function useGeneration() {
           negativePrompt: opts.negativePrompt || '',
           steps: opts.steps || 20, width: opts.width || 1024, height: opts.height || 1024,
           cfg: opts.cfg || 3.5, denoise: opts.denoise || 0.75,
-
         },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
@@ -174,8 +175,9 @@ export function useGeneration() {
       activeGenerationId.value = result.generation.id
       trackedGenerationIds.value.add(result.generation.id)
       for (const item of newItems) queue.submitAndTrack(item.id)
-    } catch (e: any) {
-      error.value = e.data?.message || e.message || 'Image-to-image failed'
+    } catch (e: unknown) {
+      const err = e as { data?: { message?: string }, message?: string }
+      error.value = err.data?.message || err.message || 'Image-to-image failed'
     } finally {
       submitting.value = false
     }
@@ -203,7 +205,7 @@ export function useGeneration() {
     actionLoading.value[key] = true
     error.value = ''
     try {
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         mediaItemId,
         model: opts.model || 'ltx2',
         numFrames: opts.numFrames ?? 241,
@@ -211,7 +213,6 @@ export function useGeneration() {
         cfg: opts.cfg ?? 3.5,
         width: opts.width ?? 1280,
         height: opts.height ?? 720,
-
       }
       if (opts.prompt) body.prompt = opts.prompt
       if (opts.negativePrompt) body.negativePrompt = opts.negativePrompt
@@ -231,8 +232,9 @@ export function useGeneration() {
         results.value.push(result.item)
         queue.submitAndTrack(result.item.id, actionLoading, key)
       }
-    } catch (e: any) {
-      error.value = e.data?.message || 'Video generation failed'
+    } catch (e: unknown) {
+      const err = e as { data?: { message?: string }, message?: string }
+      error.value = err.data?.message || 'Video generation failed'
       actionLoading.value[key] = false
     }
   }
@@ -248,7 +250,6 @@ export function useGeneration() {
         body: {
           mediaItemId,
           prompt: `ambient music for: ${promptHint || 'image'}`,
-
         },
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
@@ -256,8 +257,9 @@ export function useGeneration() {
         results.value.push(result.item)
         queue.submitAndTrack(result.item.id, actionLoading, key)
       }
-    } catch (e: any) {
-      error.value = e.data?.message || 'Audio generation failed'
+    } catch (e: unknown) {
+      const err = e as { data?: { message?: string }, message?: string }
+      error.value = err.data?.message || 'Audio generation failed'
       actionLoading.value[key] = false
     }
   }
@@ -278,8 +280,9 @@ export function useGeneration() {
         results.value.push(result.item)
         queue.submitAndTrack(result.item.id, actionLoading, key)
       }
-    } catch (e: any) {
-      error.value = e.data?.message || 'Upscale failed'
+    } catch (e: unknown) {
+      const err = e as { data?: { message?: string }, message?: string }
+      error.value = err.data?.message || 'Upscale failed'
       actionLoading.value[key] = false
     }
   }
@@ -367,8 +370,9 @@ export function useGeneration() {
             actionLoading.value[key] = true
             queue.submitAndTrack(result.item.id, actionLoading, key)
           }
-        } catch (e: any) {
-          error.value = e.data?.message || e.message || 'Text-to-video generation failed'
+        } catch (e: unknown) {
+          const err = e as { data?: { message?: string }, message?: string }
+          error.value = err.data?.message || err.message || 'Text-video generation failed'
         }
         submitted++
         if (totalJobs > 1) batchProgress.value.current = submitted
@@ -454,7 +458,6 @@ export function useGeneration() {
             videoFps: opts.videoFps ?? 24,
             loraStrength: opts.loraStrength ?? 1.0,
             imageStrength: opts.imageStrength ?? 1.0,
-
             ...(batchGenId ? { generationId: batchGenId } : {}),
           },
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -469,14 +472,16 @@ export function useGeneration() {
           actionLoading.value[key] = true
           queue.submitAndTrack(result.item.id, actionLoading, key)
         }
-      } catch (e: any) {
-        error.value = e.data?.message || e.message || 'Pipeline video generation failed'
+      } catch (e: unknown) {
+        const err = e as { data?: { message?: string }, message?: string }
+        error.value = err.data?.message || err.message || 'Pipeline video generation failed'
       }
       submitted++
       if (totalJobs > 1) batchProgress.value.current = submitted
     }
 
     submitting.value = false
+    return batchGenId ? { generationId: batchGenId } : undefined
   }
 
   return {

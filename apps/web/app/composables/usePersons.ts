@@ -37,6 +37,7 @@ function loadPersons(): Person[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       const parsed = JSON.parse(raw) as any[]
       return parsed.map(p => ({ ...p, description: p.description ?? '' }))
     }

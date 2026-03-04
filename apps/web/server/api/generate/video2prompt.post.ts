@@ -54,6 +54,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Upload video to R2 with a temporary key
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   const cf = (event.context as any).cloudflare?.env
   const bucket: R2Bucket | null = cf?.MEDIA ?? null
   if (!bucket) {
@@ -125,6 +126,7 @@ export default defineEventHandler(async (event) => {
       itemId,
       status: 'queued',
     }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (error: any) {
     console.error('[video2prompt] Error queuing job:', error.message)
     throw createError({

@@ -64,6 +64,7 @@ export default defineEventHandler(async (event) => {
         console.log(`[Upscale] Attempting R2 read for video key: ${mediaItemId}`)
         mediaBase64 = await readBase64FromR2(bucket, mediaItemId)
         console.log(`[Upscale] R2 read result: ${mediaBase64 ? `${mediaBase64.length} chars` : 'null'}`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       } catch (e: any) {
         console.warn(`[Upscale] R2 read failed: ${e.message}`)
       }
@@ -88,6 +89,7 @@ export default defineEventHandler(async (event) => {
         } else {
           console.warn(`[Upscale] URL fetch failed: status ${resp.status}`)
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       } catch (e: any) {
         console.warn(`[Upscale] Failed to fetch video: ${e.message}`)
       }

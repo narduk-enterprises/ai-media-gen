@@ -3,11 +3,13 @@
  * Marks old queued/processing items as failed.
  * Temporary endpoint for one-time cleanup.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { eq, or, and, lt } from 'drizzle-orm'
 
 import { mediaItems } from '../../database/schema'
 
 export default defineEventHandler(async (event) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const user = await requireAuth(event)
   const db = useDatabase(event)
 

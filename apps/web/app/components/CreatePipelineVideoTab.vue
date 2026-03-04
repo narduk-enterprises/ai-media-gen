@@ -55,6 +55,14 @@ const canGenerate = computed(() => prompt.value.trim().length > 0)
 const totalCount = computed(() => count.value)
 const effectiveVideoPrompt = computed(() => useVideoPrompt.value && videoPrompt.value.trim() ? videoPrompt.value.trim() : prompt.value.trim())
 
+const selectedImageModelLabel = computed(() => IMAGE_MODELS.find(m => m.id === imageModel.value)?.label ?? imageModel.value)
+const selectedVideoModelLabel = computed(() => VIDEO_MODELS.find(m => m.id === videoModel.value)?.label ?? videoModel.value)
+const selectedDurationLabel = computed(() => DURATION_PRESETS.find(d => d.value === videoFrames.value)?.label ?? String(videoFrames.value) + 'f')
+const isBatchGenerating = computed(() => gen.generating.value && gen.batchProgress.value.total > 0)
+const batchCurrent = computed(() => gen.batchProgress.value.current)
+const batchTotal = computed(() => gen.batchProgress.value.total)
+
+
 // ─── Generate ─────────────────────────────────────────────────────────
 async function generate() {
   if (!canGenerate.value) return
@@ -78,21 +86,22 @@ async function generate() {
 // ─── Persistence ──────────────────────────────────────────────────────
 onMounted(() => {
   const s = shared.restoreForm()
-  if (s.pipe_prompt != null) prompt.value = s.pipe_prompt
-  if (s.pipe_vidPrompt != null) videoPrompt.value = s.pipe_vidPrompt
-  if (s.pipe_neg != null) negativePrompt.value = s.pipe_neg
-  if (s.pipe_imgModel != null) imageModel.value = s.pipe_imgModel
-  if (s.pipe_vidModel != null) videoModel.value = s.pipe_vidModel
-  if (s.pipe_steps != null) steps.value = s.pipe_steps
-  if (s.pipe_cfg != null) cfg.value = s.pipe_cfg
-  if (s.pipe_vidSteps != null) videoSteps.value = s.pipe_vidSteps
-  if (s.pipe_vidFrames != null) videoFrames.value = s.pipe_vidFrames
-  if (s.pipe_resIdx != null) resolutionIndex.value = s.pipe_resIdx
-  if (s.pipe_count != null) count.value = s.pipe_count
-  if (s.pipe_seed != null) seed.value = s.pipe_seed
-  if (s.pipe_useVidPrompt != null) useVideoPrompt.value = s.pipe_useVidPrompt
+  if (s.pipe_prompt != null) prompt.value = String(s.pipe_prompt)
+  if (s.pipe_vidPrompt != null) videoPrompt.value = String(s.pipe_vidPrompt)
+  if (s.pipe_neg != null) negativePrompt.value = String(s.pipe_neg)
+  if (s.pipe_imgModel != null) imageModel.value = String(s.pipe_imgModel)
+  if (s.pipe_vidModel != null) videoModel.value = String(s.pipe_vidModel)
+  if (s.pipe_steps != null) steps.value = s.pipe_steps as number
+  if (s.pipe_cfg != null) cfg.value = s.pipe_cfg as number
+  if (s.pipe_vidSteps != null) videoSteps.value = s.pipe_vidSteps as number
+  if (s.pipe_vidFrames != null) videoFrames.value = s.pipe_vidFrames as number
+  if (s.pipe_resIdx != null) resolutionIndex.value = s.pipe_resIdx as number
+  if (s.pipe_count != null) count.value = s.pipe_count as number
+  if (s.pipe_seed != null) seed.value = s.pipe_seed as number
+  if (s.pipe_useVidPrompt != null) useVideoPrompt.value = s.pipe_useVidPrompt as boolean
 })
 
+/* vue-official allow-deep-watch */
 watch([prompt, videoPrompt, negativePrompt, imageModel, videoModel, steps, cfg, videoSteps, videoFrames, resolutionIndex, count, seed, useVideoPrompt], () => {
   shared.persistForm({
     pipe_prompt: prompt.value, pipe_vidPrompt: videoPrompt.value, pipe_neg: negativePrompt.value,
@@ -243,17 +252,17 @@ defineExpose({ generate, canGenerate, totalCount, isVideo: true })
       <div class="text-[10px] text-slate-500 uppercase tracking-wider font-medium mb-1">Pipeline</div>
       <p class="text-xs text-slate-600">
         {{ count }} video{{ count !== 1 ? 's' : '' }} ·
-        {{ IMAGE_MODELS.find(m => m.id === imageModel)?.label }} →
-        {{ VIDEO_MODELS.find(m => m.id === videoModel)?.label }} ·
+        {{ selectedImageModelLabel }} →
+        {{ selectedVideoModelLabel }} ·
         {{ resolution.w }}×{{ resolution.h }} ·
-        Image: {{ steps }} steps · Video: {{ videoSteps }} steps, {{ DURATION_PRESETS.find(d => d.value === videoFrames)?.label || videoFrames + 'f' }}
+        Image: {{ steps }} steps · Video: {{ videoSteps }} steps, {{ selectedDurationLabel }}
       </p>
     </UCard>
 
     <!-- Progress -->
-    <div v-if="gen.generating.value && gen.batchProgress.value.total > 0" class="flex items-center gap-3 p-3 rounded-lg bg-violet-50 border border-violet-200">
+    <div v-if="isBatchGenerating" class="flex items-center gap-3 p-3 rounded-lg bg-violet-50 border border-violet-200">
       <div class="w-4 h-4 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin shrink-0" />
-      <div class="text-xs text-violet-700">Submitted {{ gen.batchProgress.value.current }} / {{ gen.batchProgress.value.total }} pipeline{{ gen.batchProgress.value.total !== 1 ? 's' : '' }}. Generating image then video…</div>
+      <div class="text-xs text-violet-700">Submitted {{ batchCurrent }} / {{ batchTotal }} pipeline{{ batchTotal !== 1 ? 's' : '' }}. Generating image then video…</div>
     </div>
   </div>
 </template>

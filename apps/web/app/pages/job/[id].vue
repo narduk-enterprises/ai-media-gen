@@ -35,9 +35,15 @@ onUnmounted(() => {
 const item = computed(() => data.value?.item)
 const generation = computed(() => data.value?.generation)
 const parent = computed(() => data.value?.parent)
-const meta = computed(() => (item.value as any)?.metadata || {})
-const settings = computed(() => (generation.value as any)?.settings || {})
-const runpodInput = computed(() => meta.value?.runpodInput || {})
+const meta = computed(() => {
+  const m = item.value as Record<string, unknown> | undefined
+  return (m?.metadata ?? {}) as Record<string, Record<string, unknown>>
+})
+const settings = computed(() => {
+  const g = generation.value as Record<string, unknown> | undefined
+  return (g?.settings ?? {}) as Record<string, unknown>
+})
+const runpodInput = computed(() => ((meta.value?.runpodInput || {}) as Record<string, unknown>))
 
 // Extract dimensions from metadata
 const mediaWidth = computed(() => runpodInput.value?.width || meta.value?.width || settings.value?.width || null)
@@ -57,7 +63,7 @@ const workflowLabel = computed(() => {
 })
 
 const allSettings = computed(() => {
-  const s: Record<string, any> = {}
+  const s: Record<string, unknown> = {}
   const input = runpodInput.value
   if (workflowLabel.value) s['Workflow'] = workflowLabel.value
   if (input.model) s['Model'] = input.model
@@ -69,7 +75,7 @@ const allSettings = computed(() => {
   if (input.cfg) s['CFG'] = input.cfg
   if (input.lora_strength != null) s['LoRA'] = input.lora_strength
   if (input.image_strength != null) s['Image Strength'] = input.image_strength
-  if (input.seed != null && input.seed >= 0) s['Seed'] = input.seed
+  if (input.seed != null && (input.seed as number) >= 0) s['Seed'] = input.seed
   if (input.negative_prompt) s['Negative Prompt'] = input.negative_prompt
   if (input.audio_prompt) s['Audio'] = input.audio_prompt
   if (input.preset) s['Preset'] = input.preset
@@ -88,7 +94,7 @@ const durationEstimate = computed(() => {
   const frames = runpodInput.value?.num_frames
   const fps = runpodInput.value?.fps || 24
   if (!frames) return null
-  return (frames / fps).toFixed(1) + 's'
+  return ((frames as number) / (fps as number)).toFixed(1) + 's'
 })
 
 function statusBadge(status: string) {
@@ -101,6 +107,32 @@ function statusBadge(status: string) {
     default: return { label: status, color: 'neutral' as const }
   }
 }
+
+function typeLabel(type: string): string {
+  return type.charAt(0).toUpperCase() + type.slice(1)
+}
+
+function typeIcon(type: string): string {
+  if (type === 'video') return 'i-lucide-film'
+  if (type === 'audio') return 'i-lucide-music'
+  return 'i-lucide-image'
+}
+
+function qualityBarClass(score: number): string {
+  if (score >= 7) return 'bg-emerald-500'
+  if (score >= 4) return 'bg-amber-500'
+  return 'bg-red-500'
+}
+
+function qualityBarWidth(score: number): string {
+  return `${(score / 10) * 100}%`
+}
+
+function formatSettingDisplay(val: unknown): string {
+  return typeof val === 'object' ? JSON.stringify(val) : String(val)
+}
+
+const metaJson = computed(() => JSON.stringify(meta.value, null, 2))
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return '—'
@@ -121,7 +153,7 @@ async function rerun(variation = false) {
       input.seed = -1
     }
 
-    const result = await $fetch<any>('/api/generate/image2video', {
+    const result = await $fetch<{ items?: { id: string }[]; item?: { id: string } }>('/api/generate/image2video', {
       method: 'POST',
       body: {
         ...input,
@@ -132,13 +164,13 @@ async function rerun(variation = false) {
 
     if (result?.items?.length) {
       queue.refresh()
-      navigateTo(`/job/${result.items[0].id}`)
+      navigateTo(`/job/${result.items![0]!.id}`)
     } else if (result?.item?.id) {
       queue.refresh()
       navigateTo(`/job/${result.item.id}`)
     }
-  } catch (e: any) {
-    console.error('Re-run failed:', e.message)
+  } catch (e: unknown) {
+    console.error('Re-run failed:', (e as Error).message)
   } finally {
     rerunning.value = false
   }
@@ -156,8 +188,8 @@ async function retry() {
     })
     queue.refresh()
     await refresh()
-  } catch (e: any) {
-    console.error('Retry failed:', e.message)
+  } catch (e: unknown) {
+    console.error('Retry failed:', (e as Error).message)
   } finally {
     rerunning.value = false
   }
@@ -179,7 +211,7 @@ async function makeVideo() {
     const { effectiveEndpoint } = useAppSettings()
     const endpoint = effectiveEndpoint.value
 
-    const result = await $fetch<any>('/api/generate/image2video-auto-batch', {
+    const result = await $fetch<{ items?: { id: string }[] }>('/api/generate/image2video-auto-batch', {
       method: 'POST',
       body: {
         mediaItemIds: [item.value.id],
@@ -195,10 +227,10 @@ async function makeVideo() {
 
     if (result.items?.length) {
       queue.refresh()
-      navigateTo(`/job/${result.items[0].id}`)
+      navigateTo(`/job/${result.items![0]!.id}`)
     }
-  } catch (e: any) {
-    console.error('Make video failed:', e.message)
+  } catch (e: unknown) {
+    console.error('Make video failed:', (e as Error).message)
   } finally {
     makingVideo.value = false
   }
@@ -227,8 +259,8 @@ async function makeVideo() {
       <div class="flex items-start justify-between gap-4 mb-6">
         <div>
           <h1 class="text-xl font-bold text-slate-800 flex items-center gap-3">
-            <UIcon :name="item.type === 'video' ? 'i-lucide-film' : item.type === 'audio' ? 'i-lucide-music' : 'i-lucide-image'" class="w-5 h-5 text-slate-400" />
-            {{ item.type.charAt(0).toUpperCase() + item.type.slice(1) }} Job
+            <UIcon :name="typeIcon(item.type)" class="w-5 h-5 text-slate-400" />
+            {{ typeLabel(item.type) }} Job
             <UBadge :color="statusBadge(item.status).color" variant="subtle" size="lg">
               {{ statusBadge(item.status).label }}
             </UBadge>
@@ -330,7 +362,7 @@ async function makeVideo() {
             <div class="text-xs bg-slate-50 rounded-lg p-3 border border-slate-100 grid grid-cols-2 gap-x-4 gap-y-1.5">
               <template v-for="(val, key) in allSettings" :key="key">
                 <span class="text-slate-500">{{ key }}</span>
-                <span class="text-slate-700 font-medium truncate">{{ typeof val === 'object' ? JSON.stringify(val) : val }}</span>
+                <span class="text-slate-700 font-medium truncate">{{ formatSettingDisplay(val) }}</span>
               </template>
             </div>
           </div>
@@ -359,7 +391,7 @@ async function makeVideo() {
             <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Quality Score</h3>
             <div class="flex items-center gap-2">
               <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div class="h-full rounded-full" :class="item.qualityScore >= 7 ? 'bg-emerald-500' : item.qualityScore >= 4 ? 'bg-amber-500' : 'bg-red-500'" :style="{ width: `${(item.qualityScore / 10) * 100}%` }" />
+                <div class="h-full rounded-full" :class="qualityBarClass(item.qualityScore)" :style="{ width: qualityBarWidth(item.qualityScore) }" />
               </div>
               <span class="text-sm font-medium text-slate-700">{{ item.qualityScore.toFixed(1) }}</span>
             </div>
@@ -383,7 +415,7 @@ async function makeVideo() {
               <UIcon name="i-lucide-chevron-right" class="w-3 h-3 transition-transform group-open:rotate-90" />
               Raw Metadata
             </summary>
-            <pre class="text-[10px] text-slate-600 bg-slate-50 rounded-lg p-3 border border-slate-100 mt-1.5 overflow-x-auto max-h-60">{{ JSON.stringify(meta, null, 2) }}</pre>
+            <pre class="text-[10px] text-slate-600 bg-slate-50 rounded-lg p-3 border border-slate-100 mt-1.5 overflow-x-auto max-h-60">{{ metaJson }}</pre>
           </details>
         </div>
       </div>

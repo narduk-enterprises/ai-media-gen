@@ -94,6 +94,14 @@ function timeAgo(dateStr: string) {
   if (hrs < 24) return `${hrs}h ago`
   return `${Math.floor(hrs / 24)}d ago`
 }
+
+function getTabBg(color: string) {
+  return color.replace('text-', 'bg-')
+}
+
+function getJobTitle(item: QueueItem) {
+  return truncate(item.prompt || 'Untitled', 35)
+}
 </script>
 
 <template>
@@ -197,7 +205,7 @@ function timeAgo(dateStr: string) {
         <div
           v-if="activeFilter === tab.key"
           class="absolute bottom-0 left-2 right-2 h-0.5 rounded-full"
-          :class="tab.color.replace('text-', 'bg-')"
+          :class="getTabBg(tab.color)"
         />
       </button>
     </div>
@@ -235,7 +243,7 @@ function timeAgo(dateStr: string) {
               <div class="flex items-center gap-1.5">
                 <UIcon :name="typeIcon(item.type)" class="w-3 h-3 text-slate-400 shrink-0" />
                 <span class="text-xs font-medium text-slate-700 truncate">
-                  {{ truncate(item.prompt || 'Untitled', 35) }}
+                  {{ getJobTitle(item) }}
                 </span>
               </div>
 

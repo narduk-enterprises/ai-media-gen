@@ -62,6 +62,7 @@ export default defineEventHandler(async (event) => {
   for (const sql of SCHEMA_STATEMENTS) {
     try {
       await d1.prepare(sql).run()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       // Ignore "already exists" errors from indexes etc
       if (!e.message?.includes('already exists')) {
@@ -74,6 +75,7 @@ export default defineEventHandler(async (event) => {
   const email = 'admin@test.com'
   const password = 'admin123'
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   let existing: any = null
   try {
     existing = await getUserByEmail(event, email)

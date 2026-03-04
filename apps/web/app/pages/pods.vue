@@ -107,6 +107,7 @@ const MODEL_GROUPS = [
   { value: 'prompt_refine', label: 'Prompt Refinement', icon: '✍️', sizeGb: 16, category: 'Shared' },
   { value: 'video_prompt', label: 'Video-to-Prompt (AWQ)', icon: '📝', sizeGb: 5, category: 'Shared' },
 ]
+const LOG_SOURCES = ['admin', 'comfy'] as const
 
 // ─── Quick Deploy Presets ────────────────────────────────────────────────────
 interface QuickDeployPreset {
@@ -183,8 +184,9 @@ async function openQuickDeploy(preset: QuickDeployPreset) {
       vram: g.vram || g.memoryInGb || 0,
       price: g.price || g.communityPrice || 0
     })).filter((g) => g.vram >= preset.minVram)
-  } catch (e: any) {
-    quickDeployError.value = e?.data?.statusMessage || e?.message || 'Failed to load GPU availability'
+  } catch (e: unknown) {
+    const err = e as { data?: { statusMessage?: string }; message?: string }
+    quickDeployError.value = err?.data?.statusMessage || err?.message || 'Failed to load GPU availability'
   } finally {
     quickDeployLoading.value = false
   }
@@ -217,8 +219,9 @@ async function quickDeploy(gpu: GpuType) {
     showQuickDeploy.value = false
     startSetupPolling(res.podId)
     setTimeout(refresh, 3000)
-  } catch (e: any) {
-    alert(`Deploy failed: ${e?.data?.statusMessage || e.message}`)
+  } catch (e: unknown) {
+    const err = e as { data?: { statusMessage?: string }; message?: string }
+    alert(`Deploy failed: ${err?.data?.statusMessage || err.message}`)
   } finally {
     quickDeploying.value = false
   }
@@ -232,6 +235,7 @@ const estimatedDiskGb = computed(() => {
 })
 
 // Auto-update volume when groups change
+/* vue-official allow-deep-watch */
 watch(() => deployState.modelGroups, () => {
   deployState.volumeInGb = Math.max(40, Math.ceil(estimatedDiskGb.value * 1.3)) // 30% headroom
 }, { deep: true })
@@ -298,8 +302,9 @@ async function triggerSync() {
     })
     showSyncModal.value = false
     alert(`✅ Sync started for: ${syncGroups.value.join(', ')}. Check pod logs for progress.`)
-  } catch (e: any) {
-    alert(`Failed: ${e?.data?.message || e.message}`)
+  } catch (e: unknown) {
+    const err = e as { data?: { message?: string }; message?: string }
+    alert(`Failed: ${err?.data?.message || err.message}`)
   } finally {
     syncing.value = false
   }
@@ -347,8 +352,9 @@ watch(showDeployModal, async (open) => {
         deployState.gpuType = defaultGpu.value
         setTimeout(checkAvailability, 50)
       }
-    } catch (e: any) {
-      alert(`Failed to load options: ${e?.message}`)
+    } catch (e: unknown) {
+      const err = e as { message?: string }
+      alert(`Failed to load options: ${err?.message}`)
     } finally {
       optionsPending.value = false
     }
@@ -415,8 +421,9 @@ async function deployPod() {
     // Start polling setup status for the new pod
     startSetupPolling(res.podId)
     setTimeout(refresh, 3000)
-  } catch (e: any) {
-    alert(`Failed to deploy pod: ${e?.data?.statusMessage || e.message}`)
+  } catch (e: unknown) {
+    const err = e as { data?: { statusMessage?: string }; message?: string }
+    alert(`Failed to deploy pod: ${err?.data?.statusMessage || err.message}`)
   }
 }
 
@@ -430,8 +437,9 @@ async function startPod(podId: string) {
     })
     // RunPod API takes a few seconds to reflect desiredStatus changes, so we wait before refreshing
     setTimeout(refresh, 2000)
-  } catch (e: any) {
-    alert(`Failed to start pod: ${e?.data?.message || e.message}`)
+  } catch (e: unknown) {
+    const err = e as { data?: { message?: string }; message?: string }
+    alert(`Failed to start pod: ${err?.data?.message || err.message}`)
   }
 }
 
@@ -445,8 +453,9 @@ async function stopPod(podId: string) {
       body: { podId }
     })
     setTimeout(refresh, 2000)
-  } catch (e: any) {
-    alert(`Failed to stop pod: ${e?.data?.message || e.message}`)
+  } catch (e: unknown) {
+    const err = e as { data?: { message?: string }; message?: string }
+    alert(`Failed to stop pod: ${err?.data?.message || err.message}`)
   }
 }
 
@@ -461,8 +470,9 @@ async function updatePod(podId: string) {
       body: { podId },
     })
     alert(result.message)
-  } catch (e: any) {
-    alert(`Update failed: ${e?.data?.message || e.message}`)
+  } catch (e: unknown) {
+    const err = e as { data?: { message?: string }; message?: string }
+    alert(`Update failed: ${err?.data?.message || err.message}`)
   } finally {
     podUpdating.value[podId] = false
   }
@@ -480,8 +490,9 @@ async function restartPod(podId: string) {
     })
     alert(result.message)
     setTimeout(refresh, 5000)
-  } catch (e: any) {
-    alert(`Restart failed: ${e?.data?.message || e.message}`)
+  } catch (e: unknown) {
+    const err = e as { data?: { message?: string }; message?: string }
+    alert(`Restart failed: ${err?.data?.message || err.message}`)
   } finally {
     podRestarting.value[podId] = false
   }
@@ -497,8 +508,9 @@ async function terminatePod(podId: string) {
       body: { podId }
     })
     setTimeout(refresh, 2000)
-  } catch (e: any) {
-    alert(`Failed to terminate pod: ${e?.data?.message || e.message}`)
+  } catch (e: unknown) {
+    const err = e as { data?: { message?: string }; message?: string }
+    alert(`Failed to terminate pod: ${err?.data?.message || err.message}`)
   }
 }
 
@@ -638,6 +650,87 @@ onUnmounted(() => {
   if (podsRefreshTimer) clearInterval(podsRefreshTimer)
   if (healthRefreshTimer) clearInterval(healthRefreshTimer)
 })
+
+// ─── Template Helpers ──────────────────────────────────────────────────────
+function getPodDiskUsage(podId: string) {
+  const health = podHealth.value[podId]
+  if (!health?.disk?.total_gb || health.disk.used_gb == null) return null
+  return health.disk.used_gb / health.disk.total_gb
+}
+
+function getPodDiskStroke(podId: string) {
+  const usage = getPodDiskUsage(podId)
+  if (usage === null) return '#10b981'
+  return usage > 0.85 ? '#ef4444' : '#10b981'
+}
+
+function getPodDiskDashArray(podId: string) {
+  const usage = getPodDiskUsage(podId)
+  if (usage === null) return '0, 100'
+  return `${Math.round(usage * 100)}, 100`
+}
+
+function getPodDiskPercentText(podId: string) {
+  const usage = getPodDiskUsage(podId)
+  if (usage === null) return '...'
+  return `${Math.round(usage * 100)}%`
+}
+
+function getDiskTitle(pod: Pod) {
+  return getPodDiskTitle(pod.id, pod.volumeInGb)
+}
+
+function getPodDiskTitle(podId: string, volumeInGb?: number) {
+  const health = podHealth.value[podId]
+  if (health?.disk?.total_gb) {
+    return `Disk: ${health.disk.used_gb?.toFixed(1)}GB / ${health.disk.total_gb?.toFixed(1)}GB\nFree: ${health.disk.free_gb?.toFixed(1)}GB`
+  }
+  return `Volume: ${volumeInGb}GB`
+}
+
+function _setLogSrc(podId: string, src: 'admin' | 'comfy') {
+  switchLogSource(podId, src)
+}
+
+function _getLogClass(podId: string, src: string) {
+  const active = (podLogsSource.value[podId] || 'admin') === src
+  return active ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+}
+
+function logClassFor(pod: { id: string }) {
+  return (src: string) => {
+    const active = (podLogsSource.value[pod.id] || 'admin') === src
+    return active ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+  }
+}
+
+function logSrcClickFor(pod: { id: string }) {
+  return (src: 'admin' | 'comfy') => switchLogSource(pod.id, src)
+}
+
+function getSetupStatusLabel(podId: string) {
+  const s = setupStatus.value[podId]?.status
+  if (s === 'starting') return '🚀 Booting...'
+  if (s === 'installing') return '⚙️ Setting up...'
+  if (s === 'ready') return '✅ Ready!'
+  return ''
+}
+
+function getSetupStatusClass(podId: string) {
+  const s = setupStatus.value[podId]?.status
+  if (s === 'installing') return 'bg-amber-50 text-amber-700'
+  if (s === 'starting') return 'bg-blue-50 text-blue-700'
+  if (s === 'ready') return 'bg-emerald-50 text-emerald-700'
+  return ''
+}
+
+function getModelGroupLabel(value: string) {
+  return MODEL_GROUPS.find(mg => mg.value === value)?.label || value
+}
+
+function getPresetDiskEstimate(preset: QuickDeployPreset) {
+  return Math.ceil(calcPresetDisk(preset) * 1.3)
+}
 </script>
 
 <template>
@@ -799,9 +892,7 @@ d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831
             <!-- Disk -->
             <div
               class="text-center" 
-              :title="podHealth[pod.id]?.disk?.total_gb
-                ? `Disk: ${podHealth[pod.id]?.disk?.used_gb?.toFixed(1)}GB / ${podHealth[pod.id]?.disk?.total_gb?.toFixed(1)}GB\nFree: ${podHealth[pod.id]?.disk?.free_gb?.toFixed(1)}GB`
-                : `Volume: ${pod.volumeInGb}GB`"
+              :title="getDiskTitle(pod)"
             >
               <div class="relative w-11 h-11 mx-auto">
                 <svg viewBox="0 0 36 36" class="w-11 h-11">
@@ -809,18 +900,14 @@ d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831
                   <path
                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" 
                     fill="none"
-                    :stroke="(podHealth[pod.id]?.disk?.total_gb && podHealth[pod.id]?.disk?.used_gb != null && (podHealth[pod.id]!.disk.used_gb! / podHealth[pod.id]!.disk.total_gb!) > 0.85) ? '#ef4444' : '#10b981'"
+                    :stroke="getPodDiskStroke(pod.id)"
                     stroke-width="3"
-                    :stroke-dasharray="`${(podHealth[pod.id]?.disk?.total_gb && podHealth[pod.id]?.disk?.used_gb != null)
-                      ? Math.round((podHealth[pod.id]!.disk.used_gb! / podHealth[pod.id]!.disk.total_gb!) * 100)
-                      : 0}, 100`"
+                    :stroke-dasharray="getPodDiskDashArray(pod.id)"
                     stroke-linecap="round" 
                   />
                 </svg>
                 <span class="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-slate-700">
-                  {{ podHealth[pod.id]?.disk?.used_gb != null
-                    ? `${Math.round((podHealth[pod.id]!.disk.used_gb! / podHealth[pod.id]!.disk.total_gb!) * 100)}%`
-                    : '...' }}
+                  {{ getPodDiskPercentText(pod.id) }}
                 </span>
               </div>
               <p class="text-[9px] text-slate-500 mt-0.5">Disk</p>
@@ -869,13 +956,11 @@ d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831
             <!-- Source switcher -->
             <div class="flex gap-1 mb-2">
               <button
-                v-for="src in (['admin', 'comfy'] as const)"
+                v-for="src in LOG_SOURCES"
                 :key="src"
                 class="px-2 py-0.5 text-[10px] rounded font-medium uppercase tracking-wide transition-colors"
-                :class="(podLogsSource[pod.id] || 'admin') === src
-                  ? 'bg-slate-800 text-white'
-                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
-                @click="switchLogSource(pod.id, src)"
+                :class="logClassFor(pod)(src)"
+                @click="logSrcClickFor(pod)(src)"
               >
                 {{ src }}
               </button>
@@ -894,16 +979,15 @@ d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831
         <template #footer>
           <!-- Setup progress indicator -->
           <div
-v-if="setupStatus[pod.id]" class="mb-3 p-3 rounded-lg text-xs" :class="{
-            'bg-amber-50 text-amber-700': setupStatus[pod.id]?.status === 'installing',
-            'bg-blue-50 text-blue-700': setupStatus[pod.id]?.status === 'starting',
-            'bg-emerald-50 text-emerald-700': setupStatus[pod.id]?.status === 'ready',
-          }">
+            v-if="setupStatus[pod.id]" 
+            class="mb-3 p-3 rounded-lg text-xs" 
+            :class="getSetupStatusClass(pod.id)"
+          >
             <div class="flex items-center gap-2">
               <UIcon v-if="setupStatus[pod.id]?.status !== 'ready'" name="i-heroicons-arrow-path" class="w-3.5 h-3.5 animate-spin" />
               <UIcon v-else name="i-heroicons-check-circle" class="w-3.5 h-3.5" />
               <span class="font-medium">
-                {{ setupStatus[pod.id]?.status === 'starting' ? '🚀 Booting...' : setupStatus[pod.id]?.status === 'installing' ? '⚙️ Setting up...' : '✅ Ready!' }}
+                {{ getSetupStatusLabel(pod.id) }}
               </span>
             </div>
             <p class="mt-1 text-[10px] opacity-75">{{ setupStatus[pod.id]?.message }}</p>
@@ -1195,7 +1279,7 @@ v-if="setupStatus[pod.id]" class="mb-3 p-3 rounded-lg text-xs" :class="{
               </div>
               <div>
                 <span class="text-slate-400">Volume:</span>
-                <span class="text-slate-700 font-medium ml-1">{{ Math.ceil(calcPresetDisk(quickDeployPreset) * 1.3) }}GB</span>
+                <span class="text-slate-700 font-medium ml-1">{{ getPresetDiskEstimate(quickDeployPreset) }}GB</span>
               </div>
               <div>
                 <span class="text-slate-400">Min VRAM:</span>
@@ -1208,7 +1292,7 @@ v-if="setupStatus[pod.id]" class="mb-3 p-3 rounded-lg text-xs" :class="{
                 :key="g"
                 class="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-600 font-medium"
               >
-                {{ MODEL_GROUPS.find(mg => mg.value === g)?.label || g }}
+                {{ getModelGroupLabel(g) }}
               </span>
             </div>
           </div>

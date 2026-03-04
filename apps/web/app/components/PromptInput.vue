@@ -12,7 +12,7 @@ const emit = defineEmits<{
 
 const modelValue = defineModel<string>({ default: '' })
 
-const { remixPrompt, remixLoading } = useRemix()
+const { remixPrompt, remixLoading: _remixLoading } = useRemix()
 const remixing = ref(false)
 const remixError = ref('')
 const generatingPrompt = ref(false)
@@ -29,8 +29,8 @@ async function handleRemix() {
   try {
     modelValue.value = await remixPrompt(modelValue.value)
     emit('remix')
-  } catch (e: any) {
-    remixError.value = e?.message || 'Remix failed'
+  } catch (e: unknown) {
+    remixError.value = (e as Error)?.message || 'Remix failed'
     console.error('[Remix] Error:', e)
   } finally {
     remixing.value = false
@@ -46,8 +46,8 @@ async function handleDirectedRemix() {
     modelValue.value = await remixPrompt(modelValue.value, directInstruction.value.trim())
     directInstruction.value = ''
     emit('remix')
-  } catch (e: any) {
-    remixError.value = e?.message || 'Directed remix failed'
+  } catch (e: unknown) {
+    remixError.value = (e as Error)?.message || 'Directed remix failed'
     console.error('[DirectedRemix] Error:', e)
   } finally {
     remixing.value = false
@@ -98,7 +98,7 @@ async function handleGeneratePrompt() {
   remixError.value = ''
   promptUnrefined.value = false
   try {
-    const result = await $fetch<any>('/api/prompt-builder/generate', {
+    const result = await $fetch<{ refinedPrompt?: string; rawPrompt?: string; wasRefined?: boolean }>('/api/prompt-builder/generate', {
       method: 'POST',
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
       body: { mediaType: props.mediaType || 'any' },
@@ -107,8 +107,9 @@ async function handleGeneratePrompt() {
     if (result.wasRefined === false) {
       promptUnrefined.value = true
     }
-  } catch (e: any) {
-    remixError.value = e?.data?.message || e?.message || 'Generate failed'
+  } catch (e: unknown) {
+    const err = e as { data?: { message?: string }; message?: string }
+    remixError.value = err?.data?.message || err?.message || 'Generate failed'
   } finally {
     generatingPrompt.value = false
   }

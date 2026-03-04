@@ -62,7 +62,7 @@ function applyPreset(preset: VideoPreset) {
   numFrames.value = [preset.frames]
   seed.value = -1
   const p = shared.getVideoModelParams(preset.model)
-  const idx = p.resolutions.findIndex((r: any) => r.w === preset.resolution.w && r.h === preset.resolution.h)
+  const idx = p.resolutions.findIndex(r => r.w === preset.resolution.w && r.h === preset.resolution.h)
   if (idx >= 0) resolutionIndex.value = idx
   showLibrary.value = false
 }
@@ -138,7 +138,7 @@ onMounted(() => {
         sessionStorage.removeItem('ai-media-gen:reuse') // consume once
 
         // Set model first so the watcher applies defaults
-        if (r.model && VIDEO_MODELS.some((v: any) => v.id === r.model)) {
+        if (r.model && VIDEO_MODELS.some(v => v.id === r.model)) {
           selectedModel.value = r.model
         }
 
@@ -160,7 +160,7 @@ onMounted(() => {
             const w = Number(r.width)
             const h = Number(r.height)
             const p = shared.getVideoModelParams(selectedModel.value)
-            const idx = p.resolutions.findIndex((res: any) => res.w === w && res.h === h)
+            const idx = p.resolutions.findIndex(res => res.w === w && res.h === h)
             if (idx >= 0) resolutionIndex.value = idx
           }
         })
@@ -170,21 +170,22 @@ onMounted(() => {
   }
 
   const s = shared.restoreForm()
-  if (s.t2v_prompt != null) prompt.value = s.t2v_prompt
-  if (s.t2v_model != null) selectedModel.value = s.t2v_model
-  if (s.t2v_neg != null) negativePrompt.value = s.t2v_neg
-  if (s.t2v_steps != null) steps.value = s.t2v_steps
-  if (s.t2v_seed != null) seed.value = s.t2v_seed
-  if (s.t2v_resIdx != null) resolutionIndex.value = s.t2v_resIdx
-  if (Array.isArray(s.t2v_numFrames)) numFrames.value = s.t2v_numFrames
-  if (s.t2v_count != null) count.value = s.t2v_count
-  if (s.t2v_audioPrompt != null) audioPrompt.value = s.t2v_audioPrompt
-  if (s.t2v_cameraLora != null) cameraLora.value = s.t2v_cameraLora
-  if (s.t2v_cfg != null) cfg.value = s.t2v_cfg
-  if (s.t2v_fps != null) fps.value = s.t2v_fps
-  if (s.t2v_textEncoder != null) textEncoder.value = s.t2v_textEncoder
+  if (s.t2v_prompt != null) prompt.value = s.t2v_prompt as string
+  if (s.t2v_model != null) selectedModel.value = s.t2v_model as string
+  if (s.t2v_neg != null) negativePrompt.value = s.t2v_neg as string
+  if (s.t2v_steps != null) steps.value = s.t2v_steps as number
+  if (s.t2v_seed != null) seed.value = s.t2v_seed as number
+  if (s.t2v_resIdx != null) resolutionIndex.value = s.t2v_resIdx as number
+  if (Array.isArray(s.t2v_numFrames)) numFrames.value = s.t2v_numFrames as number[]
+  if (s.t2v_count != null) count.value = s.t2v_count as number
+  if (s.t2v_audioPrompt != null) audioPrompt.value = s.t2v_audioPrompt as string
+  if (s.t2v_cameraLora != null) cameraLora.value = s.t2v_cameraLora as string
+  if (s.t2v_cfg != null) cfg.value = s.t2v_cfg as number
+  if (s.t2v_fps != null) fps.value = s.t2v_fps as number
+  if (s.t2v_textEncoder != null) textEncoder.value = s.t2v_textEncoder as string
 })
 
+/* vue-official allow-deep-watch */
 watch([prompt, selectedModel, negativePrompt, steps, seed, resolutionIndex, numFrames, count, audioPrompt, cameraLora, cfg, fps, textEncoder], () => {
   shared.persistForm({
     t2v_prompt: prompt.value, t2v_model: selectedModel.value, t2v_neg: negativePrompt.value,

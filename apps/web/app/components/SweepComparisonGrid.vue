@@ -241,6 +241,11 @@ function handleKeydown(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', handleKeydown))
 onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 
+function formatAxisValue(axis: AxisDef): string {
+  const val = axis.values[axisIndices.value[axis.key] ?? 0] ?? axis.values[0]!
+  return axis.format(val)
+}
+
 function openCompareAt(entry: SweepResultEntry) {
   if (entry.status !== 'complete') return
 
@@ -258,7 +263,7 @@ function openCompareAt(entry: SweepResultEntry) {
       }
     })()
     if (val != null) {
-      const idx = axis.values.indexOf(val as any)
+      const idx = axis.values.indexOf(val as AxisValue)
       if (idx >= 0) axisIndices.value = { ...axisIndices.value, [axis.key]: idx }
     }
   }
@@ -312,7 +317,7 @@ function openCompareAt(entry: SweepResultEntry) {
             <div class="flex items-center justify-between">
               <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{{ axis.label }}</label>
               <span class="text-xs font-mono text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                {{ axis.format(axis.values[axisIndices[axis.key] ?? 0]!) }}
+                {{ formatAxisValue(axis) }}
               </span>
             </div>
             <!-- Discrete slider — uses index into axis values -->

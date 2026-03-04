@@ -17,6 +17,7 @@ export default defineEventHandler(async (event): Promise<{ podId: string; status
   const url = `https://${podId}-8188.proxy.runpod.net`
 
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     const health = await $fetch<any>(`${url}/health`, {
       timeout: 5_000,
     })
@@ -36,6 +37,7 @@ export default defineEventHandler(async (event): Promise<{ podId: string; status
       status: 'installing' as const,
       message: 'Admin server responded but not fully ready',
     }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (e: any) {
     // If the pod is RUNNING but admin doesn't respond, setup is still in progress
     try {

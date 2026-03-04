@@ -76,6 +76,7 @@ export default defineEventHandler(async (event) => {
 
     // Build model-specific input payload (with image for pod submission)
     const isLtx2 = model === 'ltx2'
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     const inputPayload: Record<string, any> = {
       action: 'image2video',
       model,
@@ -99,6 +100,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // Store metadata WITHOUT the base64 image (only R2 key reference)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     const metadataForDb: Record<string, any> = {
       apiUrl,
       comfyInput: {
@@ -141,6 +143,7 @@ export default defineEventHandler(async (event) => {
           })
           .where(eq(mediaItems.id, videoId))
         console.log(`[I2V] ✅ ${videoId.slice(0, 8)} → Pod job ${response.job_id}`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       } catch (e: any) {
         console.warn(`[I2V] ⚠️ ${videoId.slice(0, 8)} submit failed, cron will retry: ${e.message}`)
       }
@@ -157,6 +160,7 @@ export default defineEventHandler(async (event) => {
         url: null,
       },
     }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (e: any) {
     console.error('[video.post] Error:', e?.statusCode, e?.message)
     if (e.statusCode) throw e

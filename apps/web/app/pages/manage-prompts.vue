@@ -235,8 +235,9 @@ async function testGenerate() {
   try {
     const result = await $fetch<HistoryEntry>('/api/prompt-builder/generate', { method: 'POST', headers: csrfHeaders })
     generatedResult.value = result
-  } catch (e: any) {
-    generateError.value = e.data?.message || e.message || 'Generation failed'
+  } catch (e: unknown) {
+    const err = e as { data?: { message?: string }; message?: string }
+    generateError.value = err.data?.message || err.message || 'Generation failed'
   }
   generating.value = false
 }
@@ -286,8 +287,9 @@ function validateJson(): boolean {
       return false
     }
     return true
-  } catch (e: any) {
-    importError.value = `Invalid JSON: ${e.message}`
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    importError.value = `Invalid JSON: ${err.message}`
     return false
   }
 }
@@ -307,8 +309,9 @@ async function importData() {
     fetchTemplates()
     fetchAttributes()
     fetchHistory()
-  } catch (e: any) {
-    importError.value = e.data?.message || e.message || 'Import failed'
+  } catch (e: unknown) {
+    const err = e as { data?: { message?: string }; message?: string }
+    importError.value = err.data?.message || err.message || 'Import failed'
   }
   importing.value = false
 }
@@ -384,7 +387,7 @@ const exporting = ref(false)
 async function exportAll() {
   exporting.value = true
   try {
-    const data = await $fetch<Record<string, any>>('/api/prompt-builder/export')
+    const data = await $fetch<Record<string, unknown>>('/api/prompt-builder/export')
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -392,7 +395,7 @@ async function exportAll() {
     a.download = `prompt-templates-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('[Export] Error:', e)
   }
   exporting.value = false
@@ -429,11 +432,69 @@ async function deleteAll() {
     fetchTemplates()
     fetchAttributes()
     fetchHistory()
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('[DeleteAll] Error:', e)
   }
   deleting.value = false
 }
+
+// ─── Computed Stats Helpers ─────────────────────────────────
+const cacheFillColor = computed(() => {
+  if (!cacheStats.value) return 'error'
+  const p = cacheStats.value.fillPercent
+  return p >= 80 ? 'success' : p >= 40 ? 'warning' : 'error'
+})
+
+const cacheFillClass = computed(() => {
+  if (!cacheStats.value) return 'bg-red-400'
+  const p = cacheStats.value.fillPercent
+  return p >= 80 ? 'bg-emerald-500' : p >= 40 ? 'bg-amber-500' : 'bg-red-400'
+})
+
+const cacheFillWidth = computed(() => {
+  if (!cacheStats.value) return '0%'
+  return Math.min(cacheStats.value.fillPercent, 100) + '%'
+})
+
+const minsToFull = computed(() => {
+  if (!cacheStats.value) return 0
+  return Math.ceil((cacheStats.value.target - cacheStats.value.total) / 5)
+})
+
+function _onWeightChange(attr: Attribute, event: Event) {
+  const input = event.target as HTMLInputElement
+  updateAttributeWeight(attr, Number(input.value))
+}
+function weightChangeFor(attr: Attribute) {
+  return (event: Event) => {
+    const input = event.target as HTMLInputElement
+    updateAttributeWeight(attr, Number(input.value))
+  }
+}
+
+function getAttrVariant(attr: Attribute) {
+  return attr.isActive ? 'ghost' : 'soft'
+}
+
+function getAttrColor(attr: Attribute) {
+  return attr.isActive ? 'success' : 'neutral'
+}
+
+function getAttrIcon(attr: Attribute) {
+  return attr.isActive ? 'i-lucide-eye' : 'i-lucide-eye-off'
+}
+
+const hasAttributes = computed(() => {
+  return Object.keys(groupedAttributes.value).length > 0
+})
+
+const groupedAttrsList = computed(() => {
+  return Object.entries(groupedAttributes.value).map(([category, attrs]) => ({
+    category,
+    attrs,
+    color: getCategoryColor(category)
+  }))
+})
 </script>
 
 <template>
@@ -533,7 +594,7 @@ async function deleteAll() {
             <UIcon name="i-lucide-database" class="w-4 h-4 text-violet-500" />
             Prompt Cache
             <UBadge
-              :color="cacheStats.fillPercent >= 80 ? 'success' : cacheStats.fillPercent >= 40 ? 'warning' : 'error'"
+              :color="cacheFillColor"
               variant="subtle"
               size="xs"
             >
@@ -557,8 +618,8 @@ async function deleteAll() {
         <div class="w-full bg-slate-100 rounded-full h-2.5 mb-3">
           <div
             class="h-2.5 rounded-full transition-all duration-500"
-            :class="cacheStats.fillPercent >= 80 ? 'bg-emerald-500' : cacheStats.fillPercent >= 40 ? 'bg-amber-500' : 'bg-red-400'"
-            :style="{ width: Math.min(cacheStats.fillPercent, 100) + '%' }"
+            :class="cacheFillClass"
+            :style="{ width: cacheFillWidth }"
           />
         </div>
 
@@ -580,7 +641,7 @@ async function deleteAll() {
             </UBadge>
           </div>
           <span v-if="cacheStats.fillPercent < 100" class="text-xs text-slate-400 ml-auto">
-            ~{{ Math.ceil((cacheStats.target - cacheStats.total) / 5) }} min to full
+            ~{{ minsToFull }} min to full
           </span>
           <span v-else class="text-xs text-emerald-500 ml-auto font-medium">
             ✓ Cache full
@@ -732,21 +793,21 @@ async function deleteAll() {
         <div v-if="loadingAttributes" class="flex justify-center py-12">
           <UIcon name="i-lucide-loader-2" class="w-6 h-6 text-violet-500 animate-spin" />
         </div>
-        <div v-else-if="Object.keys(groupedAttributes).length === 0" class="text-center py-12 text-slate-400">
+        <div v-else-if="!hasAttributes" class="text-center py-12 text-slate-400">
           <UIcon name="i-lucide-tags" class="w-10 h-10 mx-auto mb-2" />
           <p>No attributes yet. Add some above.</p>
         </div>
         <div v-else class="space-y-4">
-          <div v-for="(attrs, category) in groupedAttributes" :key="category" class="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+          <div v-for="group in groupedAttrsList" :key="group.category" class="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
             <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <UBadge :color="getCategoryColor(String(category))" variant="subtle" size="sm">{{ category }}</UBadge>
-                <span class="text-xs text-slate-400">{{ attrs.length }} attributes</span>
+                <UBadge :color="group.color" variant="subtle" size="sm">{{ group.category }}</UBadge>
+                <span class="text-xs text-slate-400">{{ group.attrs.length }} attributes</span>
               </div>
             </div>
             <div class="divide-y divide-slate-100">
               <div
-                v-for="attr in attrs"
+                v-for="attr in group.attrs"
                 :key="attr.id"
                 class="px-5 py-3 flex items-center gap-4 hover:bg-slate-50 transition-colors"
               >
@@ -760,12 +821,12 @@ async function deleteAll() {
                     max="10"
                     :value="attr.weight"
                     class="w-16 text-sm text-center rounded-lg border border-slate-200 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                    @change="(e: Event) => updateAttributeWeight(attr, Number((e.target as HTMLInputElement).value))"
+                    @change="weightChangeFor(attr)"
                   />
                   <UButton
-                    :icon="attr.isActive ? 'i-lucide-eye' : 'i-lucide-eye-off'"
-                    :variant="attr.isActive ? 'ghost' : 'soft'"
-                    :color="attr.isActive ? 'success' : 'neutral'"
+                    :icon="getAttrIcon(attr)"
+                    :variant="getAttrVariant(attr)"
+                    :color="getAttrColor(attr)"
                     size="xs"
                     @click="toggleAttributeActive(attr)"
                   />

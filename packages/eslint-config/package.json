@@ -1,6 +1,6 @@
 {
   "name": "@narduk/eslint-config",
-  "version": "1.0.9",
+  "version": "1.13.9",
   "type": "module",
   "private": true,
   "exports": {
@@ -11,8 +11,6 @@
     "build:nuxt-ui": "cd eslint-plugin-nuxt-ui && pnpm run build",
     "build:guardrails": "cd eslint-plugin-nuxt-guardrails && pnpm run build",
     "build:vue-official": "cd eslint-plugin-vue-official-best-practices && pnpm run build",
-    "lint": "echo 'eslint-config: lint pass (config-only package)'",
-    "typecheck": "pnpm run build",
     "test": "vitest run",
     "test:plugins": "vitest run eslint-plugins/tests"
   },

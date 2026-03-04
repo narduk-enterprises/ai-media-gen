@@ -45,14 +45,15 @@ async function generate() {
     if (result.items?.length) {
       gen.results.value = [...gen.results.value, ...result.items.map(item => ({
         ...item, parentId: null,
-      }))] as any
+      }))] as typeof gen.results.value
       gen.activeGenerationId.value = result.generation.id
       // Track this generation so queue sync watcher updates statuses/URLs
       gen.trackedGenerationIds.value.add(result.generation.id)
       queue.refresh()
     }
-  } catch (e: any) {
-    gen.error.value = e.data?.message || e.message || 'Auto video batch failed'
+  } catch (e) {
+    const err = e as { data?: { message?: string }; message?: string }
+    gen.error.value = err.data?.message || err.message || 'Auto video batch failed'
   } finally {
     loading.value = false
   }

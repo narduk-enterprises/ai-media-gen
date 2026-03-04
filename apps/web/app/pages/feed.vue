@@ -152,7 +152,7 @@ function handleDoubleTap(video: FeedVideo) {
 const containerRef = ref<HTMLElement | null>(null)
 const videoElements = new Map<number, HTMLVideoElement>()
 
-function setVideoEl(el: any, index: number) {
+function setVideoEl(el: Element | ComponentPublicInstance | null, index: number) {
   if (el instanceof HTMLVideoElement) {
     videoElements.set(index, el)
   }
@@ -205,7 +205,7 @@ onBeforeUnmount(() => {
 })
 
 // After a video element mounts, observe it
-function onVideoMounted(el: any, index: number) {
+function onVideoMounted(el: Element | ComponentPublicInstance | null, index: number) {
   setVideoEl(el, index)
   if (el instanceof HTMLVideoElement && observer) {
     observer.observe(el)
@@ -360,6 +360,36 @@ function formatTime(dateStr: string): string {
   if (diffDays < 7) return `${diffDays}d ago`
   return date.toLocaleDateString()
 }
+
+// ─── Template helpers ────────────────────────────────────────
+function videoRefHandler(index: number) {
+  return (el: Element | ComponentPublicInstance | null) => onVideoMounted(el, index)
+}
+function videoCounter(index: number): string {
+  return `${index + 1}/${videos.value.length}`
+}
+function newVideoLabel(count: number): string {
+  return `${count} new video${count > 1 ? 's' : ''}`
+}
+function _touchEndHandler(index: number, video: typeof videos.value[number]) {
+  return (e: TouchEvent) => onTouchEnd(e, index, video)
+}
+function _videoClickHandler(index: number, video: typeof videos.value[number]) {
+  return () => onVideoClick(index, video)
+}
+function onSlideTouchEnd(video: typeof videos.value[number]) {
+  return (e: TouchEvent) => {
+    const index = videos.value.indexOf(video)
+    onTouchEnd(e, index, video)
+  }
+}
+function onSlideClick(video: typeof videos.value[number]) {
+  const index = videos.value.indexOf(video)
+  onVideoClick(index, video)
+}
+function shareVideoHandler(video: typeof videos.value[number]) {
+  return (e: MouseEvent) => shareVideo(video, e)
+}
 </script>
 
 <template>
@@ -394,10 +424,10 @@ function formatTime(dateStr: string): string {
         v-for="(video, index) in videos" :key="video.id || index"
         class="feed-slide"
         @touchstart.passive="onTouchStart"
-        @touchend="onTouchEnd($event, index, video)"
+        @touchend="onSlideTouchEnd(video)"
       >
         <video
-          :ref="(el: any) => onVideoMounted(el, index)"
+          :ref="videoRefHandler(index)"
           :src="video.url + '#t=0.1'"
           :data-index="index"
           :muted="muted"
@@ -406,7 +436,7 @@ function formatTime(dateStr: string): string {
           webkit-playsinline
           preload="metadata"
           class="feed-video"
-          @click="onVideoClick(index, video)"
+          @click="onSlideClick(video)"
           @error="onVideoError(index)"
         />
 
@@ -501,7 +531,7 @@ function formatTime(dateStr: string): string {
               {{ video.prompt }}
             </p>
             <div class="flex items-center justify-between">
-              <span class="text-white/40 text-xs tabular-nums">{{ index + 1 }}/{{ videos.length }}</span>
+              <span class="text-white/40 text-xs tabular-nums">{{ videoCounter(index) }}</span>
               <span class="text-white/40 text-xs">{{ formatTime(video.createdAt) }}</span>
             </div>
           </div>
@@ -523,7 +553,7 @@ function formatTime(dateStr: string): string {
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
           </a>
-          <button class="feed-btn" @click.stop="shareVideo(video, $event)">
+          <button class="feed-btn" @click.stop="shareVideoHandler(video)">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="18" cy="5" r="3" />
               <circle cx="6" cy="12" r="3" />
@@ -544,7 +574,7 @@ function formatTime(dateStr: string): string {
         @click="loadPendingVideos"
       >
         <span class="new-pill-dot" />
-        {{ pendingVideos.length }} new video{{ pendingVideos.length > 1 ? 's' : '' }}
+        {{ newVideoLabel(pendingVideos.length) }}
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="18 15 12 9 6 15" />
         </svg>

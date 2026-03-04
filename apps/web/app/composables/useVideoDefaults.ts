@@ -110,6 +110,7 @@ export function useVideoSettings(defaults?: {
 // ─── Helpers ─────────────────────────────────────────────────
 
 /** Pick a random audio preset (excluding Silent) and return its prompt */
+// eslint-disable-next-line vue-official/require-use-prefix-for-composables
 export function randomAudioPrompt(): string {
   const withAudio = AUDIO_PRESETS.filter(p => p.prompt)
   const pick = withAudio[Math.floor(Math.random() * withAudio.length)]

@@ -21,6 +21,7 @@ export default defineEventHandler(async (event) => {
       timeout: 10_000,
     })
     return { success: true, message: `Model sync started for groups: ${groups.join(', ') || 'all'}` }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (e: any) {
     throw createError({ statusCode: 502, message: `Failed to reach pod: ${e?.message || 'Unknown error'}` })
   }

@@ -50,6 +50,7 @@ export default defineEventHandler(async (event) => {
         : `Update failed (exit ${result.exit_code})`,
       output: result.stdout,
     }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
   } catch (e: any) {
     throw createError({
       statusCode: 502,

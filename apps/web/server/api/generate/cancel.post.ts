@@ -45,6 +45,7 @@ export default defineEventHandler(async (event) => {
         timeout: 5_000,
       })
       console.log(`[Queue] 🚫 Cancelled RunPod job ${item.runpodJobId} for item ${item.id.slice(0, 8)}`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
     } catch (e: any) {
       // Don't fail the cancel if RunPod cancel fails — still mark as cancelled in DB
       console.warn(`[Queue] ⚠️ RunPod cancel failed for ${item.id.slice(0, 8)}:`, e.message)

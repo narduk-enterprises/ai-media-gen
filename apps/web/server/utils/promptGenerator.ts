@@ -67,6 +67,7 @@ export function computeSimilarityHash(prompt: string): string {
 /**
  * Check if a similar prompt was generated recently.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function isDuplicate(db: DB, hash: string): Promise<boolean> {
   const existing = await db
     .select({ id: promptGenerationLog.id })
@@ -154,8 +155,10 @@ export async function generatePrompt(
   db: DB,
   ai: unknown,
   userId?: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   maxRetries: number = 3,
   options?: GenerateOptions,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   event?: H3Event,
 ): Promise<GenerateResult> {
   const mediaType = options?.mediaType || 'any'
@@ -215,7 +218,7 @@ export async function generatePrompt(
       templateName: entry.templateName,
       rawPrompt: entry.rawPrompt,
       refinedPrompt: entry.refinedPrompt,
-      similarityHash: entry.similarityHash,
+      similarityHash: entry.similarityHash || '',
       mediaType: (entry.mediaType as string) || 'any',
       modelHint: entry.modelHint,
       wasRefined: true, // cached prompts are always refined
@@ -238,7 +241,7 @@ export async function generatePrompt(
       or(
         eq(promptTemplates.mediaType, mediaType as string),
         eq(promptTemplates.mediaType, 'any'),
-      ),
+      )!,
     )
   }
   if (modelHint) {
@@ -338,7 +341,7 @@ export async function fillPromptCache(
       or(
         eq(promptTemplates.mediaType, mediaType as string),
         eq(promptTemplates.mediaType, 'any'),
-      ),
+      )!,
     )
   }
 

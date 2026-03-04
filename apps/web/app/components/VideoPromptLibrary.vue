@@ -191,6 +191,14 @@ const filteredPresets = computed(() => {
 function selectPreset(preset: VideoPreset) {
   emit('select', preset)
 }
+
+function presetDuration(preset: VideoPreset): string {
+  return (preset.frames / 24).toFixed(1)
+}
+
+function presetPromptPreview(preset: VideoPreset): string {
+  return preset.prompt.slice(0, 100)
+}
 </script>
 
 <template>
@@ -228,11 +236,11 @@ function selectPreset(preset: VideoPreset) {
           <span class="text-base">{{ preset.emoji }}</span>
           <span class="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{{ preset.title }}</span>
         </div>
-        <p class="text-[10px] text-gray-500 line-clamp-2 leading-tight">{{ preset.prompt.slice(0, 100) }}...</p>
+        <p class="text-[10px] text-gray-500 line-clamp-2 leading-tight">{{ presetPromptPreview(preset) }}...</p>
         <div class="flex items-center gap-1 mt-1.5">
           <UBadge size="xs" variant="subtle" color="neutral">{{ preset.model }}</UBadge>
           <UBadge v-if="preset.audioPrompt" size="xs" variant="subtle" color="info">🔊</UBadge>
-          <span class="text-[9px] text-gray-400 ml-auto">{{ (preset.frames / 24).toFixed(1) }}s</span>
+          <span class="text-[9px] text-gray-400 ml-auto">{{ presetDuration(preset) }}s</span>
         </div>
       </button>
     </div>
