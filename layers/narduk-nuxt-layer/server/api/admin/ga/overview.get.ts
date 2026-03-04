@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { requireLayerAdmin } from '../../../utils/auth'
 
 const querySchema = z.object({
   startDate: z.string().optional(),
@@ -7,7 +6,7 @@ const querySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  await requireLayerAdmin(event)
+  await requireAdmin(event)
 
   const config = useRuntimeConfig()
   const propertyId = config.gaPropertyId || ''

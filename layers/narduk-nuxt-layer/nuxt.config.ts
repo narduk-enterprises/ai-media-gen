@@ -71,9 +71,11 @@ export default defineNuxtConfig({
     colorMode: true
   },
 
-  colorMode: {
-    preference: 'system'
-  },
+  ...(import.meta.dev ? {
+    colorMode: {
+      preference: 'system'
+    }
+  } : {} as any),
 
   ogImage: {
     runtimeCacheStorage: {
