@@ -13,8 +13,7 @@
     "typecheck": "nuxt typecheck",
     "deploy": "nuxt build && wrangler deploy",
     "prelint": "test -f .nuxt/eslint.config.mjs || nuxt prepare",
-    "lint": "eslint . --max-warnings 0",
-    "quality": "echo 'quality pass'"
+    "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
     "@cloudflare/workers-types": "^4.20260301.1",
