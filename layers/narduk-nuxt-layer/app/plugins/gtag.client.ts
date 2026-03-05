@@ -38,7 +38,14 @@ export default defineNuxtPlugin(() => {
   script.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`
   document.head.appendChild(script)
 
-  // Track page views on route changes
+  // Explicitly fire the initial page view since Vue Router's afterEach won't catch the first load
+  gtag('event', 'page_view', {
+    page_location: window.location.href,
+    page_path: window.location.pathname,
+    page_title: document.title
+  })
+
+  // Track page views on subsequent route changes
   const router = useRouter()
   router.afterEach((to) => {
     nextTick(() => {
