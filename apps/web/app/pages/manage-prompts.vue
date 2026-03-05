@@ -7,6 +7,7 @@
 definePageMeta({ middleware: 'auth' })
 
 useSeo({
+  robots: 'noindex',
   title: 'Manage Prompts',
   description: 'Admin panel for managing prompt templates, attributes, and generation history.'
 })

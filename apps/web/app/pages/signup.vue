@@ -6,6 +6,7 @@ if (loggedIn.value) {
 }
 
 useSeo({
+  robots: 'noindex',
   title: 'Create Account',
   description: 'Join AI Media Gen to start generating images and videos with AI.'
 })

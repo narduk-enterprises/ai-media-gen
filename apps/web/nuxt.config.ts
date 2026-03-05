@@ -86,6 +86,8 @@ export default defineNuxtConfig({
     disallow: ['/api/']
   },
 
+
+
   nitro: {
     cloudflareDev: { configPath: resolve(__dirname, 'wrangler.toml') },
     preset: 'cloudflare-module',

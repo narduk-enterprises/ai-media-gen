@@ -1,6 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth', ssr: false })
 useSeo({
+  robots: 'noindex',
   title: 'Settings',
   description: 'Manage your account settings and GPU pods.'
 })

@@ -6,6 +6,7 @@ if (loggedIn.value) {
 }
 
 useSeo({
+  robots: 'noindex',
   title: 'Log In',
   description: 'Sign in to your AI Media Gen account to start creating.'
 })

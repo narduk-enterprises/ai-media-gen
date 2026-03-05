@@ -1,6 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth', ssr: false })
 useSeo({
+  robots: 'noindex',
   title: 'GPU Pods',
   description: 'Manage your active AI generation instances.'
 })
