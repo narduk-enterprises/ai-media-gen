@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url'
 
 export default defineNuxtConfig({
   alias: {
-    '#layer': fileURLToPath(new URL('./', import.meta.url))
+    '#layer': fileURLToPath(new URL('./', import.meta.url)),
   },
 
   modules: [
@@ -11,6 +11,7 @@ export default defineNuxtConfig({
     '@nuxt/image',
     '@nuxtjs/seo',
     '@nuxt/eslint',
+    'nuxt-auth-utils',
   ],
   css: [fileURLToPath(new URL('./app/assets/css/main.css', import.meta.url))],
 
@@ -22,11 +23,13 @@ export default defineNuxtConfig({
         { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' },
         { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
         { rel: 'manifest', href: '/site.webmanifest' },
-      ]
-    }
+      ],
+    },
   },
 
   runtimeConfig: {
+    /** Optional: secret for cron routes (e.g. cache warming). Set CRON_SECRET in Doppler; init.ts provisions it. */
+    cronSecret: process.env.CRON_SECRET || '',
     appleTeamId: process.env.APPLE_TEAM_ID || '',
     appleKeyId: process.env.APPLE_KEY_ID || '',
     appleSecretKey: process.env.APPLE_SECRET_KEY || '',
@@ -36,6 +39,9 @@ export default defineNuxtConfig({
       buildVersion: process.env.GITHUB_SHA || process.env.CF_PAGES_COMMIT_SHA || '',
       buildTime: new Date().toISOString(),
       gaMeasurementId: process.env.GA_MEASUREMENT_ID || '',
+      posthogHost: process.env.POSTHOG_HOST || 'https://us.i.posthog.com',
+      cspScriptSrc: process.env.CSP_SCRIPT_SRC || '',
+      cspConnectSrc: process.env.CSP_CONNECT_SRC || '',
     },
   },
 
@@ -45,7 +51,7 @@ export default defineNuxtConfig({
     description: 'A Nuxt 4 application deployed on Cloudflare Workers.',
   },
 
-  compatibilityDate: '2026-03-06',
+  compatibilityDate: '2026-03-03',
 
   hooks: {
     // Workaround for nuxt/ui#6118: @nuxt/ui@4.5.0 auto-import scanner
@@ -54,9 +60,9 @@ export default defineNuxtConfig({
       for (let i = imports.length - 1; i >= 0; i--) {
         const entry = imports[i]
         if (
-          entry?.name === 'options'
-          && typeof entry.from === 'string'
-          && entry.from.includes('useResizable')
+          entry?.name === 'options' &&
+          typeof entry.from === 'string' &&
+          entry.from.includes('useResizable')
         ) {
           imports.splice(i, 1)
         }
@@ -65,18 +71,20 @@ export default defineNuxtConfig({
   },
 
   future: {
-    compatibilityVersion: 4
+    compatibilityVersion: 4,
   },
 
   ui: {
-    colorMode: true
+    colorMode: true,
   },
 
-  ...(import.meta.dev ? {
-    colorMode: {
-      preference: 'system'
-    }
-  } : {}),
+  ...(import.meta.dev
+    ? {
+        colorMode: {
+          preference: 'system',
+        },
+      }
+    : {}),
 
   ogImage: {
     runtimeCacheStorage: {
@@ -97,16 +105,16 @@ export default defineNuxtConfig({
     preset: 'cloudflare-module',
     esbuild: {
       options: {
-        target: 'esnext'
-      }
+        target: 'esnext',
+      },
     },
     externals: {
-      inline: ['drizzle-orm']
+      inline: ['drizzle-orm'],
     },
   },
 
   // Expose the layer configurations and files to consumers
   components: [
-    { path: fileURLToPath(new URL('./app/components', import.meta.url)), pathPrefix: false }
-  ]
+    { path: fileURLToPath(new URL('./app/components', import.meta.url)), pathPrefix: false },
+  ],
 })
