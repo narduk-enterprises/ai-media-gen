@@ -23,7 +23,7 @@ async function handleSignup() {
   submitting.value = true
 
   try {
-    await signup(email.value, password.value, name.value || undefined)
+    await signup({ email: email.value, password: password.value, name: name || "".value || undefined })
     navigateTo('/create')
   } catch (e: unknown) {
     const err = e as { data?: { message?: string }; message?: string }
