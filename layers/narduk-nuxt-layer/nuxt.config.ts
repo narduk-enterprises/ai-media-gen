@@ -54,15 +54,23 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-03-03',
 
   hooks: {
-    // Workaround for nuxt/ui#6118: @nuxt/ui@4.5.0 auto-import scanner
-    // incorrectly registers 'options' (a parameter name) as an export from useResizable.js
     'imports:extend'(imports) {
       for (let i = imports.length - 1; i >= 0; i--) {
         const entry = imports[i]
+        if (!entry || typeof entry.from !== 'string') continue
+
+        // Workaround for nuxt/ui#6118: @nuxt/ui@4.5.0 auto-import scanner
+        // incorrectly registers 'options' (a parameter name) as an export from useResizable.js
+        if (entry.name === 'options' && entry.from.includes('useResizable')) {
+          imports.splice(i, 1)
+          continue
+        }
+
+        // Strip nuxt-auth-utils password utils — the layer provides its own
+        // Web Crypto (PBKDF2) implementations in server/utils/password.ts
         if (
-          entry?.name === 'options' &&
-          typeof entry.from === 'string' &&
-          entry.from.includes('useResizable')
+          (entry.name === 'hashPassword' || entry.name === 'verifyPassword') &&
+          entry.from.includes('nuxt-auth-utils')
         ) {
           imports.splice(i, 1)
         }

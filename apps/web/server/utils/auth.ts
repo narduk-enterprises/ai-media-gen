@@ -2,29 +2,7 @@ import { eq } from 'drizzle-orm'
 import { users, sessions } from '../database/schema'
 import type { H3Event } from 'h3'
 
-/**
- * Verify a password against a stored hash.
- */
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [saltHex, _expectedHash] = stored.split(':')
-  if (!saltHex || !_expectedHash) return false
-  const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map((h) => Number.parseInt(h, 16)))
-  const encoder = new TextEncoder()
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits'],
-  )
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' },
-    keyMaterial,
-    256,
-  )
-  const hashHex = [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('')
-  return hashHex === _expectedHash
-}
+// hashPassword and verifyPassword are auto-imported from the layer's server/utils/password.ts
 
 /**
  * Look up a user by email address.
