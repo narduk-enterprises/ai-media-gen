@@ -21,13 +21,13 @@ const POLL_INTERVAL_MS = 5_000
 
 export default defineEventHandler(async (event) => {
   // ── Auth ──────────────────────────────────────────────────────
-  const user = await requireAuth(event)
+  const _user = await requireAuth(event)
 
   // ── Set SSE headers ──────────────────────────────────────────
   setResponseHeaders(event, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
+    Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
   })
 
@@ -41,7 +41,9 @@ export default defineEventHandler(async (event) => {
         try {
           const message = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`
           controller.enqueue(encoder.encode(message))
-        } catch { /* stream closed */ }
+        } catch {
+          /* stream closed */
+        }
       }
 
       // ── Fetch current state ────────────────────────────────
@@ -49,22 +51,20 @@ export default defineEventHandler(async (event) => {
       const lastKnownStatuses: Record<string, string> = {}
 
       try {
-        const items = await db.select({
-          id: mediaItems.id,
-          generationId: mediaItems.generationId,
-          type: mediaItems.type,
-          status: mediaItems.status,
-          prompt: mediaItems.prompt,
-          url: mediaItems.url,
-          error: mediaItems.error,
-          createdAt: mediaItems.createdAt,
-          submittedAt: mediaItems.submittedAt,
-        }).from(mediaItems)
-          .where(
-            and(
-              ne(mediaItems.dismissedAt, ''),
-            )
-          )
+        const items = await db
+          .select({
+            id: mediaItems.id,
+            generationId: mediaItems.generationId,
+            type: mediaItems.type,
+            status: mediaItems.status,
+            prompt: mediaItems.prompt,
+            url: mediaItems.url,
+            error: mediaItems.error,
+            createdAt: mediaItems.createdAt,
+            submittedAt: mediaItems.submittedAt,
+          })
+          .from(mediaItems)
+          .where(and(ne(mediaItems.dismissedAt, '')))
           .limit(100)
 
         // Track initial statuses
@@ -73,7 +73,7 @@ export default defineEventHandler(async (event) => {
         }
 
         send('snapshot', { items })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: strict type
       } catch (e: any) {
         console.warn(`[SSE] Snapshot failed: ${e.message}`)
       }
@@ -86,22 +86,22 @@ export default defineEventHandler(async (event) => {
         pollCount++
         if (pollCount > maxPolls) {
           clearInterval(pollInterval)
-          try { controller.close() } catch {}
+          try {
+            controller.close()
+          } catch {}
           return
         }
 
         try {
-          const currentItems = await db.select({
-            id: mediaItems.id,
-            status: mediaItems.status,
-            url: mediaItems.url,
-            error: mediaItems.error,
-          }).from(mediaItems)
-            .where(
-              and(
-                ne(mediaItems.dismissedAt, ''),
-              )
-            )
+          const currentItems = await db
+            .select({
+              id: mediaItems.id,
+              status: mediaItems.status,
+              url: mediaItems.url,
+              error: mediaItems.error,
+            })
+            .from(mediaItems)
+            .where(and(ne(mediaItems.dismissedAt, '')))
             .limit(100)
 
           // Diff against last known state
@@ -143,7 +143,9 @@ export default defineEventHandler(async (event) => {
       event.node?.req?.on?.('close', () => {
         clearInterval(pollInterval)
         clearInterval(heartbeat)
-        try { controller.close() } catch {}
+        try {
+          controller.close()
+        } catch {}
       })
     },
   })
