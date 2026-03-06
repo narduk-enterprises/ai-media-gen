@@ -76,6 +76,23 @@ export default defineNuxtConfig({
         }
       }
     },
+    // Same stripping for Nitro (server-side) auto-imports
+    'nitro:imports'(presets) {
+      for (const preset of presets) {
+        if (!preset.imports || !Array.isArray(preset.imports)) continue
+        for (let i = preset.imports.length - 1; i >= 0; i--) {
+          const entry = preset.imports[i]
+          if (!entry || typeof entry === 'string') continue
+          if (
+            (entry.name === 'hashPassword' || entry.name === 'verifyPassword') &&
+            typeof entry.from === 'string' &&
+            entry.from.includes('nuxt-auth-utils')
+          ) {
+            preset.imports.splice(i, 1)
+          }
+        }
+      }
+    },
   },
 
   future: {
