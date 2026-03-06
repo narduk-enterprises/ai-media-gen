@@ -21,10 +21,7 @@ const POLL_INTERVAL_MS = 5_000
 
 export default defineEventHandler(async (event) => {
   // ── Auth ──────────────────────────────────────────────────────
-  const user = event.context._authUser
-  if (!user?.id) {
-    throw createError({ statusCode: 401, message: 'Authentication required' })
-  }
+  const user = await requireAuth(event)
 
   // ── Set SSE headers ──────────────────────────────────────────
   setResponseHeaders(event, {

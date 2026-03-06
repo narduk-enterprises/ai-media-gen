@@ -1,8 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { users, sessions } from '../database/schema'
 import type { H3Event } from 'h3'
-
-// hashPassword and verifyPassword are auto-imported from the layer's server/utils/password.ts
+import { hashUserPassword, verifyUserPassword } from '../../../../layers/narduk-nuxt-layer/server/utils/password'
 
 /**
  * Look up a user by email address.
@@ -15,12 +14,12 @@ export async function getUserByEmail(event: H3Event, email: string) {
 
 /**
  * Create a new user with hashed password.
- * Uses the layer-provided `hashPassword` from auto-import.
+ * Uses the layer's hashUserPassword (Web Crypto PBKDF2).
  */
 export async function createUser(event: H3Event, email: string, password: string, name?: string) {
   const db = useDatabase(event)
   const id = crypto.randomUUID()
-  const passwordHash = await hashPassword(password)
+  const passwordHash = await hashUserPassword(password)
   const now = new Date().toISOString()
 
   await db.insert(users).values({
@@ -42,7 +41,7 @@ export async function createUser(event: H3Event, email: string, password: string
 export async function verifyCredentials(event: H3Event, email: string, password: string) {
   const user = await getUserByEmail(event, email)
   if (!user || !user.passwordHash) return null
-  const valid = await verifyPassword(password, user.passwordHash)
+  const valid = await verifyUserPassword(password, user.passwordHash)
   return valid ? user : null
 }
 

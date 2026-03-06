@@ -46,6 +46,11 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
+    session: {
+      password:
+        process.env.NUXT_SESSION_PASSWORD ||
+        (import.meta.dev ? 'ai-media-gen-dev-session-secret-min-32-chars' : ''),
+    },
     // ComfyUI direct connection (global fallback for all pods)
     comfyUrl: process.env.COMFY_URL || '',
     // Profile-specific pod URLs (optional — override per generation type)
