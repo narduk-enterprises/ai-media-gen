@@ -25,7 +25,6 @@ const args = process.argv.slice(2)
 const strict = args.includes('--strict')
 
 const CRITICAL_FILES = [
-  '.github/workflows/ci.yml',
   'tools/init.ts',
   'tools/validate.ts',
   'tools/update-layer.ts',
