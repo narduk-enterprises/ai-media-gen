@@ -54,42 +54,17 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-03-03',
 
   hooks: {
+    // Workaround for nuxt/ui#6118: @nuxt/ui@4.5.0 auto-import scanner
+    // incorrectly registers 'options' (a parameter name) as an export from useResizable.js
     'imports:extend'(imports) {
       for (let i = imports.length - 1; i >= 0; i--) {
         const entry = imports[i]
-        if (!entry || typeof entry.from !== 'string') continue
-
-        // Workaround for nuxt/ui#6118: @nuxt/ui@4.5.0 auto-import scanner
-        // incorrectly registers 'options' (a parameter name) as an export from useResizable.js
-        if (entry.name === 'options' && entry.from.includes('useResizable')) {
-          imports.splice(i, 1)
-          continue
-        }
-
-        // Strip nuxt-auth-utils password utils — the layer provides its own
-        // Web Crypto (PBKDF2) implementations in server/utils/password.ts
         if (
-          (entry.name === 'hashPassword' || entry.name === 'verifyPassword') &&
-          entry.from.includes('nuxt-auth-utils')
+          entry?.name === 'options' &&
+          typeof entry.from === 'string' &&
+          entry.from.includes('useResizable')
         ) {
           imports.splice(i, 1)
-        }
-      }
-    },
-    // Same stripping for Nitro (server-side) auto-imports
-    'nitro:imports'(presets) {
-      for (const preset of presets) {
-        if (!preset.imports || !Array.isArray(preset.imports)) continue
-        for (let i = preset.imports.length - 1; i >= 0; i--) {
-          const entry = preset.imports[i]
-          if (!entry || typeof entry === 'string') continue
-          if (
-            (entry.name === 'hashPassword' || entry.name === 'verifyPassword') &&
-            typeof entry.from === 'string' &&
-            entry.from.includes('nuxt-auth-utils')
-          ) {
-            preset.imports.splice(i, 1)
-          }
         }
       }
     },
