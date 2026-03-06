@@ -4,5 +4,6 @@ export default defineAppConfig({
       primary: 'violet',
       neutral: 'slate'
     }
-  }
+  },
+  auth: { redirectPath: '/' },
 })
